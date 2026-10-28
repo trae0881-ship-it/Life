@@ -1,0 +1,236 @@
+:root {
+  --font-body: 14px;
+  --font-page-title: clamp(32px, 3vw, 39px);
+  --font-section-title: clamp(18px, 1.6vw, 20px);
+  --font-reading: 13px;
+  --font-control: 13px;
+  --font-label: 10px;
+  --font-helper: 10px;
+  --font-table: 11px;
+  --font-metadata: 9px;
+}
+
+body {
+  font-size: var(--font-body);
+}
+
+.welcome-row h1 {
+  font-size: var(--font-page-title);
+  overflow-wrap: anywhere;
+}
+
+.card-head h2 {
+  font-size: var(--font-section-title);
+  overflow-wrap: anywhere;
+}
+
+.card-head > .table-count {
+  max-width: 32%;
+  min-width: 0;
+  font-size: var(--font-metadata);
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.intro,
+.result-guide,
+.term-note,
+.receipt-note,
+.faq-item p,
+.faq-empty,
+.faq-disclaimer,
+.faq-glossary,
+.interpretation-disclaimer,
+.assistant-intro,
+.assistant-empty,
+.assistant-entry > p {
+  font-size: var(--font-reading);
+}
+
+.field-label {
+  font-size: var(--font-label);
+  line-height: 1.45;
+}
+
+.field-label input,
+.field-label select,
+.birth-form input,
+.birth-form select,
+.language-picker select,
+.assistant-input-row input {
+  font-size: var(--font-control);
+}
+
+.field-hint,
+.method-line small,
+.engine-form-status,
+.field-error {
+  font-size: var(--font-helper);
+}
+
+.calculate-btn,
+.kundli-controls button,
+.example-details-button,
+.kundli-tabs a,
+.faq-filters button,
+.assistant-filters button,
+.assistant-suggestions button,
+.assistant-followups button,
+.assistant-clear,
+.assistant-input-row button,
+.account-action,
+.account-inline button {
+  font-size: var(--font-control);
+}
+
+.table-scroll th {
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.table-scroll td,
+.receipt-row,
+.method-item p,
+.sensitivity-intro p,
+.sensitivity-loading,
+.sensitivity-error {
+  font-size: var(--font-table);
+  overflow-wrap: anywhere;
+}
+
+.mono,
+.retro,
+.direct,
+.receipt-field b.mono {
+  font-size: var(--font-metadata);
+  overflow-wrap: anywhere;
+}
+
+.form-foot,
+.page-footer,
+.receipt-pending,
+.receipt-ready,
+.receipt-field span,
+.hash-line > span,
+.hash-line code,
+.hash-line button,
+.method-num,
+.sensitivity-controls > span,
+.sensitivity-controls button,
+.sensitivity-empty button,
+.sensitivity-row > small,
+.sensitivity-limits {
+  font-size: var(--font-metadata);
+}
+
+.receipt-field b,
+.receipt-status b,
+.method-item b,
+.sensitivity-empty b,
+.sensitivity-summary > b,
+.sensitivity-row > b {
+  font-size: var(--font-reading);
+  overflow-wrap: anywhere;
+}
+
+.card-head > *,
+.card-head > div,
+.assistant-entry,
+.interpretation-section,
+.receipt-field,
+.method-item,
+.chart-summary > div {
+  min-width: 0;
+}
+
+.chart-summary {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.chart-summary small {
+  overflow-wrap: anywhere;
+}
+
+.assistant-suggestions button,
+.assistant-followups button,
+.kundli-tabs a,
+.faq-item summary,
+.assistant-entry summary,
+.assistant-entry li,
+.interpretation-item,
+.receipt-field b,
+.receipt-field span {
+  overflow-wrap: anywhere;
+}
+
+.faq-item summary,
+.assistant-entry h3 {
+  font-size: var(--font-reading);
+  line-height: 1.55;
+}
+
+.assistant-entry summary,
+.assistant-entry ul,
+.assistant-filters button,
+.assistant-followups button {
+  font-size: var(--font-helper);
+  line-height: 1.55;
+}
+
+.assistant-entry small,
+.assistant-entry .assistant-disclaimer {
+  font-size: var(--font-metadata);
+  line-height: 1.55;
+}
+
+.language-picker {
+  font-size: var(--font-metadata);
+}
+
+.account-heading,
+.account-identity small,
+.account-record small,
+.account-records > b {
+  font-size: var(--font-metadata);
+}
+
+.account-panel,
+.account-auth-form label,
+.account-identity b,
+.account-record > span,
+.account-message,
+.account-auth-form input,
+.account-inline input,
+.account-action,
+.account-inline button,
+.account-record > button:first-child,
+.account-mode button {
+  font-size: var(--font-helper);
+}
+
+.sensitivity-intro p,
+.sensitivity-loading,
+.sensitivity-error,
+.sensitivity-summary > b,
+.sensitivity-row > b,
+.sensitivity-row > span,
+.stable-note {
+  font-size: var(--font-helper);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  :root {
+    --font-page-title: 32px;
+    --font-section-title: 18px;
+    --font-reading: 13px;
+    --font-control: 13px;
+    --font-label: 9px;
+    --font-helper: 10px;
+    --font-table: 10px;
+    --font-metadata: 9px;
+  }
+}

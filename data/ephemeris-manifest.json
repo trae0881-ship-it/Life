@@ -1,0 +1,14 @@
+{
+  "manifestVersion": 1,
+  "package": "@swisseph/node",
+  "packageVersion": "1.4.0",
+  "license": "AGPL-3.0",
+  "source": "https://github.com/swisseph-js/swisseph/tree/main/packages/node",
+  "npmTarballIntegrity": "sha512-IkDez5DCMSEsoBwUwF08cRnmltNZBpdY06UbEhUgwV3btsHuFJkYl7w4hnIBqsvAJ402+7b8wWpYQQ6TpYS3gw==",
+  "assets": [
+    { "filename": "sepl_18.se1", "purpose": "Swiss planetary ephemeris data", "sha256": "0B7E416E3C1BE9E6A0DD1D711DAE7F7685793A0E7DF13F76363A493DC27B6EA1", "dateRange": "Sampled on the 15th of Jan/Jun/Dec in years 1801, 1802, 2398, and 2399 for the 12 supported bodies; exact edges and continuity are not established", "licenseStatus": "Swiss Ephemeris terms apply; AGPL path selected for engine; file-specific redistribution rights still need review" },
+    { "filename": "semo_18.se1", "purpose": "Swiss lunar ephemeris data", "sha256": "ECFA54DBF5BC0B5A9BC3E04ED28629A821E98625EACAE38F4070593BBA0E2980", "dateRange": "Sampled on the 15th of Jan/Jun/Dec in years 1801, 1802, 2398, and 2399 for the 12 supported bodies; exact edges and continuity are not established", "licenseStatus": "Swiss Ephemeris terms apply; AGPL path selected for engine; file-specific redistribution rights still need review" }
+  ],
+  "integrityCheckedAtBuild": true,
+  "commercialLicenseReview": "Not applicable to selected AGPL path; redistribution and notice obligations still require review"
+}

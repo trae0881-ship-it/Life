@@ -1,0 +1,99 @@
+{
+  "fixtureVersion": 1,
+  "caseDataStatus": "Synthetic, non-user test inputs with fixed public location coordinates selected to exercise reproducible IANA timezone and chart calculations.",
+  "scope": "End-to-end birth-input normalization and LIFE chart-pipeline comparison for geocentric tropical planetary longitude/latitude only. House cusps, ascendant, ayanamsa, sidereal positions, D1 placements, and D2-D60 birth-chart placements are not independently established by the linked JPL fixtures.",
+  "reference": {
+    "organization": "NASA/JPL Solar System Dynamics Group",
+    "system": "JPL Horizons",
+    "ephemeris": "DE441",
+    "quantityConvention": "Geocentric apparent ecliptic-of-date tropical longitude and latitude, airless observer centered at Earth geocenter.",
+    "toleranceArcseconds": 0.5,
+    "toleranceRationale": "Use the existing fixed-fixture allowance for published decimal rounding and small time-scale/frame realization differences; no tolerance is assigned to unsupported outputs."
+  },
+  "boundaryCoverage": {
+    "mappingFixture": "pyjhora-v4.8.7-varga-sign-fixtures.json",
+    "mappingScope": "Synthetic sidereal-longitude probes 1e-7 degrees on both sides of every D2-D60 segment boundary across all source signs.",
+    "natalBirthBoundaryReference": "Unavailable: no independently calculated sidereal planetary positions and matching varga placements near birth-chart segment boundaries."
+  },
+  "cases": [
+    {
+      "id": "kiritimati-local-date-crosses-utc",
+      "input": {
+        "localDate": "2000-01-02",
+        "localTime": "02:00",
+        "timeZone": "Pacific/Kiritimati",
+        "latitude": 1.8721,
+        "longitude": -157.4278,
+        "coordinateSource": "manual-unknown",
+        "ayanamsa": "Lahiri",
+        "houseSystem": "Placidus",
+        "nodeMode": "true"
+      },
+      "expectedUtc": "2000-01-01T12:00:00.000Z",
+      "expectedOffset": "+14:00",
+      "zodiac": "sidereal (Lahiri) for LIFE chart; JPL comparison quantities are tropical",
+      "houseSystemConvention": "Placidus is recorded in LIFE output; no independent house reference is available.",
+      "ephemeris": {
+        "lifeEngine": "@swisseph/node 1.4.0",
+        "lifeData": "checked-in Swiss Ephemeris assets; data/ephemeris-manifest.json v1",
+        "lifeFlags": "Swiss Ephemeris | Speed; sidereal output additionally sets Sidereal",
+        "utcToUtConvention": "Resolved UTC instant is supplied to calc_ut as UT1 approximation without DUT1 correction; Swiss applies Delta T internally.",
+        "referenceFixture": "jpl-horizons-de441-2000-01-01.json"
+      },
+      "referenceEpoch": "2000-01-01T12:00:00Z"
+    },
+    {
+      "id": "mumbai-local-to-utc-date",
+      "input": {
+        "localDate": "2024-06-21",
+        "localTime": "05:30",
+        "timeZone": "Asia/Kolkata",
+        "latitude": 19.076,
+        "longitude": 72.8777,
+        "coordinateSource": "manual-unknown",
+        "ayanamsa": "Lahiri",
+        "houseSystem": "Placidus",
+        "nodeMode": "true"
+      },
+      "expectedUtc": "2024-06-21T00:00:00.000Z",
+      "expectedOffset": "+05:30",
+      "zodiac": "sidereal (Lahiri) for LIFE chart; JPL comparison quantities are tropical",
+      "houseSystemConvention": "Placidus is recorded in LIFE output; no independent house reference is available.",
+      "ephemeris": {
+        "lifeEngine": "@swisseph/node 1.4.0",
+        "lifeData": "checked-in Swiss Ephemeris assets; data/ephemeris-manifest.json v1",
+        "lifeFlags": "Swiss Ephemeris | Speed; sidereal output additionally sets Sidereal",
+        "utcToUtConvention": "Resolved UTC instant is supplied to calc_ut as UT1 approximation without DUT1 correction; Swiss applies Delta T internally.",
+        "referenceFixture": "jpl-horizons-de441-2024-06-21.json"
+      },
+      "referenceEpoch": "2024-06-21T00:00:00Z"
+    },
+    {
+      "id": "utc-mercury-retrograde",
+      "input": {
+        "localDate": "2024-04-15",
+        "localTime": "00:00",
+        "timeZone": "Etc/UTC",
+        "latitude": 0,
+        "longitude": 0,
+        "coordinateSource": "manual-unknown",
+        "ayanamsa": "Lahiri",
+        "houseSystem": "Placidus",
+        "nodeMode": "true"
+      },
+      "expectedUtc": "2024-04-15T00:00:00.000Z",
+      "expectedOffset": "+00:00",
+      "zodiac": "sidereal (Lahiri) for LIFE chart; JPL comparison quantities are tropical",
+      "houseSystemConvention": "Placidus is recorded in LIFE output; no independent house reference is available.",
+      "ephemeris": {
+        "lifeEngine": "@swisseph/node 1.4.0",
+        "lifeData": "checked-in Swiss Ephemeris assets; data/ephemeris-manifest.json v1",
+        "lifeFlags": "Swiss Ephemeris | Speed; sidereal output additionally sets Sidereal",
+        "utcToUtConvention": "Resolved UTC instant is supplied to calc_ut as UT1 approximation without DUT1 correction; Swiss applies Delta T internally.",
+        "referenceFixture": "jpl-horizons-de441-2024-04-15-mercury-retrograde.json"
+      },
+      "referenceEpoch": "2024-04-15T00:00:00Z",
+      "retrogradeBody": "Mercury"
+    }
+  ]
+}

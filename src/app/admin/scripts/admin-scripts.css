@@ -1,0 +1,101 @@
+.admin-script-content .admin-script-warning {
+  margin: 24px 0;
+  padding: 18px 20px;
+  border: 1px solid #c8924c;
+  border-left: 5px solid #a34a34;
+  background: #fff8eb;
+  color: #382f25;
+}
+
+.admin-script-warning p {
+  margin: 8px 0 0;
+  line-height: 1.65;
+}
+
+.admin-script-list-heading,
+.admin-script-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-script-list-heading h2 {
+  margin: 0;
+}
+
+.admin-script-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-script-form {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+}
+
+.admin-script-form > label,
+.admin-script-form fieldset > label:not(.admin-script-check) {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.admin-script-form input:not([type="checkbox"]),
+.admin-script-form select,
+.admin-script-form textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid #c9c4b8;
+  border-radius: 3px;
+  background: #fff;
+  color: #202936;
+  font: inherit;
+}
+
+.admin-script-form textarea {
+  resize: vertical;
+  font-family: var(--mono);
+}
+
+.admin-script-form fieldset {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #d8d2c7;
+}
+
+.admin-script-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.admin-script-form input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
+.admin-script-form > p {
+  margin: -8px 0 0;
+  color: #696f72;
+  font-size: 13px;
+}
+
+.admin-script-content :is(button, input, select, textarea, a):focus-visible {
+  outline: 3px solid #9b793f;
+  outline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  .admin-script-actions {
+    min-width: 170px;
+  }
+
+  .admin-script-list-heading {
+    align-items: flex-start;
+  }
+}

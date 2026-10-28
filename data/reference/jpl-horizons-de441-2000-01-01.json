@@ -1,0 +1,50 @@
+{
+  "fixtureId": "jpl-horizons-de441-geocentric-apparent-ecliptic-2000-01-01T12:00:00Z",
+  "fixtureVersion": 1,
+  "retrievedOn": "2026-10-17",
+  "source": {
+    "organization": "NASA/JPL Solar System Dynamics Group",
+    "system": "JPL Horizons API",
+    "url": "https://ssd.jpl.nasa.gov/api/horizons.api",
+    "documentation": "https://ssd-api.jpl.nasa.gov/doc/horizons.html",
+    "manual": "https://ssd.jpl.nasa.gov/horizons/manual.html",
+    "ephemeris": "DE441",
+    "query": {
+      "format": "text",
+      "COMMAND": "10, 301, 199, 299, 499, 599, 699, 799, 899, 999 (queried individually)",
+      "OBJ_DATA": "NO",
+      "MAKE_EPHEM": "YES",
+      "EPHEM_TYPE": "OBSERVER",
+      "CENTER": "500@399 (Earth geocenter)",
+      "START_TIME": "2000-01-01 12:00 UT",
+      "STOP_TIME": "2000-01-01 12:01 UT",
+      "STEP_SIZE": "1 minute",
+      "QUANTITIES": "31",
+      "CSV_FORMAT": "YES",
+      "TIME_TYPE": "UT"
+    },
+    "quantityConvention": "Observer-centered IAU76/80 ecliptic-of-date apparent longitude and latitude, including light-time, solar gravitational deflection, and stellar aberration; airless/geocentric.",
+    "timeConvention": "Horizons output time is UT; for this post-1962 date the output is UTC. LIFE supplies UTC-derived Julian Day as a UT1 approximation without DUT1 correction.",
+    "sourceResolutionDegrees": 0.0000001
+  },
+  "comparison": {
+    "engine": "@swisseph/node 1.4.0",
+    "engineMode": "Swiss Ephemeris, geocentric apparent tropical ecliptic longitude/latitude, default flags plus speed; local bundled ephemeris assets; UTC treated as UT1 approximation",
+    "toleranceArcseconds": 0.5,
+    "toleranceRationale": "Allows for printed reference rounding, small time-scale/model/frame realization differences, while remaining tighter than typical chart-display precision.",
+    "independenceNote": "This is an independent JPL Horizons/DE441 computation snapshot compared with the Swiss binding and bundled Swiss data. It is one epoch, so it does not establish broad historical accuracy, time-scale correctness, or independence of the upstream planetary observations used by the ephemeris products."
+  },
+  "epoch": "2000-01-01T12:00:00Z",
+  "bodies": [
+    { "name": "Sun", "horizonsTarget": "10", "longitudeDegrees": 280.3689092, "latitudeDegrees": 0.0002381 },
+    { "name": "Moon", "horizonsTarget": "301", "longitudeDegrees": 223.3237860, "latitudeDegrees": 5.1707422 },
+    { "name": "Mercury", "horizonsTarget": "199", "longitudeDegrees": 271.8892699, "latitudeDegrees": -0.9948190 },
+    { "name": "Venus", "horizonsTarget": "299", "longitudeDegrees": 241.5657794, "latitudeDegrees": 2.0663548 },
+    { "name": "Mars", "horizonsTarget": "499", "longitudeDegrees": 327.9632921, "latitudeDegrees": -1.0677752 },
+    { "name": "Jupiter", "horizonsTarget": "599", "longitudeDegrees": 25.2530685, "latitudeDegrees": -1.2621868 },
+    { "name": "Saturn", "horizonsTarget": "699", "longitudeDegrees": 40.3956366, "latitudeDegrees": -2.4448533 },
+    { "name": "Uranus", "horizonsTarget": "799", "longitudeDegrees": 314.8091680, "latitudeDegrees": -0.6583240 },
+    { "name": "Neptune", "horizonsTarget": "899", "longitudeDegrees": 303.1930007, "latitudeDegrees": 0.2350026 },
+    { "name": "Pluto", "horizonsTarget": "999", "longitudeDegrees": 251.4547644, "latitudeDegrees": 10.8552605 }
+  ]
+}

@@ -1,0 +1,487 @@
+{
+  "info": {
+    "_postman_id": "dcaad65a-65a0-45b0-a233-39a211a35959",
+    "name": "LIFE API - Phase 59 Local Verification",
+    "description": "Local-only API smoke and API-key verification. Requests are blocked unless baseUrl resolves to localhost or 127.0.0.1. Public documentation and missing/malformed-key checks need no database fixture. A syntactically valid unknown key may query the configured database, as do role checks and valid/scoped/revoked/expired/quota cases: those requests require testDatabaseConfirmed=YES_ISOLATED_TEST_DATABASE after independently confirming the app is connected to a disposable local test database. Never use production or staging credentials.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const configured = pm.variables.get('baseUrl');",
+          "let parsed;",
+          "try { parsed = new URL(configured); } catch (error) { throw new Error('Set baseUrl to a valid localhost URL.'); }",
+          "if (!['localhost', '127.0.0.1', '::1'].includes(parsed.hostname)) { throw new Error('Safety stop: this collection can only send requests to localhost or 127.0.0.1.'); }",
+          "if (parsed.protocol !== 'http:') { throw new Error('Use the local HTTP application URL, for example http://localhost:3000.'); }"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "OpenAPI document",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/api/openapi.json"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('OpenAPI endpoint returns 200 JSON', function () { pm.response.to.have.status(200); pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json'); });",
+              "const spec = pm.response.json();",
+              "pm.test('OpenAPI advertises developer test and bearer-key security', function () { pm.expect(spec.openapi).to.match(/^3\\./); pm.expect(spec.paths).to.have.property('/api/developer/test'); pm.expect(spec.components.securitySchemes).to.have.property('bearerApiKey'); });",
+              "pm.test('OpenAPI response contains no credential material', function () { const body = pm.response.text().toLowerCase(); pm.expect(body).not.to.include('life_live_'); pm.expect(body).not.to.include('password='); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Developer test - missing key",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/api/developer/test"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Missing key is rejected as 401', function () { pm.response.to.have.status(401); });",
+              "const body = pm.response.json();",
+              "pm.test('Missing key has stable error code and no credentials', function () { pm.expect(body.code).to.eql('API_KEY_REQUIRED'); pm.expect(body.secret).to.be.undefined; pm.expect(pm.response.text()).not.to.include('life_live_'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Developer test - malformed key",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer malformed" }
+        ],
+        "url": "{{baseUrl}}/api/developer/test"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Malformed key is rejected as 401', function () { pm.response.to.have.status(401); });",
+              "const body = pm.response.json();",
+              "pm.test('Malformed key returns INVALID_API_KEY without echoing input', function () { pm.expect(body.code).to.eql('INVALID_API_KEY'); pm.expect(pm.response.text()).not.to.include('malformed'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Developer test - syntactically valid but unknown local key",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{invalidApiKey}}" }
+        ],
+        "url": "{{baseUrl}}/api/developer/test"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.environment.get('testDatabaseConfirmed') !== 'YES_ISOLATED_TEST_DATABASE') { throw new Error('Safety stop: confirm the app database is an isolated disposable test database before testing syntactically valid keys.'); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unknown key is rejected as 401', function () { pm.response.to.have.status(401); });",
+              "const body = pm.response.json();",
+              "pm.test('Unknown key response does not disclose key material', function () { pm.expect(body.code).to.eql('INVALID_API_KEY'); pm.expect(pm.response.text()).not.to.include(pm.variables.get('invalidApiKey')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Developer test - valid disposable local key",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{validApiKey}}" }
+        ],
+        "url": "{{baseUrl}}/api/developer/test"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.environment.get('testDatabaseConfirmed') !== 'YES_ISOLATED_TEST_DATABASE') { throw new Error('Safety stop: confirm the app database is an isolated disposable test database before testing API keys.'); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Valid local key authenticates', function () { pm.response.to.have.status(200); });",
+              "const body = pm.response.json();",
+              "pm.test('Valid-key response has quota schema and excludes secret/digest', function () { pm.expect(body.authenticated).to.eql(true); pm.expect(body.scopes).to.be.an('array'); pm.expect(body.quota.remaining.key).to.be.an('object'); pm.expect(body.quota.remaining.account).to.be.an('object'); pm.expect(body.secret).to.be.undefined; pm.expect(JSON.stringify(body)).not.to.include(pm.variables.get('validApiKey')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Developer test - insufficient-scope disposable local key",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{wrongScopeApiKey}}" }
+        ],
+        "url": "{{baseUrl}}/api/developer/test"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.environment.get('testDatabaseConfirmed') !== 'YES_ISOLATED_TEST_DATABASE') { throw new Error('Safety stop: confirm the app database is an isolated disposable test database before testing API keys.'); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Wrong-scope key is forbidden', function () { pm.response.to.have.status(403); });",
+              "pm.test('Wrong-scope response identifies authorization failure without credentials', function () { pm.expect(pm.response.json().code).to.eql('INSUFFICIENT_SCOPE'); pm.expect(pm.response.text()).not.to.include(pm.variables.get('wrongScopeApiKey')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Developer test - revoked disposable local key",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{revokedApiKey}}" }
+        ],
+        "url": "{{baseUrl}}/api/developer/test"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.environment.get('testDatabaseConfirmed') !== 'YES_ISOLATED_TEST_DATABASE') { throw new Error('Safety stop: confirm the app database is an isolated disposable test database before testing API keys.'); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Revoked key is rejected as 401', function () { pm.response.to.have.status(401); });",
+              "pm.test('Revoked key is inactive and not echoed', function () { pm.expect(pm.response.json().code).to.eql('API_KEY_INACTIVE'); pm.expect(pm.response.text()).not.to.include(pm.variables.get('revokedApiKey')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Developer test - expired disposable local key",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{expiredApiKey}}" }
+        ],
+        "url": "{{baseUrl}}/api/developer/test"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.environment.get('testDatabaseConfirmed') !== 'YES_ISOLATED_TEST_DATABASE') { throw new Error('Safety stop: confirm the app database is an isolated disposable test database before testing API keys.'); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Expired key is rejected as 401', function () { pm.response.to.have.status(401); });",
+              "pm.test('Expired key response is explicit and does not echo the key', function () { pm.expect(pm.response.json().code).to.eql('API_KEY_EXPIRED'); pm.expect(pm.response.text()).not.to.include(pm.variables.get('expiredApiKey')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Quota - first request with one-per-minute disposable key",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{quotaApiKey}}" }
+        ],
+        "url": "{{baseUrl}}/api/developer/test"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.environment.get('testDatabaseConfirmed') !== 'YES_ISOLATED_TEST_DATABASE') { throw new Error('Safety stop: quota tests require a confirmed disposable local database.'); }",
+              "if (!pm.environment.get('quotaApiKey')) { throw new Error('Set quotaApiKey to a disposable local key limited to one request per minute.'); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('First quota request succeeds', function () { pm.response.to.have.status(200); });",
+              "pm.test('Quota response includes remaining request counts', function () { const body = pm.response.json(); pm.expect(body.quota.remaining.key.minute).to.be.a('number'); pm.expect(body.quota.remaining.account.minute).to.be.a('number'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Quota - repeated request is limited",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{quotaApiKey}}" }
+        ],
+        "url": "{{baseUrl}}/api/developer/test"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.environment.get('testDatabaseConfirmed') !== 'YES_ISOLATED_TEST_DATABASE') { throw new Error('Safety stop: quota tests require a confirmed disposable local database.'); }",
+              "if (!pm.environment.get('quotaApiKey')) { throw new Error('Set quotaApiKey to a disposable local key limited to one request per minute.'); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Repeated request is rejected with HTTP 429', function () { pm.response.to.have.status(429); });",
+              "pm.test('Quota response has stable error code and retry hint', function () { pm.expect(pm.response.json().code).to.eql('QUOTA_EXCEEDED'); pm.expect(pm.response.headers.get('Retry-After')).to.exist; });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "API key management - unauthenticated access",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": "{{baseUrl}}/api/platform/keys"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.environment.get('testDatabaseConfirmed') !== 'YES_ISOLATED_TEST_DATABASE') { throw new Error('Safety stop: confirm the app database is an isolated disposable test database before checking role access.'); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unauthenticated key management access is denied', function () { pm.response.to.have.status(401); });",
+              "pm.test('Unauthorized response does not expose key data', function () { pm.expect(pm.response.json().code).to.eql('UNAUTHENTICATED'); pm.expect(pm.response.text().toLowerCase()).not.to.include('digest'); });"
+            ]
+          }
+        }
+      ]
+    },
+      {
+        "name": "API key management - developer account isolation",
+        "request": {
+          "method": "GET",
+          "header": [
+            { "key": "Accept", "value": "application/json" },
+            { "key": "Cookie", "value": "life_session={{developerSessionCookie}}" }
+          ],
+          "url": "{{baseUrl}}/api/platform/keys?account={{otherAccountId}}"
+        },
+        "event": [
+          {
+            "listen": "prerequest",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.environment.get('testDatabaseConfirmed') !== 'YES_ISOLATED_TEST_DATABASE') { throw new Error('Safety stop: role and account isolation tests require a confirmed disposable local database.'); }",
+                "if (!pm.environment.get('developerSessionCookie') || !pm.environment.get('developerUserId') || !pm.environment.get('otherAccountId')) { throw new Error('Set disposable local developer-session and account fixture variables.'); }"
+              ]
+            }
+          },
+          {
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Developer can access own API-key list', function () { pm.response.to.have.status(200); });",
+                "pm.test('Changing account filter cannot expose another account keys', function () { const body = pm.response.json(); pm.expect(body.keys).to.be.an('array'); body.keys.forEach(function (key) { pm.expect(key.ownerUserId).to.eql(pm.environment.get('developerUserId')); }); });"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "API key management - Admin access",
+        "request": {
+          "method": "GET",
+          "header": [
+            { "key": "Accept", "value": "application/json" },
+            { "key": "Cookie", "value": "life_session={{adminSessionCookie}}" }
+          ],
+          "url": "{{baseUrl}}/api/platform/keys"
+        },
+        "event": [
+          {
+            "listen": "prerequest",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.environment.get('testDatabaseConfirmed') !== 'YES_ISOLATED_TEST_DATABASE') { throw new Error('Safety stop: role tests require a confirmed disposable local database.'); }",
+                "if (!pm.environment.get('adminSessionCookie')) { throw new Error('Set a disposable local Admin session cookie.'); }"
+              ]
+            }
+          },
+          {
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Admin is authorized to read delegated API keys', function () { pm.response.to.have.status(200); });",
+                "pm.test('Admin response contains no API secret or digest', function () { const body = pm.response.json(); pm.expect(body.keys).to.be.an('array'); pm.expect(pm.response.text().toLowerCase()).not.to.include('digest'); pm.expect(body.secret).to.be.undefined; });"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "API key management - Super Admin access",
+        "request": {
+          "method": "GET",
+          "header": [
+            { "key": "Accept", "value": "application/json" },
+            { "key": "Cookie", "value": "life_session={{superAdminSessionCookie}}" }
+          ],
+          "url": "{{baseUrl}}/api/platform/keys"
+        },
+        "event": [
+          {
+            "listen": "prerequest",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.environment.get('testDatabaseConfirmed') !== 'YES_ISOLATED_TEST_DATABASE') { throw new Error('Safety stop: role tests require a confirmed disposable local database.'); }",
+                "if (!pm.environment.get('superAdminSessionCookie')) { throw new Error('Set a disposable local Super Admin session cookie.'); }"
+              ]
+            }
+          },
+          {
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Super Admin is authorized to read API keys', function () { pm.response.to.have.status(200); });",
+                "pm.test('Super Admin response contains no API secret or digest', function () { const body = pm.response.json(); pm.expect(body.keys).to.be.an('array'); pm.expect(pm.response.text().toLowerCase()).not.to.include('digest'); pm.expect(body.secret).to.be.undefined; });"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "API key management - ordinary user is forbidden",
+        "request": {
+          "method": "GET",
+          "header": [
+            { "key": "Accept", "value": "application/json" },
+            { "key": "Cookie", "value": "life_session={{viewerSessionCookie}}" }
+          ],
+          "url": "{{baseUrl}}/api/platform/keys"
+        },
+        "event": [
+          {
+            "listen": "prerequest",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.environment.get('testDatabaseConfirmed') !== 'YES_ISOLATED_TEST_DATABASE') { throw new Error('Safety stop: role tests require a confirmed disposable local database.'); }",
+                "if (!pm.environment.get('viewerSessionCookie')) { throw new Error('Set a disposable local ordinary-user session cookie.'); }"
+              ]
+            }
+          },
+          {
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Ordinary user is denied API key management', function () { pm.response.to.have.status(403); });",
+                "pm.test('Forbidden role response is explicit and contains no key data', function () { pm.expect(pm.response.json().code).to.eql('FORBIDDEN'); pm.expect(pm.response.text().toLowerCase()).not.to.include('digest'); });"
+              ]
+            }
+          }
+        ]
+      }
+  ]
+}

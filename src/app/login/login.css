@@ -1,0 +1,174 @@
+.login-page {
+  min-height: 100vh;
+  padding: 32px 20px;
+  background: #f8f6f1;
+}
+
+.login-brand {
+  color: #1c2a39;
+  font: 600 17px var(--sans);
+  letter-spacing: .16em;
+  text-decoration: none;
+}
+
+.login-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.login-account-nav a {
+  color: #80643b;
+  font-size: 12px;
+}
+
+.login-card {
+  width: min(100%, 440px);
+  margin: clamp(48px, 10vh, 100px) auto;
+  padding: clamp(24px, 6vw, 40px);
+  border: 1px solid #e7e2d8;
+  background: #fff;
+  box-shadow: 0 16px 48px #18202b0d;
+}
+
+.login-card h1 {
+  margin: 0;
+  color: #1d2b3b;
+  font: 500 clamp(27px, 6vw, 36px)/1.15 var(--serif);
+}
+
+.login-card > p:not(.home-eyebrow) {
+  margin: 12px 0 24px;
+  color: #667078;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.login-card .account-panel {
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #263646;
+}
+
+.login-card .account-mobile-toggle,
+.login-card .account-heading {
+  display: none;
+}
+
+.login-card .account-content {
+  display: block;
+}
+
+.login-card .account-mode button,
+.login-card .account-auth-form label {
+  color: #364451;
+}
+
+.login-card .account-auth-form input {
+  height: 42px;
+  border-color: #d7d0c2;
+  background: #fff;
+  color: #1d2430;
+}
+
+.login-card .account-action {
+  min-height: 42px;
+  margin-top: 12px;
+  background: #203349;
+  color: #fff;
+}
+
+.login-card .account-auth-form .account-password-toggle {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #d7d0c2;
+  border-radius: 3px;
+  background: #f8f6f1;
+  color: #203349;
+  font: 500 13px var(--sans);
+  cursor: pointer;
+}
+
+.login-card .account-auth-form .account-terms-check {
+  display: flex;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.5;
+}
+
+.login-card .account-auth-form .account-terms-check input {
+  width: 18px;
+  height: 18px;
+}
+
+.login-card .account-message {
+  color: #364451;
+}
+
+.recovery-form {
+  display: grid;
+  gap: 13px;
+}
+
+.recovery-form label {
+  display: grid;
+  gap: 6px;
+  color: #364451;
+  font-size: 12px;
+}
+
+.recovery-form input {
+  width: 100%;
+  height: 42px;
+  padding: 9px 11px;
+  border: 1px solid #d7d0c2;
+  background: #fff;
+  color: #1d2430;
+  font: 14px var(--sans);
+}
+
+.recovery-form small,
+.recovery-hint {
+  color: #667078;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.login-card .recovery-form .account-password-toggle {
+  justify-self: start;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #d7d0c2;
+  border-radius: 3px;
+  background: #f8f6f1;
+  color: #203349;
+  font: 500 13px var(--sans);
+  cursor: pointer;
+}
+
+.account-recovery-link {
+  justify-self: start;
+  color: #80643b;
+  font-size: 12px;
+}
+
+.login-home-link {
+  display: inline-block;
+  margin-top: 20px;
+  color: #80643b;
+  font-size: 12px;
+}
+
+.login-page a:focus-visible,
+.login-card button:focus-visible,
+.login-card input:focus-visible {
+  outline: 3px solid #9b793f;
+  outline-offset: 3px;
+}

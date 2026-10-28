@@ -1,0 +1,46 @@
+{
+  "name": "life-astrology-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "prisma generate && node scripts/build.mjs",
+    "start": "node .next/standalone/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test-reporter=tap --test tests/*.test.mjs",
+    "test:postgres": "node scripts/test-postgres.mjs",
+    "verify": "node scripts/verify.mjs",
+    "admin:provision": "node scripts/provision-admin.mjs",
+    "db:deploy": "prisma migrate deploy",
+    "db:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "@swisseph/node": "1.4.0",
+    "argon2": "^0.44.0",
+    "next": "16.4.2",
+    "pg": "8.16.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "swagger-ui-react": "^5.34.0"
+  },
+  "allowScripts": {
+    "@swisseph/node@1.4.0": true,
+    "argon2@0.44.0": true,
+    "@prisma/client@6.19.3": true,
+    "prisma@7.10.1": true,
+    "@prisma/engines@7.10.1": true
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/pg": "8.15.5",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "prisma": "7.10.1",
+    "typescript": "5.9.3"
+  }
+}

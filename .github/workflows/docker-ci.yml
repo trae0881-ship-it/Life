@@ -1,0 +1,162 @@
+name: Docker CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build production image
+        run: docker build --pull --tag life-app:ci .
+
+      - name: Verify container runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          container=life-app-ci
+          cleanup() {
+            docker rm --force "$container" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          docker image inspect --format '{{json .Config.Env}}' life-app:ci \
+            > /tmp/life-image-env.json
+          node -e '
+            const env = require("/tmp/life-image-env.json");
+            const credential = /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9_]{30,}\b|\bAKIA[0-9A-Z]{16}\b|postgres(?:ql)?:\/\/[^:\s/@]+:[^@\s/]+@/i;
+            if (env.some((entry) =>
+              /^(?:DATABASE_URL|LIFE_TEST_DATABASE_URL|.*(?:SECRET|TOKEN|PASSWORD).*)=/i.test(entry) ||
+              credential.test(entry)
+            )) {
+              console.error("A database URL or secret-like variable is baked into the image.");
+              process.exit(1);
+            }
+            console.log("Image configuration: no database URLs or secret-like variables");
+          '
+
+          docker run --detach \
+            --name "$container" \
+            --publish 127.0.0.1:3000:3000 \
+            --env 'DATABASE_URL=postgresql://ci:ci@127.0.0.1:1/ci?schema=public' \
+            life-app:ci
+
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = true
+          echo "Homepage: HTTP 200"
+
+          health_status=$(curl --silent --show-error --output /tmp/life-health.json \
+            --write-out '%{http_code}' http://127.0.0.1:3000/api/health)
+          test "$health_status" = 503
+          node -e '
+            const health = require("/tmp/life-health.json");
+            if (health.ready !== false ||
+                health.engineReady !== true ||
+                health.database?.status !== "unreachable") {
+              console.error("Unexpected health response.");
+              process.exit(1);
+            }
+            console.log("Health: HTTP 503; engine ready; database unreachable");
+          '
+
+          curl --fail --silent --show-error \
+            'http://127.0.0.1:3000/api/locations?q=New%20York' \
+            --output /tmp/life-locations.json
+          node -e '
+            const result = require("/tmp/life-locations.json");
+            if (!Array.isArray(result.matches) || result.matches.length === 0) {
+              console.error("Offline location search returned no matches.");
+              process.exit(1);
+            }
+            console.log("Location API: HTTP 200; bundled search returned matches");
+          '
+
+          docker exec -i "$container" node - <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const root = "/app";
+          const locations = path.join(root, "data/locations/city-index");
+          const shards = fs.readdirSync(locations).filter((name) => name.endsWith(".tsv.gz"));
+          if (shards.length !== 620 || !fs.existsSync(path.join(locations, "manifest.json"))) {
+            throw new Error("Location search assets are incomplete.");
+          }
+          const manifest = JSON.parse(fs.readFileSync(path.join(root, "data/ephemeris-manifest.json"), "utf8"));
+          if (!Array.isArray(manifest.assets) || manifest.assets.length === 0) {
+            throw new Error("Ephemeris manifest is missing or empty.");
+          }
+          for (const asset of manifest.assets) {
+            if (!fs.existsSync(path.join(root, "data/ephemeris", asset.filename))) {
+              throw new Error("A manifest-listed ephemeris asset is missing.");
+            }
+          }
+          require("@swisseph/node");
+
+          const credentialPatterns = [
+            /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+            /\bgh[pousr]_[A-Za-z0-9_]{30,}\b/,
+            /\bAKIA[0-9A-Z]{16}\b/,
+            /\bAIza[0-9A-Za-z_-]{35}\b/,
+            /postgres(?:ql)?:\/\/[^:\s/@]+:[^@\s/]+@/i,
+          ];
+          const textExtensions = new Set([".cjs", ".css", ".html", ".js", ".json", ".md", ".mjs", ".svg", ".txt"]);
+          const pending = [root];
+          let credentialFound = false;
+          while (pending.length) {
+            const current = pending.pop();
+            for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+              const file = path.join(current, entry.name);
+              if (entry.isDirectory()) {
+                pending.push(file);
+                continue;
+              }
+              if (!entry.isFile()) continue;
+              if (/^\.env(?:$|\.)/.test(entry.name) && entry.name !== ".env.example") {
+                throw new Error("An environment file is packaged in the runtime image.");
+              }
+              if (!textExtensions.has(path.extname(entry.name))) continue;
+              if (entry.name === ".env.example") continue;
+              const content = fs.readFileSync(file, "utf8");
+              if (credentialPatterns.some((pattern) => pattern.test(content))) credentialFound = true;
+            }
+          }
+          if (credentialFound) throw new Error("A credential-like value is packaged in the runtime image.");
+          console.log(`Container assets: ${shards.length} location shards; ephemeris files present; Swiss Ephemeris loaded`);
+          console.log("Container secret check: no environment files or recognized credential patterns");
+          NODE

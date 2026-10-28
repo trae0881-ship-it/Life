@@ -1,0 +1,45 @@
+{
+  "format": "life-verification-run-v1",
+  "version": "life-verification-1.0.0",
+  "runId": "87531d3f-6c2f-4c6a-8dd5-d2d473005a6e",
+  "sourceFingerprint": "89c63e4fff113d602d9608ab401db695c1e23b69164087fbe9d02d952af042b3",
+  "evidenceFresh": true,
+  "environment": "win32-x64; Node v24.20.0",
+  "startedAt": "2026-10-28T08:00:38.884Z",
+  "completedAt": "2026-10-28T08:02:40.302Z",
+  "checks": [
+    {
+      "command": "npm test",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-10-28T08:00:39.175Z",
+      "completedAt": "2026-10-28T08:00:49.462Z",
+      "testCounts": {
+        "tests": 424,
+        "passed": 424,
+        "failed": 0
+      }
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-10-28T08:00:49.469Z",
+      "completedAt": "2026-10-28T08:01:09.997Z"
+    },
+    {
+      "command": "npx prisma validate",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-10-28T08:01:10.004Z",
+      "completedAt": "2026-10-28T08:01:34.060Z"
+    },
+    {
+      "command": "npm run build",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-10-28T08:01:34.067Z",
+      "completedAt": "2026-10-28T08:02:39.978Z"
+    }
+  ]
+}

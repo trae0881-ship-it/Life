@@ -1,0 +1,476 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  DEVELOPER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ManagedScriptPlacement {
+  HEAD
+  BODY_START
+  BODY_END
+}
+
+enum ManagedScriptAuditAction {
+  CREATED
+  UPDATED
+  ENABLED
+  DISABLED
+  DELETED
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  DISABLED
+  REVOKED
+}
+
+enum ApiUsageWindowType {
+  MINUTE
+  DAY
+  MONTH
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  fullName     String?
+  passwordHash String
+  role         UserRole     @default(USER)
+  termsVersion String?
+  termsAcceptedAt DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  profiles     BirthProfile[]
+  charts       SavedChart[]
+  sessions     Session[]
+  approvals    VerificationApproval[]
+  questions    KundliQuestion[]
+  superAdminAccessLogs SuperAdminAccessLog[]
+  passwordResetTokens PasswordResetToken[]
+  blogPosts     BlogPost[]
+  apiKeys       ApiKey[] @relation("ApiKeyOwner")
+  createdApiKeys ApiKey[] @relation("ApiKeyCreator")
+  apiAccessGrants ApiAccountGrant[] @relation("ApiGrantAccount")
+  createdApiAccessGrants ApiAccountGrant[] @relation("ApiGrantActor")
+  apiAdminPermissions ApiAdminPermission[] @relation("ApiAdminPermissionAdmin")
+  grantedApiAdminPermissions ApiAdminPermission[] @relation("ApiAdminPermissionActor")
+  apiKeyAuditLogs ApiKeyAuditLog[] @relation("ApiKeyAuditActor")
+  apiPlatformAuditLogs ApiPlatformAuditLog[] @relation("ApiPlatformAuditActor")
+  apiUsageWindows ApiAccountUsageWindow[]
+}
+
+model ApiProduct {
+  id                    String @id @default(cuid())
+  slug                  String @unique @db.VarChar(60)
+  name                  String @db.VarChar(100)
+  description           String @db.VarChar(500)
+  endpoints             String[] @default([])
+  defaultRequestsPerMinute Int @default(30)
+  defaultDailyQuota     Int @default(1000)
+  defaultMonthlyQuota   Int @default(30000)
+  enabled               Boolean @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  accountGrants         ApiAccountGrant[]
+  adminPermissions      ApiAdminPermission[]
+  apiKeys               ApiKey[]
+  accountUsageWindows  ApiAccountUsageWindow[]
+
+  @@index([enabled, name])
+}
+
+model ApiAccountGrant {
+  id                    String @id @default(cuid())
+  accountUserId         String
+  productId             String
+  scopes                String[] @default([])
+  requestsPerMinute     Int
+  dailyQuota            Int
+  monthlyQuota          Int
+  enabled               Boolean @default(true)
+  grantedByUserId       String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  account               User @relation("ApiGrantAccount", fields: [accountUserId], references: [id], onDelete: Cascade)
+  product               ApiProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  grantedBy             User @relation("ApiGrantActor", fields: [grantedByUserId], references: [id], onDelete: Restrict)
+  apiKeys               ApiKey[]
+
+  @@unique([accountUserId, productId])
+  @@index([productId, enabled])
+}
+
+model ApiAdminPermission {
+  id                    String @id @default(cuid())
+  adminUserId           String
+  productId             String
+  scopes                String[] @default([])
+  maxRequestsPerMinute  Int
+  maxDailyQuota         Int
+  maxMonthlyQuota       Int
+  canManageAccess       Boolean @default(false)
+  enabled               Boolean @default(true)
+  grantedByUserId       String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  admin                 User @relation("ApiAdminPermissionAdmin", fields: [adminUserId], references: [id], onDelete: Cascade)
+  product               ApiProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  grantedBy             User @relation("ApiAdminPermissionActor", fields: [grantedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([adminUserId, productId])
+  @@index([productId, enabled])
+}
+
+model ApiKey {
+  id                    String @id @default(cuid())
+  keyId                 String @unique @db.VarChar(24)
+  digest                String @unique @db.VarChar(64)
+  prefix                String @db.VarChar(32)
+  label                 String @db.VarChar(100)
+  ownerUserId           String
+  createdByUserId       String
+  productId             String
+  accountGrantId        String
+  scopes                String[] @default([])
+  requestsPerMinute     Int
+  dailyQuota            Int
+  monthlyQuota          Int
+  status                ApiKeyStatus @default(ACTIVE)
+  expiresAt             DateTime?
+  lastUsedAt            DateTime?
+  rotatedToId           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  owner                 User @relation("ApiKeyOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  createdBy             User @relation("ApiKeyCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  product               ApiProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  accountGrant          ApiAccountGrant @relation(fields: [accountGrantId], references: [id], onDelete: Restrict)
+  usageWindows          ApiKeyUsageWindow[]
+  auditLogs             ApiKeyAuditLog[]
+
+  @@index([ownerUserId, status])
+  @@index([productId, status])
+  @@index([expiresAt])
+  @@unique([ownerUserId, label])
+}
+
+model ApiKeyUsageWindow {
+  id          String @id @default(cuid())
+  apiKeyId    String
+  windowType  ApiUsageWindowType
+  windowStart DateTime
+  requestCount Int @default(0)
+  errorCount  Int @default(0)
+  updatedAt   DateTime @updatedAt
+  apiKey      ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@unique([apiKeyId, windowType, windowStart])
+  @@index([apiKeyId, windowStart])
+}
+
+model ApiAccountUsageWindow {
+  id           String @id @default(cuid())
+  accountUserId String
+  productId    String
+  windowType   ApiUsageWindowType
+  windowStart  DateTime
+  requestCount Int @default(0)
+  errorCount   Int @default(0)
+  updatedAt    DateTime @updatedAt
+  account      User @relation(fields: [accountUserId], references: [id], onDelete: Cascade)
+  product      ApiProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([accountUserId, productId, windowType, windowStart])
+  @@index([accountUserId, productId, windowStart])
+}
+
+model ApiKeyAuditLog {
+  id          String @id @default(cuid())
+  apiKeyId    String
+  actorUserId String
+  action      String @db.VarChar(30)
+  details     Json
+  createdAt   DateTime @default(now())
+  apiKey      ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  actor       User @relation("ApiKeyAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([apiKeyId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model ApiPlatformAuditLog {
+  id          String @id @default(cuid())
+  actorUserId String
+  action      String @db.VarChar(40)
+  targetType  String @db.VarChar(40)
+  targetId    String @db.VarChar(120)
+  details     Json
+  createdAt   DateTime @default(now())
+  actor       User @relation("ApiPlatformAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([targetType, targetId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model ManagedScript {
+  id              String                 @id @default(cuid())
+  name            String                 @db.VarChar(100)
+  snippet         String
+  placement       ManagedScriptPlacement
+  enabled         Boolean                @default(false)
+  targetPaths     String[]               @default([])
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@index([enabled, placement])
+  @@index([updatedAt])
+}
+
+model ManagedScriptAuditLog {
+  id          String                  @id @default(cuid())
+  scriptId    String
+  scriptName  String                  @db.VarChar(100)
+  actorUserId String
+  action      ManagedScriptAuditAction
+  createdAt   DateTime                @default(now())
+
+  @@index([scriptId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model BlogPost {
+  id                  String         @id @default(cuid())
+  title               String         @db.VarChar(160)
+  slug                String         @unique @db.VarChar(180)
+  excerpt             String         @db.VarChar(320)
+  body                String
+  featuredImageUrl    String?        @db.VarChar(2048)
+  featuredImageAlt    String?
+  authorName          String         @db.VarChar(100)
+  category            String?        @db.VarChar(80)
+  tags                String[]       @default([])
+  status              BlogPostStatus @default(DRAFT)
+  seoTitle            String?        @db.VarChar(70)
+  seoDescription      String?        @db.VarChar(160)
+  canonicalUrl        String?        @db.VarChar(2048)
+  robotsIndex         Boolean        @default(true)
+  publishedAt         DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  author              User           @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  authorId            String
+
+  @@index([status, publishedAt])
+  @@index([category, status, publishedAt])
+  @@index([updatedAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  usedAt    DateTime?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+model VerificationApproval {
+  id            String   @id @default(cuid())
+  requirementId String
+  userId        String
+  note          String?
+  approvedAt    DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([requirementId, userId])
+  @@index([userId, approvedAt])
+}
+
+model BirthProfile {
+  id          String      @id @default(cuid())
+  userId      String
+  label       String
+  birthPlace  String?
+  localDate   String
+  localTime   String?
+  timeZone    String?
+  latitude    Float?
+  longitude   Float?
+  birthTimeAccuracy String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  charts      SavedChart[]
+  questions   KundliQuestion[]
+
+  @@index([userId, updatedAt])
+}
+
+model SavedChart {
+  id               String             @id @default(cuid())
+  userId           String
+  profileId        String?
+  title            String
+  engineVersion    String
+  ephemerisManifest String
+  ruleSetVersion   String
+  settings         Json
+  inputSnapshot    Json
+  result           Json
+  resultHash       String
+  createdAt        DateTime           @default(now())
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile          BirthProfile?      @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  questions        KundliQuestion[]
+
+  @@index([userId, createdAt])
+  @@index([resultHash])
+}
+
+model KundliQuestion {
+  id              String       @id @default(cuid())
+  userId          String
+  profileId       String?
+  savedChartId    String?
+  requestId       String
+  question        String       @db.VarChar(500)
+  questionId      String?
+  topic           String?
+  answer          Json
+  answerStatus    String
+  chartResultHash String
+  createdAt       DateTime     @default(now())
+  answeredAt      DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile         BirthProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  savedChart      SavedChart?  @relation(fields: [savedChartId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, requestId])
+  @@index([userId, createdAt])
+  @@index([userId, topic, createdAt])
+}
+
+enum SuperAdminAccessAction {
+  USER_LIST_READ
+  USER_FILTERED_READ
+  USER_ROLE_CHANGED
+  BOOTSTRAP_SUPER_ADMIN
+}
+
+model SuperAdminAccessLog {
+  id          String                   @id @default(cuid())
+  actorUserId String?
+  actorLabel  String?
+  action      SuperAdminAccessAction
+  page        Int
+  resultCount Int
+  targetUserId String?
+  fromRole    UserRole?
+  toRole      UserRole?
+  createdAt   DateTime                 @default(now())
+  actor       User?                    @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([actorUserId, createdAt])
+  @@index([createdAt])
+}
+
+model ChecklistRequirementDefinition {
+  version       String
+  requirementId String
+  sectionId     String
+  title         String
+  definition    Json
+  createdAt     DateTime @default(now())
+
+  @@id([version, requirementId])
+}
+
+model VerificationRun {
+  id          String @id
+  version     String
+  environment String
+  status      String
+  startedAt   DateTime
+  completedAt DateTime?
+  report      Json
+  evidences   VerificationEvidence[]
+
+  @@index([version, completedAt])
+}
+
+model VerificationEvidence {
+  id                String   @id @default(cuid())
+  runId             String
+  requirementId     String
+  status            String
+  implementationStatus String
+  testExecutionStatus  String
+  method            String
+  actualResult      String
+  evidenceReference String?
+  testedAt          DateTime?
+  details           String?
+  remediation       String?
+  run               VerificationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, requirementId])
+  @@index([requirementId, testedAt])
+}
+
+model VerificationStatusHistory {
+  id            String   @id @default(cuid())
+  requirementId String
+  runId         String?
+  fromStatus    String?
+  toStatus      String
+  source        String
+  changedAt     DateTime @default(now())
+
+  @@index([requirementId, changedAt])
+}
+
+model VerificationAcknowledgement {
+  id             String   @id @default(cuid())
+  requirementId  String
+  reviewer       String
+  note           String?
+  acknowledgedAt DateTime @default(now())
+
+  @@unique([requirementId, reviewer])
+  @@index([acknowledgedAt])
+}

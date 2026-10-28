@@ -1,0 +1,44 @@
+{
+  "fixtureId": "jpl-horizons-de441-geocentric-apparent-ecliptic-mercury-2024-04-15T00:00:00Z",
+  "fixtureVersion": 1,
+  "retrievedOn": "2026-10-17",
+  "source": {
+    "organization": "NASA/JPL Solar System Dynamics Group",
+    "system": "JPL Horizons API",
+    "url": "https://ssd.jpl.nasa.gov/api/horizons.api",
+    "documentation": "https://ssd-api.jpl.nasa.gov/doc/horizons.html",
+    "ephemeris": "DE441",
+    "query": {
+      "format": "json",
+      "COMMAND": "199",
+      "OBJ_DATA": "NO",
+      "MAKE_EPHEM": "YES",
+      "EPHEM_TYPE": "OBSERVER",
+      "CENTER": "500@399 (Earth geocenter)",
+      "START_TIME": "2024-04-15 00:00 UT",
+      "STOP_TIME": "2024-04-15 00:02 UT",
+      "STEP_SIZE": "1 minute",
+      "QUANTITIES": "31",
+      "CSV_FORMAT": "YES"
+    },
+    "quantityConvention": "Observer-centered IAU76/80 ecliptic-of-date apparent longitude and latitude, including light-time, solar gravitational deflection, and stellar aberration; airless/geocentric.",
+    "timeConvention": "Horizons output time is UTC for this post-1962 date. LIFE supplies UTC-derived Julian Day as a UT1 approximation without DUT1 correction.",
+    "sourceResolutionDegrees": 0.0000001
+  },
+  "comparison": {
+    "engine": "@swisseph/node 1.4.0",
+    "engineMode": "Swiss Ephemeris, geocentric apparent tropical ecliptic longitude/latitude, default flags plus speed; local bundled ephemeris assets; UTC treated as UT1 approximation",
+    "toleranceArcseconds": 0.5,
+    "rateToleranceDegreesPerDay": 0.001,
+    "independenceNote": "Finite difference of adjacent one-minute JPL apparent longitudes provides an independent direction and approximate rate check for Mercury's retrograde motion. It does not independently validate the engine's speed calculation for other bodies or epochs."
+  },
+  "epoch": "2024-04-15T00:00:00Z",
+  "body": {
+    "name": "Mercury",
+    "horizonsTarget": "199",
+    "samples": [
+      { "utc": "2024-04-15T00:00:00Z", "longitudeDegrees": 20.2680126, "latitudeDegrees": 1.4680936 },
+      { "utc": "2024-04-15T00:01:00Z", "longitudeDegrees": 20.2675109, "latitudeDegrees": 1.4679084 }
+    ]
+  }
+}

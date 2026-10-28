@@ -1,0 +1,104 @@
+▲ Next.js 16.4.2 (Turbopack)
+- Environments: .env
+✓ Running next.config.ts took 63ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 27.9s
+  Running TypeScript ...
+  Finished TypeScript in 17.1s ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/18) ...
+  Generating static pages using 3 workers (4/18) 
+  Generating static pages using 3 workers (8/18) 
+  Generating static pages using 3 workers (13/18) 
+✓ Generating static pages using 3 workers (18/18) in 987ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /admin
+├ ƒ /admin/api
+├ ƒ /admin/scripts
+├ ƒ /api/admin/scripts
+├ ƒ /api/admin/scripts/[scriptId]
+├ ƒ /api/admin/users
+├ ƒ /api/assistant/questions
+├ ƒ /api/assistant/questions/[questionId]
+├ ƒ /api/auth/forgot-password
+├ ƒ /api/auth/login
+├ ƒ /api/auth/logout
+├ ƒ /api/auth/me
+├ ƒ /api/auth/register
+├ ƒ /api/auth/reset-password
+├ ƒ /api/charts
+├ ƒ /api/charts/sensitivity
+├ ƒ /api/developer/test
+├ ○ /api/docs
+├ ƒ /api/health
+├ ƒ /api/legal/acceptance
+├ ƒ /api/locations
+├ ○ /api/openapi.json
+├ ƒ /api/platform/accounts
+├ ƒ /api/platform/grants
+├ ƒ /api/platform/keys
+├ ƒ /api/platform/keys/[keyId]
+├ ƒ /api/platform/permissions
+├ ƒ /api/platform/products
+├ ƒ /api/platform/products/[productId]
+├ ƒ /api/platform/usage
+├ ƒ /api/profiles
+├ ƒ /api/profiles/[profileId]
+├ ƒ /api/saved-charts
+├ ƒ /api/saved-charts/[chartId]
+├ ƒ /api/site-scripts
+├ ƒ /api/super-admin/audit-logs
+├ ƒ /api/super-admin/blogs
+├ ƒ /api/super-admin/blogs/[postId]
+├ ƒ /api/super-admin/database
+├ ƒ /api/super-admin/database/export
+├ ƒ /api/super-admin/database/import
+├ ƒ /api/super-admin/health
+├ ƒ /api/super-admin/overview
+├ ƒ /api/super-admin/seo
+├ ƒ /api/super-admin/seo/audit
+├ ƒ /api/super-admin/seo/export
+├ ƒ /api/super-admin/users
+├ ƒ /api/super-admin/users/[userId]/role
+├ ƒ /api/transits
+├ ƒ /api/verification
+├ ƒ /api/verification/approvals
+├ ƒ /blogs
+├ ƒ /blogs/[slug]
+├ ƒ /dashboard
+├ ƒ /dashboard/assistant
+├ ƒ /dashboard/questions
+├ ○ /developers
+├ ƒ /developers/dashboard
+├ ○ /disclaimer
+├ ○ /forgot-password
+├ ○ /life-timeline
+├ ƒ /login
+├ ○ /marriage-timing
+├ ○ /privacy-policy
+├ ○ /references
+├ ○ /refund-policy
+├ ○ /remedies
+├ ○ /reset-password
+├ ƒ /robots.txt
+├ ƒ /signup
+├ ƒ /sitemap.xml
+├ ƒ /studio
+├ ƒ /super-admin
+├ ƒ /super-admin/api
+├ ƒ /super-admin/blogs
+├ ƒ /super-admin/database
+├ ƒ /super-admin/seo
+├ ƒ /super-login
+├ ○ /terms-and-conditions
+└ ○ /verification
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

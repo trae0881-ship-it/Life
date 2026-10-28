@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+coverage/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+.env
+.env.*
+!.env.example
+!.env.test.example
+*.log
+generated/prisma/
