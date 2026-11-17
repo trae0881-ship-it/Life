@@ -99,16 +99,16 @@ jobs:
             console.log("Health: HTTP 503; engine ready; database unreachable");
           '
 
-          curl --fail --silent --show-error \
-            'http://127.0.0.1:3000/api/locations?q=New%20York' \
-            --output /tmp/life-locations.json
+          locations_status=$(curl --silent --show-error --output /tmp/life-locations.json \
+            --write-out '%{http_code}' 'http://127.0.0.1:3000/api/locations?q=New%20York')
+          test "$locations_status" = 401
           node -e '
             const result = require("/tmp/life-locations.json");
-            if (!Array.isArray(result.matches) || result.matches.length === 0) {
-              console.error("Offline location search returned no matches.");
+            if (result.code !== "UNAUTHENTICATED") {
+              console.error("Anonymous location search did not require a LIFE session.");
               process.exit(1);
             }
-            console.log("Location API: HTTP 200; bundled search returned matches");
+            console.log("Location API: HTTP 401; anonymous search requires a LIFE session");
           '
 
           docker exec -i "$container" node - <<'NODE'
