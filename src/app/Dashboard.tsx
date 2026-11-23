@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import KundliAssistant, { type KundliAssistantAccountData } from "./KundliAssistant";
+import KundaliVault from "./KundaliVault";
 import KundliDetails from "./KundliDetails";
 import { analysisReadiness } from "@/calculation/analysis-readiness";
 import { hasChartCalculationInputs, validateBirthForm } from "@/presentation/birth-form";
@@ -518,6 +519,7 @@ export default function Dashboard({ user }: { user: AuthUser }) {
             </form>
           </>}
         </section>}
+        {!loading && section === "kundlis" && <KundaliVault language={language} onAsk={() => changeSection("ask")} />}
         {!loading && (section === "kundlis" || section === "reports") && <section className="dashboard-panel">
           <div className="dashboard-panel-heading"><div><span className="dashboard-card-kicker">{t("dashboard.savedSnapshot")}</span><h2>{t(section === "kundlis" ? "dashboard.myKundlis" : "dashboard.myReports")}</h2></div><a href="/studio">{t("dashboard.calculateNew")}</a></div>
           {reportStatus === "error" ? <p className="dashboard-muted" role="alert">{t("dashboard.dataUnavailable")}</p> : reports.length === 0 ? <div className="dashboard-empty"><p>{t("dashboard.noReports")}</p><a href="/studio">{t("dashboard.calculateFirst")}</a></div> : <div className="dashboard-report-list">

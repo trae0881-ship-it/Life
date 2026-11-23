@@ -73,6 +73,7 @@ model User {
   apiKeyAuditLogs ApiKeyAuditLog[] @relation("ApiKeyAuditActor")
   apiPlatformAuditLogs ApiPlatformAuditLog[] @relation("ApiPlatformAuditActor")
   apiUsageWindows ApiAccountUsageWindow[]
+  kundaliDocument KundaliDocument?
 }
 
 model ApiProduct {
@@ -383,6 +384,24 @@ model KundliQuestion {
   @@unique([userId, requestId])
   @@index([userId, createdAt])
   @@index([userId, topic, createdAt])
+}
+
+enum KundaliProcessingStatus {
+  MANUAL_REVIEW_REQUIRED
+}
+
+model KundaliDocument {
+  id                 String                  @id
+  userId             String
+  contentType        String                  @db.VarChar(32)
+  fileExtension      String                  @db.VarChar(8)
+  fileSizeBytes      Int
+  processingStatus   KundaliProcessingStatus @default(MANUAL_REVIEW_REQUIRED)
+  originalFile       Bytes
+  uploadedAt         DateTime                @default(now())
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
 }
 
 enum SuperAdminAccessAction {

@@ -124,6 +124,26 @@
 .dashboard-modal-planets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
 .dashboard-modal-planets span{display:grid;gap:4px;padding:9px;border:1px solid #eeece6;border-radius:3px;color:#858b89;font-size:10px}
 .dashboard-modal-planets b{color:#39444a;font-size:10px}
+.kundali-vault{margin-bottom:14px}
+.kundali-vault-description,.kundali-review-help,.kundali-extraction-note,.kundali-report-unavailable,.kundali-mobile-note{color:#7d8584;font-size:10px;line-height:1.7}
+.kundali-dropzone{position:relative;display:grid;justify-items:center;gap:8px;margin:15px 0;padding:24px 14px;border:1px dashed #c9c1ae;border-radius:4px;background:#fcfbf8;color:#465158;text-align:center;font-size:11px;cursor:pointer}
+.kundali-dropzone.is-dragging{border-color:#9b7f4f;background:#f7f2e8}
+.kundali-dropzone input{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.kundali-dropzone:focus-within{outline:2px solid #cba96d;outline-offset:2px}
+.kundali-dropzone-icon{color:#a98d5d;font-size:24px}
+.kundali-file-types{color:#858c89;font-size:9px}
+.kundali-choose-file,.kundali-document-actions button,.kundali-document-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:33px;padding:0 12px;border:1px solid #ded6c6;border-radius:3px;background:#fff;color:#8c7249;text-decoration:none;font:10px var(--sans);cursor:pointer}
+.kundali-status{padding:5px 8px;border:1px solid #e5dccb;border-radius:20px;background:#f8f4eb;color:#8a754f;font-size:9px}
+.kundali-progress-wrap{display:grid;gap:6px;color:#747d7d;font-size:10px}
+.kundali-progress-wrap progress{width:100%;height:8px;accent-color:#927747}
+.kundali-document{margin-top:16px;padding:14px;border:1px solid #eeece6;border-radius:4px;background:#fdfdfb}
+.kundali-document-meta{display:grid;gap:5px}
+.kundali-document-meta b{color:#35404a;font-size:11px}
+.kundali-document-meta small,.kundali-document-meta span{color:#8e9491;font-size:9px}
+.kundali-document-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.kundali-document-actions button:disabled{opacity:.55}
+.kundali-extraction-note{padding:10px 12px;border-left:2px solid #c2a36a;background:#f8f5ee}
+.kundali-empty{color:#858b89;font-size:11px}
 .dashboard-backdrop{display:none}
 @media(max-width:1050px){.dashboard-sidebar{width:220px}.dashboard-main{margin-left:220px}.dashboard-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){
