@@ -13,6 +13,7 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  experimental: { agentUpgrade: "security" },
   serverExternalPackages: ["@swisseph/node"],
   poweredByHeader: false,
   output: "standalone",
