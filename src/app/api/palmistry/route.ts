@@ -11,6 +11,7 @@ import {
   palmistryDownloadName,
   validatePalmistryUpload,
 } from "@/server/palmistry-files";
+import { readPalmistryUploadForm } from "@/server/palmistry-request";
 import {
   emptyPalmistryObservations,
   parsePalmistryObservations,
@@ -20,57 +21,44 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function readUploadForm(request: Request) {
-  const reader = request.body?.getReader();
-  if (!reader) throw new RequestBodyError("Choose a hand image to upload.", 400);
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > MAX_PALMISTRY_REQUEST_BYTES) {
-        await reader.cancel();
-        throw new RequestBodyError("Choose an image smaller than 10 MB.", 413);
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const body = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  try {
-    return await new Request(request.url, { method: "POST", headers: request.headers, body }).formData();
-  } catch {
-    throw new RequestBodyError("Choose one image using a supported upload form.", 400);
-  }
+function parseObservations(value: unknown) {
+  const observations = parsePalmistryObservations(value);
+  if (!observations) throw new Error("Stored Palmistry observations are invalid.");
+  return observations;
 }
 
-function responseRecord(record: {
+function legacyImageMetadata(record: {
   id: string;
-  contentType: string;
-  fileExtension: string;
-  fileSizeBytes: number;
-  observations: unknown;
+  contentType: string | null;
+  fileExtension: string | null;
+  fileSizeBytes: number | null;
   uploadedAt: Date;
-  updatedAt: Date;
 }) {
-  const observations = parsePalmistryObservations(record.observations);
-  if (!observations) throw new Error("Stored Palmistry observations are invalid.");
+  if (!record.contentType || !record.fileExtension || !record.fileSizeBytes) return null;
   return {
     contentType: record.contentType,
     fileExtension: record.fileExtension,
     fileSizeBytes: record.fileSizeBytes,
-    observations,
     uploadedAt: record.uploadedAt,
-    updatedAt: record.updatedAt,
     downloadName: palmistryDownloadName(record.id, record.uploadedAt, record.fileExtension),
+  };
+}
+
+function handImageMetadata(image: {
+  id: string;
+  handSide: "LEFT" | "RIGHT";
+  contentType: string;
+  fileExtension: string;
+  fileSizeBytes: number;
+  uploadedAt: Date;
+}) {
+  const hand = image.handSide === "LEFT" ? "left" : "right";
+  return {
+    contentType: image.contentType,
+    fileExtension: image.fileExtension,
+    fileSizeBytes: image.fileSizeBytes,
+    uploadedAt: image.uploadedAt,
+    downloadName: palmistryDownloadName(image.id, image.uploadedAt, image.fileExtension, hand),
   };
 }
 
@@ -78,16 +66,38 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
     if (!user) return jsonError("Sign in is required.", 401, "UNAUTHENTICATED");
-    const record = await withUserScopedDatabase(user.id, (transaction) => transaction.palmistryRecord.findUnique({
-      where: { userId: user.id },
-      select: {
-        id: true, contentType: true, fileExtension: true, fileSizeBytes: true,
-        observations: true, uploadedAt: true, updatedAt: true,
-      },
-    }));
-    return NextResponse.json({ palmistry: record ? responseRecord(record) : null }, {
-      headers: { "Cache-Control": "private, no-store" },
+    const result = await withUserScopedDatabase(user.id, async (transaction) => {
+      const [record, images] = await Promise.all([
+        transaction.palmistryRecord.findUnique({
+          where: { userId: user.id },
+          select: {
+            id: true, contentType: true, fileExtension: true, fileSizeBytes: true,
+            observations: true, uploadedAt: true, updatedAt: true,
+          },
+        }),
+        transaction.palmistryHandImage.findMany({
+          where: { userId: user.id },
+          select: {
+            id: true, handSide: true, contentType: true, fileExtension: true,
+            fileSizeBytes: true, uploadedAt: true,
+          },
+        }),
+      ]);
+      const hands = { left: null as ReturnType<typeof handImageMetadata> | null, right: null as ReturnType<typeof handImageMetadata> | null };
+      for (const image of images) {
+        const hand = image.handSide === "LEFT" ? "left" : "right";
+        hands[hand] = handImageMetadata(image);
+      }
+      return {
+        palmistry: record ? { observations: parseObservations(record.observations), updatedAt: record.updatedAt } : null,
+        images: {
+          left: hands.left,
+          right: hands.right,
+          legacy: record ? legacyImageMetadata(record) : null,
+        },
+      };
     });
+    return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Palmistry record could not be loaded.", { errorType: error instanceof Error ? error.name : "UnknownError" });
     return jsonError("Palmistry storage is temporarily unavailable.", 503, "PALMISTRY_STORAGE_UNAVAILABLE");
@@ -110,10 +120,10 @@ export async function POST(request: NextRequest) {
     if (declaredLength !== null && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > MAX_PALMISTRY_REQUEST_BYTES)) {
       return jsonError("Choose an image smaller than 10 MB.", 413, "PAYLOAD_TOO_LARGE");
     }
-    const form = await readUploadForm(request);
+    const form = await readPalmistryUploadForm(request);
     const entries = Array.from(form.entries());
     if (entries.length !== 1 || entries[0][0] !== "file" || typeof entries[0][1] === "string" || !(entries[0][1] instanceof File)) {
-      return jsonError("Choose one JPG, JPEG, or PNG hand image.", 422, "INVALID_UPLOAD");
+      return jsonError("Choose one JPG, JPEG, PNG, or WEBP hand image.", 422, "INVALID_UPLOAD");
     }
     const file = entries[0][1];
     if (file.size > MAX_PALMISTRY_FILE_BYTES) return jsonError("Choose an image smaller than 10 MB.", 413, "FILE_TOO_LARGE");
@@ -135,7 +145,6 @@ export async function POST(request: NextRequest) {
         fileExtension: extension,
         fileSizeBytes: bytes.byteLength,
         originalFile: bytes,
-        observations: emptyPalmistryObservations,
         uploadedAt: new Date(),
       },
       select: {
@@ -143,10 +152,10 @@ export async function POST(request: NextRequest) {
         observations: true, uploadedAt: true, updatedAt: true,
       },
     }));
-    return NextResponse.json({ palmistry: responseRecord(record) }, {
-      status: 201,
-      headers: { "Cache-Control": "private, no-store" },
-    });
+    return NextResponse.json({
+      palmistry: { observations: parseObservations(record.observations), updatedAt: record.updatedAt },
+      images: { legacy: legacyImageMetadata(record) },
+    }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof RequestBodyError) return jsonError(error.message, error.status, error.status === 413 ? "PAYLOAD_TOO_LARGE" : "INVALID_UPLOAD");
     if (error instanceof KundaliFileError) return jsonError(error.message, error.status, error.code);
@@ -162,25 +171,24 @@ export async function PATCH(request: NextRequest) {
     if (!user) return jsonError("Sign in is required.", 401, "UNAUTHENTICATED");
     const rate = checkRateLimit(`palmistry-observations:${user.id}`, 30, 60_000);
     if (!rate.allowed) return jsonError("Too many updates. Try again shortly.", 429, "RATE_LIMITED");
-    const body = await readJson(request, 4_000);
+    const body = await readJson(request, 20_000);
     const observations = body && Object.keys(body).length === 1
       ? readPalmistryObservationsInput(body.observations)
       : null;
-    if (!observations) return jsonError("Review each line using one of the listed options.", 422, "INVALID_OBSERVATIONS");
+    if (!observations) return jsonError("Review each detail using one of the listed options.", 422, "INVALID_OBSERVATIONS");
     const record = await withUserScopedDatabase(user.id, async (transaction) => {
       const existing = await transaction.palmistryRecord.findUnique({ where: { userId: user.id }, select: { id: true } });
       if (!existing) return null;
       return transaction.palmistryRecord.update({
         where: { userId: user.id },
         data: { observations },
-        select: {
-          id: true, contentType: true, fileExtension: true, fileSizeBytes: true,
-          observations: true, uploadedAt: true, updatedAt: true,
-        },
+        select: { observations: true, updatedAt: true },
       });
     });
     if (!record) return jsonError("Upload a hand image before saving observations.", 404, "PALMISTRY_NOT_FOUND");
-    return NextResponse.json({ palmistry: responseRecord(record) }, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({
+      palmistry: { observations: parseObservations(record.observations), updatedAt: record.updatedAt },
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof RequestBodyError) return jsonError(error.message, error.status, "INVALID_OBSERVATIONS");
     console.error("Palmistry observations could not be saved.", { errorType: error instanceof Error ? error.name : "UnknownError" });
@@ -195,10 +203,13 @@ export async function DELETE(request: NextRequest) {
     if (!user) return jsonError("Sign in is required.", 401, "UNAUTHENTICATED");
     const rate = checkRateLimit(`palmistry-delete:${user.id}`, 10, 60_000);
     if (!rate.allowed) return jsonError("Too many delete requests. Try again shortly.", 429, "RATE_LIMITED");
-    const deleted = await withUserScopedDatabase(user.id, (transaction) => transaction.palmistryRecord.deleteMany({
-      where: { userId: user.id },
-    }));
-    return NextResponse.json({ deleted: deleted.count > 0 }, { headers: { "Cache-Control": "no-store" } });
+    const deleted = await withUserScopedDatabase(user.id, async (transaction) => {
+      const images = await transaction.palmistryHandImage.deleteMany({ where: { userId: user.id } });
+      const readings = await transaction.palmistryReading.deleteMany({ where: { userId: user.id } });
+      const record = await transaction.palmistryRecord.deleteMany({ where: { userId: user.id } });
+      return images.count + readings.count + record.count > 0;
+    });
+    return NextResponse.json({ deleted }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Palmistry record could not be deleted.", { errorType: error instanceof Error ? error.name : "UnknownError" });
     return jsonError("Palmistry information could not be deleted.", 503, "PALMISTRY_STORAGE_UNAVAILABLE");

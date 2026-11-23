@@ -20,6 +20,7 @@ export const REQUIRED_MIGRATIONS = [
   "20261027120000_api_platform",
   "20261123140000_kundali_documents",
   "20261124140000_palmistry_records",
+  "20261124150000_palmistry_hands_readings",
 ] as const;
 
 const SENSITIVE_TABLES = new Set([
@@ -30,6 +31,8 @@ const SENSITIVE_TABLES = new Set([
   "SavedChart",
   "KundaliDocument",
   "PalmistryRecord",
+  "PalmistryHandImage",
+  "PalmistryReading",
   "KundliQuestion",
   "VerificationApproval",
   "SuperAdminAccessLog",

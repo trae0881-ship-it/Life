@@ -1,11 +1,16 @@
 import type { AssistantQuestionId } from "./assistant-questions.ts";
-import type { PalmistryFactor, PalmistryObservations } from "../server/palmistry-observations.ts";
+import {
+  palmistryHands,
+  type PalmistryHand,
+  type PalmistryLine,
+  type PalmistryObservations,
+} from "../server/palmistry-observations.ts";
 
 export type PalmistryAnswer =
-  | { status: "traditional"; factors: { factor: PalmistryFactor; visibility: "clear" | "faint" }[] }
+  | { status: "traditional"; factors: { hand: PalmistryHand; factor: PalmistryLine; visibility: "clear" | "faint" }[] }
   | { status: "insufficient" | "unsupported"; factors: [] };
 
-const questionFactors: Partial<Record<AssistantQuestionId, PalmistryFactor[]>> = {
+const questionFactors: Partial<Record<AssistantQuestionId, PalmistryLine[]>> = {
   marriage_factors: ["heartLine"],
   partner_indicators: ["heartLine"],
   government_indicators: ["headLine", "fateLine"],
@@ -18,13 +23,15 @@ const questionFactors: Partial<Record<AssistantQuestionId, PalmistryFactor[]>> =
 export function answerPalmistryQuestion(
   observations: PalmistryObservations,
   questionId: AssistantQuestionId,
+  hand: PalmistryHand | "both" = "both",
 ): PalmistryAnswer {
   const factors = questionFactors[questionId];
   if (!factors) return { status: "unsupported", factors: [] };
-  const evidence = factors.flatMap((factor) => {
-    const visibility = observations[factor];
-    return visibility === "clear" || visibility === "faint" ? [{ factor, visibility }] : [];
-  });
+  const selectedHands = hand === "both" ? palmistryHands : [hand];
+  const evidence = selectedHands.flatMap((selectedHand) => factors.flatMap((factor) => {
+    const visibility = observations.hands[selectedHand].lines[factor].visibility;
+    return visibility === "clear" || visibility === "faint" ? [{ hand: selectedHand, factor, visibility }] : [];
+  }));
   return evidence.length
     ? { status: "traditional", factors: evidence }
     : { status: "insufficient", factors: [] };

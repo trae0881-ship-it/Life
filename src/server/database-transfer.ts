@@ -13,6 +13,8 @@ const NEVER_EXPORT_TABLES = new Set([
   "Session",
   "PasswordResetToken",
   "PalmistryRecord",
+  "PalmistryHandImage",
+  "PalmistryReading",
   "ManagedScript",
   "ManagedScriptAuditLog",
   "ApiKeyAuditLog",

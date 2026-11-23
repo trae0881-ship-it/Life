@@ -18,7 +18,9 @@ export async function GET(request: NextRequest) {
       where: { userId: user.id },
       select: { id: true, contentType: true, fileExtension: true, originalFile: true, uploadedAt: true },
     }));
-    if (!record) return jsonError("Palmistry image not found.", 404, "NOT_FOUND");
+    if (!record?.originalFile || !record.contentType || !record.fileExtension) {
+      return jsonError("Palmistry image not found.", 404, "NOT_FOUND");
+    }
     const filename = palmistryDownloadName(record.id, record.uploadedAt, record.fileExtension);
     return new Response(new Uint8Array(record.originalFile), {
       headers: {

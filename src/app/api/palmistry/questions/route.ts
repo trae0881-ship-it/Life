@@ -6,7 +6,7 @@ import { getUserFromRequest } from "@/server/auth";
 import { jsonError, isSameOriginMutation, readJson, RequestBodyError } from "@/server/http";
 import { checkRateLimit } from "@/server/rate-limit";
 import { withUserScopedDatabase } from "@/server/kundali-storage";
-import { parsePalmistryObservations } from "@/server/palmistry-observations";
+import { parsePalmistryObservations, type PalmistryHand } from "@/server/palmistry-observations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,11 +24,17 @@ export async function POST(request: NextRequest) {
       });
     }
     const body = await readJson(request, 1_000);
-    if (!body || Object.keys(body).length !== 2
+    const handInput = body?.hand;
+    const handScope: PalmistryHand | "both" | null = handInput === undefined || handInput === "both"
+      ? "both"
+      : handInput === "left" || handInput === "right" ? handInput : null;
+    if (!body || Object.keys(body).some((key) => !["questionId", "language", "hand"].includes(key))
+      || (Object.keys(body).length !== 2 && Object.keys(body).length !== 3)
       || typeof body.questionId !== "string"
       || !assistantQuestionCatalog.some((question) => question.id === body.questionId)
       || typeof body.language !== "string"
-      || !languages.includes(body.language as typeof languages[number])) {
+      || !languages.includes(body.language as typeof languages[number])
+      || handScope === null) {
       return jsonError("Choose a supported Palmistry question.", 422, "INVALID_QUESTION");
     }
     const storedRecord = await withUserScopedDatabase(user.id, async (transaction) => {
@@ -43,7 +49,7 @@ export async function POST(request: NextRequest) {
       console.error("Palmistry observations could not be read.", { errorType: "InvalidStoredData" });
       return jsonError("Palmistry information is temporarily unavailable.", 503, "PALMISTRY_STORAGE_UNAVAILABLE");
     }
-    const answer = answerPalmistryQuestion(observations, body.questionId as AssistantQuestionId);
+    const answer = answerPalmistryQuestion(observations, body.questionId as AssistantQuestionId, handScope);
     return NextResponse.json({ answer }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof RequestBodyError) return jsonError(error.message, error.status, "INVALID_QUESTION");
