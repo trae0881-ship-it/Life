@@ -74,6 +74,7 @@ model User {
   apiPlatformAuditLogs ApiPlatformAuditLog[] @relation("ApiPlatformAuditActor")
   apiUsageWindows ApiAccountUsageWindow[]
   kundaliDocument KundaliDocument?
+  palmistryRecord PalmistryRecord?
 }
 
 model ApiProduct {
@@ -402,6 +403,21 @@ model KundaliDocument {
   user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId])
+}
+
+model PalmistryRecord {
+  id            String   @id
+  userId        String   @unique
+  contentType   String   @db.VarChar(32)
+  fileExtension String   @db.VarChar(8)
+  fileSizeBytes Int
+  originalFile  Bytes
+  observations  Json
+  uploadedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
 }
 
 enum SuperAdminAccessAction {

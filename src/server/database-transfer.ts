@@ -12,6 +12,7 @@ const NEVER_EXPORT_TABLES = new Set([
   "_prisma_migrations",
   "Session",
   "PasswordResetToken",
+  "PalmistryRecord",
   "ManagedScript",
   "ManagedScriptAuditLog",
   "ApiKeyAuditLog",
