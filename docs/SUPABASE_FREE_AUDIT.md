@@ -17,6 +17,7 @@ If `DATABASE_URL` is later pointed at a Supabase PostgreSQL endpoint, the applic
 | Account registration/login | Custom Argon2id password hashing, `User`, `Session`, HTTP-only cookie | PostgreSQL |
 | Birth profiles | `/api/profiles` and owner-scoped Prisma queries | PostgreSQL |
 | Saved charts | `/api/saved-charts`, server-side recalculation, owner-scoped Prisma queries | PostgreSQL; chart result JSON is stored |
+| Kundali original file | `/api/kundalis`, authenticated owner-scoped routes | PostgreSQL `BYTEA`; one original per LIFE account, replaced/deleted with the same transaction. No Supabase Storage bucket is used. |
 | Assistant question history | React component state only | None; cleared on reload |
 | Current calculated chart | `life-current-chart` | `sessionStorage`; tab/session scoped |
 | Language preference | `life-language` | `localStorage` |
@@ -32,9 +33,9 @@ There is no question-history model, route, or persistence layer. There is no Sup
 
 ## Schema, migrations and RLS
 
-The Prisma schema contains `User`, `Session`, `BirthProfile`, `SavedChart`, verification records, and foreign-key/index definitions. Migrations are additive and use standard PostgreSQL types, `JSONB`, enums, indexes, and cascading ownership relations.
+The Prisma schema contains `User`, `Session`, `BirthProfile`, `SavedChart`, `KundaliDocument`, verification records, and foreign-key/index definitions. Migrations are additive and use standard PostgreSQL types, `BYTEA`, `JSONB`, enums, indexes, and cascading ownership relations.
 
-No migration enables row-level security and no `CREATE POLICY` statements exist. User-owned rows are protected by application-level authorization:
+Most user-owned rows are protected by application-level authorization:
 
 - authenticated session is resolved server-side;
 - profile and saved-chart queries include both `userId` and record ID where applicable;
@@ -42,13 +43,14 @@ No migration enables row-level security and no `CREATE POLICY` statements exist.
 - saved charts are recalculated server-side rather than trusting client planetary positions;
 - admin routes require `ADMIN` or `SUPER_ADMIN`.
 
-This is adequate only while all database access stays behind these server routes. It is **not equivalent to Supabase RLS**. Direct browser access to these tables must not be enabled without designing policies around the application's user identity model.
+The Kundali migration is the exception: it enables and forces RLS on `KundaliDocument` and adds separate SELECT, INSERT, UPDATE, and DELETE owner policies using the transaction-local `life.user_id` setting. Routes set that value only after resolving the LIFE session and still include explicit `userId` filters. This is a custom application identity policy, not `auth.uid()`/Supabase Auth. The migration and policies have not been applied to or tested against the live Supabase database; the configured database role's RLS behavior remains unverified. Direct browser access to any LIFE table remains unsupported.
 
 ## Free-plan risk assessment
 
 No usage measurements are available, so this audit does not claim a quota margin or invent request/storage numbers.
 
 - **Database size:** `SavedChart.result`, `settings`, and `inputSnapshot` are JSONB snapshots. Repeated large chart results can consume the database quota faster than normalized profile rows. Verification reports/evidence can also grow over time.
+- **Kundali file storage:** each account can retain one original of at most 10 MiB in PostgreSQL `BYTEA`. Replacements and deletion remove the prior database copy, but this consumes database quota and is not Supabase object storage.
 - **Egress:** saved-chart detail responses return the complete stored result JSON. Repeated reloads or many large chart downloads can increase egress.
 - **Query volume:** authentication performs user/session lookups; account panels list profiles/charts; admin pages count users/profiles/charts. There is no server-side caching layer. High-frequency health probes would add database checks once configured.
 - **Connections:** Prisma uses a PostgreSQL adapter pool (`max: 10`). A Supabase direct connection or transaction/session pooler must be selected deliberately; serverless deployments should use a Supabase pooler and avoid multiplying per-instance pools.

@@ -111,12 +111,28 @@ export default function KundaliVault({ language, onAsk }: { language: Language; 
       }
       const saved = body.kundali;
       setRecord(saved);
-      setNotice(t("kundali.downloadNotice"));
-      beginBrowserDownload(`/api/kundalis/${encodeURIComponent(saved.id)}/original`, saved.downloadName);
+      void startAutomaticDownload(saved);
       setUploading(false);
       setProgress(100);
     };
     xhr.send(form);
+  }
+
+  async function startAutomaticDownload(saved: KundaliRecord) {
+    try {
+      const response = await fetch(`/api/kundalis/${encodeURIComponent(saved.id)}/original`, { cache: "no-store" });
+      if (response.status === 401) {
+        window.location.assign("/login?next=%2Fdashboard");
+        return;
+      }
+      if (!response.ok) throw new Error("download failed");
+      const objectUrl = URL.createObjectURL(await response.blob());
+      beginBrowserDownload(objectUrl, saved.downloadName);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      setNotice(t("kundali.downloadNotice"));
+    } catch {
+      setError(t("kundali.downloadFailed"));
+    }
   }
 
   async function downloadOriginal() {
@@ -186,7 +202,10 @@ export default function KundaliVault({ language, onAsk }: { language: Language; 
       className={`kundali-dropzone${dragging ? " is-dragging" : ""}`}
       onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
       onDragOver={(event) => event.preventDefault()}
-      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
+      onDragLeave={(event) => {
+        const target = event.relatedTarget;
+        if (!(target instanceof Node) || !event.currentTarget.contains(target)) setDragging(false);
+      }}
       onDrop={handleDrop}
     >
       <input

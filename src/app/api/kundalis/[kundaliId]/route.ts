@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/server/auth";
 import { jsonError, isSameOriginMutation } from "@/server/http";
 import { isValidKundaliId } from "@/server/kundali-files";
+import { ownedRecordWhere } from "@/server/ownership";
 import { withKundaliDatabaseUser } from "@/server/kundali-storage";
 
 export const runtime = "nodejs";
@@ -17,7 +18,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const { kundaliId } = await context.params;
     if (!isValidKundaliId(kundaliId)) return jsonError("Kundali document not found.", 404, "NOT_FOUND");
     const deleted = await withKundaliDatabaseUser(user.id, (transaction) => transaction.kundaliDocument.deleteMany({
-      where: { id: kundaliId, userId: user.id },
+      where: ownedRecordWhere(user.id, kundaliId),
     }));
     if (!deleted.count) return jsonError("Kundali document not found.", 404, "NOT_FOUND");
     return NextResponse.json({ deleted: true }, { headers: { "Cache-Control": "no-store" } });

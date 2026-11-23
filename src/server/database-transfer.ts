@@ -27,6 +27,7 @@ const SENSITIVE_TABLES = new Set([
   "User",
   "BirthProfile",
   "SavedChart",
+  "KundaliDocument",
   "KundliQuestion",
   "VerificationApproval",
   "ApiKey",

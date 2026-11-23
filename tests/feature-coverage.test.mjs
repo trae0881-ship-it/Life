@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 test("feature coverage matrix records every requested feature without false completion", () => {
   const matrix = readFileSync(new URL("../docs/LIFE_FEATURE_COVERAGE.md", import.meta.url), "utf8");
   const rows = matrix.split("\n").filter((line) => line.startsWith("| ") && !line.startsWith("| Feature") && !line.startsWith("|---"));
-  assert.equal(rows.length, 31);
+  assert.equal(rows.length, 32);
   assert.match(matrix, /Ashtakavarga \| UNSUPPORTED/);
   assert.match(matrix, /PDF download \| UNSUPPORTED/);
   assert.match(matrix, /Basic Mantra Remedies \| IMPLEMENTED_AND_TESTED/);
@@ -14,6 +14,7 @@ test("feature coverage matrix records every requested feature without false comp
   assert.match(matrix, /D1-D60 period evidence and classification \| PARTIALLY_IMPLEMENTED/);
   assert.match(matrix, /Analysis readiness states \| IMPLEMENTED/);
   assert.match(matrix, /Saved chart reports \| IMPLEMENTED_DATABASE_INTEGRATION_UNVERIFIED/);
+  assert.match(matrix, /Kundali original upload\/download \| PARTIALLY_IMPLEMENTED_DATABASE_INTEGRATION_UNVERIFIED/);
 });
 
 test("remedies page exposes a separate basic mantra section", () => {

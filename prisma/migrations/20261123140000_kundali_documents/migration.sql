@@ -22,7 +22,23 @@ ALTER TABLE "KundaliDocument"
 ALTER TABLE "KundaliDocument" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "KundaliDocument" FORCE ROW LEVEL SECURITY;
 
-CREATE POLICY "KundaliDocument_owner_isolation"
+CREATE POLICY "KundaliDocument_owner_select"
   ON "KundaliDocument"
+  FOR SELECT
+  USING ("userId" = current_setting('life.user_id', true));
+
+CREATE POLICY "KundaliDocument_owner_insert"
+  ON "KundaliDocument"
+  FOR INSERT
+  WITH CHECK ("userId" = current_setting('life.user_id', true));
+
+CREATE POLICY "KundaliDocument_owner_update"
+  ON "KundaliDocument"
+  FOR UPDATE
   USING ("userId" = current_setting('life.user_id', true))
   WITH CHECK ("userId" = current_setting('life.user_id', true));
+
+CREATE POLICY "KundaliDocument_owner_delete"
+  ON "KundaliDocument"
+  FOR DELETE
+  USING ("userId" = current_setting('life.user_id', true));

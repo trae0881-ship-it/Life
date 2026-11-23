@@ -18,6 +18,7 @@ export const REQUIRED_MIGRATIONS = [
   "20261026150000_blog_cms",
   "20261027111700_admin_script_manager",
   "20261027120000_api_platform",
+  "20261123140000_kundali_documents",
 ] as const;
 
 const SENSITIVE_TABLES = new Set([
@@ -26,6 +27,7 @@ const SENSITIVE_TABLES = new Set([
   "PasswordResetToken",
   "BirthProfile",
   "SavedChart",
+  "KundaliDocument",
   "KundliQuestion",
   "VerificationApproval",
   "SuperAdminAccessLog",

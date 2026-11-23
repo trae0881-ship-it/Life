@@ -148,6 +148,13 @@ test("export rejects sensitive tables without explicit confirmation and rejects 
   });
   assert.equal(deniedSensitive.status, 403);
 
+  const privateKundali = await createDatabaseExportResponse(
+    new TransferRepository({ table: "KundaliDocument" }),
+    "admin",
+    { tables: ["KundaliDocument"], format: "jsonl", includeSensitive: false },
+  );
+  assert.equal(privateKundali.status, 403);
+
   const rls = new TransferRepository({ rowLevelSecurity: true });
   const deniedRls = await createDatabaseExportResponse(rls, "admin", {
     tables: ["Thing"], format: "jsonl", includeSensitive: false,

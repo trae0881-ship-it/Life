@@ -156,7 +156,7 @@ export function validateKundaliUpload(fileName: string, mimeType: string, bytes:
     throw new KundaliFileError("Use a regular PDF or image filename.", "INVALID_FILENAME");
   }
   const extension = fileName.toLowerCase().split(".").pop() ?? "";
-  if (!(extension in MIME_BY_EXTENSION)) {
+  if (!Object.hasOwn(MIME_BY_EXTENSION, extension)) {
     throw new KundaliFileError("Upload a PDF, JPG, JPEG, or PNG Kundali.", "UNSUPPORTED_FILE_TYPE");
   }
   const contentType = MIME_BY_EXTENSION[extension as keyof typeof MIME_BY_EXTENSION];
@@ -174,6 +174,9 @@ export function validateKundaliUpload(fileName: string, mimeType: string, bytes:
 }
 
 export function kundaliDownloadName(id: string, uploadedAt: Date, extension: string) {
+  if (!isValidKundaliId(id) || !["pdf", "jpg", "jpeg", "png"].includes(extension)) {
+    throw new Error("Stored Kundali download metadata is invalid.");
+  }
   const date = uploadedAt.toISOString().slice(0, 10);
   return `LIFE-Kundali-Original-${date}-${id.slice(0, 8)}.${extension}`;
 }

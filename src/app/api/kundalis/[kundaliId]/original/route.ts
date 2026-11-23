@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { getUserFromRequest } from "@/server/auth";
 import { jsonError } from "@/server/http";
 import { isValidKundaliId, kundaliDownloadName } from "@/server/kundali-files";
+import { ownedRecordWhere } from "@/server/ownership";
+import { checkRateLimit } from "@/server/rate-limit";
 import { withKundaliDatabaseUser } from "@/server/kundali-storage";
 
 export const runtime = "nodejs";
@@ -13,10 +15,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const user = await getUserFromRequest(request);
     if (!user) return jsonError("Sign in is required.", 401, "UNAUTHENTICATED");
+    const rate = checkRateLimit(`kundali-download:${user.id}`, 30, 60_000);
+    if (!rate.allowed) return jsonError("Too many downloads. Try again shortly.", 429, "RATE_LIMITED");
     const { kundaliId } = await context.params;
     if (!isValidKundaliId(kundaliId)) return jsonError("Kundali document not found.", 404, "NOT_FOUND");
     const document = await withKundaliDatabaseUser(user.id, (transaction) => transaction.kundaliDocument.findFirst({
-      where: { id: kundaliId, userId: user.id },
+      where: ownedRecordWhere(user.id, kundaliId),
       select: { id: true, contentType: true, fileExtension: true, originalFile: true, uploadedAt: true },
     }));
     if (!document) return jsonError("Kundali document not found.", 404, "NOT_FOUND");
