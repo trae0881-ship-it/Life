@@ -1,5 +1,15 @@
+import {
+  PALM_FEATURE_DEFINITIONS,
+  PALM_FEATURE_IDS,
+  type ObservationConfidence,
+  type PalmFeatureId,
+  type PalmTradition,
+} from "./knowledge";
+
 export const PALM_SIDES = ["left", "right"] as const;
 export type PalmSide = typeof PALM_SIDES[number];
+export type DominantHand = PalmSide | "unknown";
+export type PalmLanguage = "en" | "hi";
 
 export const HAND_SHAPES = ["earth", "air", "fire", "water"] as const;
 export type HandShape = typeof HAND_SHAPES[number];
@@ -28,21 +38,33 @@ export type PalmObservations = {
   thumb: ThumbType;
   lines: Record<LineName, LineQuality>;
   mounts: Record<MountName, MountLevel>;
+  dominantHand?: DominantHand;
+  observationConfidence?: ObservationConfidence;
+  featureObservations?: Partial<Record<PalmFeatureId, import("./knowledge").PalmFeatureObservation>>;
 };
 
 export type PalmKnowledgeEntry = {
   id: string;
-  category: "hand shape" | "finger" | "thumb" | "palm line" | "mount";
+  category: "hand shape" | "finger" | "thumb" | "palm line" | "mount" | "major line" | "secondary line" | "marking";
   label: string;
   keywords: string[];
   content: string;
+  contentHi?: string;
+  location?: string;
+  alternative?: string;
+  alternativeHi?: string;
+  sourceIds?: string[];
+  traditions?: PalmTradition[];
 };
 
 export type PalmReportSection = {
   category: PalmKnowledgeEntry["category"];
   observation: string;
   interpretation: string;
+  interpretationHi?: string;
   knowledgeId: string;
+  sources?: string[];
+  evidence?: Array<{ featureId: string; confidence: ObservationConfidence | null; weight: number }>;
 };
 
 export type PalmReport = {
@@ -50,6 +72,10 @@ export type PalmReport = {
   summary: string;
   sections: PalmReportSection[];
   disclaimer: string;
+  language?: PalmLanguage;
+  contradictions?: string[];
+  dominantHand?: DominantHand;
+  confidenceNotice?: string;
 };
 
 export type PalmQuestionAnswer = {
@@ -118,7 +144,7 @@ const mountLevelLabels: Record<MountLevel, string> = {
   "not-observed": "Not observed",
 };
 
-export const PALM_KNOWLEDGE: PalmKnowledgeEntry[] = [
+const LEGACY_PALM_KNOWLEDGE: PalmKnowledgeEntry[] = [
   { id: "shape.earth", category: "hand shape", label: "Earth hand", keywords: ["earth", "shape", "palm", "practical", "grounded"], content: "In traditional palmistry, an earth hand is associated symbolically with practicality, steadiness and a preference for tangible experience. This is a traditional association, not a measured personality trait." },
   { id: "shape.air", category: "hand shape", label: "Air hand", keywords: ["air", "shape", "palm", "curious", "communication"], content: "In traditional palmistry, an air hand is associated symbolically with curiosity, ideas and communication. This is a traditional association, not a measured personality trait." },
   { id: "shape.fire", category: "hand shape", label: "Fire hand", keywords: ["fire", "shape", "palm", "energy", "initiative"], content: "In traditional palmistry, a fire hand is associated symbolically with initiative, enthusiasm and action. This is a traditional association, not a measured personality trait." },
@@ -143,6 +169,41 @@ export const PALM_KNOWLEDGE: PalmKnowledgeEntry[] = [
     keywords: [mount, mountLabels[mount].toLowerCase(), level, "mount", "palm"],
     content: mountInterpretation(mount, level),
   }))),
+];
+
+function traditionLabel(tradition: PalmTradition): string {
+  if (tradition === "hasta-samudrika") return "Indian Samudrika";
+  if (tradition === "cheiro") return "Cheiro";
+  return "Western palmistry";
+}
+
+function featureContent(feature: (typeof PALM_FEATURE_DEFINITIONS)[number], language: PalmLanguage): string {
+  if (feature.traditions.includes("hasta-samudrika")) {
+    return language === "hi"
+      ? `भारतीय समुद्रिका परंपरा में हस्तचिह्नों का वर्णन अपनी शब्दावली और संदर्भ में मिलता है। ${feature.label} को पश्चिमी नाम से स्वतः समान नहीं माना गया है।`
+      : `Indian Samudrika sources describe hand signs within their own vocabulary and context. This ${feature.label.toLowerCase()} label is not automatically treated as an exact Western equivalent.`;
+  }
+  if (language === "hi") {
+    return `पारंपरिक ${feature.traditions.map(traditionLabel).join(" / ")} व्याख्या में ${feature.label} को प्रतीकात्मक रूप से ${feature.themeHi} से जोड़ा जाता है। यह सांस्कृतिक मान्यता है, प्रमाणित व्यक्तित्व-माप या भविष्यवाणी नहीं।`;
+  }
+  return `Traditional ${feature.traditions.map(traditionLabel).join(" / ")} interpretations symbolically associate the ${feature.label.toLowerCase()} with ${feature.theme}. This is a cultural belief, not a validated personality measure or prediction.`;
+}
+
+export const PALM_KNOWLEDGE: PalmKnowledgeEntry[] = [
+  ...PALM_FEATURE_DEFINITIONS.map((feature) => ({
+    id: feature.id,
+    category: feature.category,
+    label: feature.label,
+    keywords: [feature.id.replace(/[.-]/g, " "), feature.location, feature.theme, feature.themeHi, ...feature.variations],
+    content: featureContent(feature, "en"),
+    contentHi: featureContent(feature, "hi"),
+    location: feature.location,
+    alternative: feature.alternative,
+    alternativeHi: feature.alternativeHi,
+    sourceIds: feature.sourceIds,
+    traditions: feature.traditions,
+  })),
+  ...LEGACY_PALM_KNOWLEDGE.filter((entry) => !PALM_FEATURE_IDS.includes(entry.id as PalmFeatureId)),
 ];
 
 function lineInterpretation(line: LineName, quality: Exclude<LineQuality, "not-observed">): string {

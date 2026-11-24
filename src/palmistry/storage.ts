@@ -13,6 +13,19 @@ export type SavedPalmReading = {
   imageDataUrl: string | null;
 };
 
+function isSavedPalmReading(item: unknown): item is SavedPalmReading {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+  const record = item as Record<string, unknown>;
+  const report = record.report;
+  return typeof record.id === "string"
+    && typeof record.title === "string"
+    && (record.side === "left" || record.side === "right")
+    && typeof record.createdAt === "string"
+    && Boolean(record.observations && typeof record.observations === "object" && !Array.isArray(record.observations))
+    && Boolean(report && typeof report === "object" && !Array.isArray(report) && Array.isArray((report as Record<string, unknown>).sections))
+    && (record.imageDataUrl === null || typeof record.imageDataUrl === "string");
+}
+
 function readPalmReadings(): SavedPalmReading[] {
   const saved = window.localStorage.getItem(STORAGE_KEY);
   if (saved === null) return [];
@@ -23,15 +36,7 @@ function readPalmReadings(): SavedPalmReading[] {
   } catch {
     throw new Error("Your saved Palmistry history is unreadable. Clear its local history data before saving again.");
   }
-  if (!Array.isArray(parsed) || parsed.length > MAX_SAVED_PALM_READINGS || parsed.some((item) =>
-    !item || typeof item !== "object"
-      || typeof item.id !== "string"
-      || typeof item.title !== "string"
-      || (item.side !== "left" && item.side !== "right")
-      || typeof item.createdAt !== "string"
-      || !item.observations || typeof item.observations !== "object"
-      || !item.report || !Array.isArray(item.report.sections)
-      || (item.imageDataUrl !== null && typeof item.imageDataUrl !== "string"))) {
+  if (!Array.isArray(parsed) || parsed.length > MAX_SAVED_PALM_READINGS || parsed.some((item) => !isSavedPalmReading(item))) {
     throw new Error("Your saved Palmistry history contains invalid data.");
   }
   return parsed as SavedPalmReading[];

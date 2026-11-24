@@ -241,7 +241,7 @@ export default function PalmistryWorkspace() {
       setSelectedReadingId(reading.id);
       if (side === "left") setLeftReadingId(reading.id);
       else setRightReadingId(reading.id);
-      setNotice("Reading and report saved to your account.");
+      setNotice("Reading and report saved on this device.");
       setTab("history");
     } catch (saveError: unknown) {
       setError(saveError instanceof Error ? saveError.message : "The reading could not be saved.");
@@ -261,7 +261,7 @@ export default function PalmistryWorkspace() {
       setSelectedReadingId(updated[0]?.id ?? "");
       setLeftReadingId((current) => current === reading.id ? updated.find((item) => item.side === "left")?.id ?? "" : current);
       setRightReadingId((current) => current === reading.id ? updated.find((item) => item.side === "right")?.id ?? "" : current);
-      setNotice("Reading deleted from your account.");
+      setNotice("Reading deleted from this device.");
     } catch (deleteError: unknown) {
       setError(deleteError instanceof Error ? deleteError.message : "The reading could not be deleted.");
     } finally {
@@ -462,7 +462,7 @@ export default function PalmistryWorkspace() {
       </section>}
 
       <footer className="palmistry-footer">
-        <span>NO AI · NO IMAGE ANALYSIS · ACCOUNT-OWNED READING HISTORY</span>
+        <span>NO AI · NO IMAGE ANALYSIS · LOCAL-ONLY READING HISTORY</span>
         <a href="/privacy-policy">Privacy information ↗</a>
       </footer>
     </div>

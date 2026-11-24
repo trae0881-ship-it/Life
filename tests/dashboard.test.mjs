@@ -14,10 +14,18 @@ test("dashboard route requires a server-validated session", () => {
 test("authenticated dashboard exposes all astrology services with working routes", () => {
   const dashboard = source("src/app/Dashboard.tsx");
   assert.match(dashboard, /Explore Astrology Services/);
-  for (const route of ["/palmistry", "/kp-astrology", "/ank-jyotish", "/tarot-reading"]) {
+  for (const [name, route] of [
+    ["Palmistry", "/palmistry"],
+    ["KP Astrology", "/kp-astrology"],
+    ["Ank Jyotish", "/ank-jyotish"],
+    ["Tarot Card Reading", "/tarot-reading"],
+  ]) {
+    assert.ok(dashboard.includes(`name: "${name}"`), `${name} appears as a service card`);
     assert.ok(dashboard.includes(`href: "${route}"`), `${route} is in the dashboard service inventory`);
     assert.ok(dashboard.includes(`href={service.href}`), `${route} card and service navigation use actual hrefs`);
-    assert.ok(source(`src/app${route}/page.tsx`).includes("getCurrentUser"), `${route} checks for authentication`);
+    const page = source(`src/app${route}/page.tsx`);
+    assert.ok(page.includes("getCurrentUser"), `${route} checks for authentication`);
+    assert.ok(page.includes(`next=%2F${route.slice(1)}`), `${route} returns the user to the selected service after sign-in`);
   }
   assert.match(dashboard, /className="dashboard-service-grid"/);
   assert.match(dashboard, /aria-label="Astrology services"/);

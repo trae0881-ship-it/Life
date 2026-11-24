@@ -7,6 +7,7 @@ import {
   generatePalmReport,
   searchPalmKnowledge,
 } from "../src/palmistry/engine.ts";
+import { deletePalmReading, listPalmReadings, savePalmReading } from "../src/palmistry/storage.ts";
 import { readFileSync } from "node:fs";
 
 const observations = {
@@ -62,6 +63,7 @@ test("offline Q&A retrieves relevant bundled passages without generating new adv
 
 test("palmistry workspace uses local storage and makes no network or AI integration calls", () => {
   const workspace = readFileSync(new URL("../src/app/PalmistryWorkspace.tsx", import.meta.url), "utf8");
+  const storage = readFileSync(new URL("../src/palmistry/storage.ts", import.meta.url), "utf8");
   const serviceWorker = readFileSync(new URL("../public/palmistry-sw.js", import.meta.url), "utf8");
   assert.match(workspace, /savePalmReading/);
   assert.match(workspace, /searchPalmKnowledge/);
@@ -69,7 +71,39 @@ test("palmistry workspace uses local storage and makes no network or AI integrat
   assert.match(workspace, /answerPalmQuestion/);
   assert.match(workspace, /never analyzed/);
   assert.doesNotMatch(workspace, /\bfetch\s*\(|\/api\/|openai|anthropic|gemini|claude/i);
+  assert.match(storage, /window\.localStorage/);
+  assert.doesNotMatch(storage, /\bfetch\s*\(|\/api\//i);
   assert.match(workspace, /register\("\/palmistry-sw\.js"/);
   assert.match(serviceWorker, /url\.pathname\.startsWith\(STATIC_PREFIX\)/);
   assert.doesNotMatch(serviceWorker, /\/api\/|https?:\/\/|openai|anthropic|gemini|claude/i);
+});
+
+test("Palmistry readings save, reload, cap and delete from browser localStorage", async () => {
+  const previousWindow = globalThis.window;
+  const values = new Map();
+  globalThis.window = {
+    localStorage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+    },
+  };
+  try {
+    const reading = {
+      id: "palm-1",
+      title: "Left palm",
+      side: "left",
+      createdAt: "2026-11-24T00:00:00.000Z",
+      observations,
+      report: generatePalmReport(observations, "left"),
+      imageDataUrl: null,
+    };
+    await savePalmReading(reading);
+    assert.deepEqual(await listPalmReadings(), [reading]);
+    await savePalmReading({ ...reading, id: "palm-2", side: "right" });
+    await deletePalmReading("palm-1");
+    assert.deepEqual((await listPalmReadings()).map((item) => item.id), ["palm-2"]);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
 });
