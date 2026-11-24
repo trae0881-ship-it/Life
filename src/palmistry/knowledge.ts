@@ -17,6 +17,7 @@ export type PalmFeatureObservation = {
 export type PalmFeatureDefinition = {
   id: string;
   label: string;
+  labelHi: string;
   category: PalmFeatureCategory;
   location: string;
   theme: string;
@@ -28,13 +29,16 @@ export type PalmFeatureDefinition = {
   sourceIds: string[];
 };
 
-const sources = {
+type FeatureRow = Pick<PalmFeatureDefinition, "id" | "label" | "category" | "location" | "theme" | "alternative">
+  & Partial<Pick<PalmFeatureDefinition, "labelHi" | "themeHi" | "alternativeHi" | "variations" | "traditions">>;
+
+export const PALM_SOURCES_BY_TRADITION: Record<PalmTradition, string[]> = {
   western: ["heron-allen-cheirosophy", "benham-hand-reading"],
   cheiro: ["cheiro-palmistry-for-all"],
-  indian: ["indian-samudrika-reference"],
+  "hasta-samudrika": ["indian-samudrika-reference"],
 };
 
-const rows: Array<Omit<PalmFeatureDefinition, "traditions" | "sourceIds"> & { traditions?: PalmTradition[] }> = [
+const rows: FeatureRow[] = [
   { id: "shape.earth", label: "Earth hand", category: "hand shape", location: "Palm proportions and finger length", theme: "practicality and tangible work", themeHi: "व्यावहारिकता और ठोस काम", alternative: "Hand-shape systems classify proportions differently; mixed proportions are common.", alternativeHi: "हाथ के आकार की प्रणालियाँ अनुपातों को अलग तरह से बाँटती हैं; मिले-जुले अनुपात सामान्य हैं।", variations: ["square palm", "broad palm", "short fingers"], traditions: ["western", "cheiro", "hasta-samudrika"] },
   { id: "shape.air", label: "Air hand", category: "hand shape", location: "Square or rectangular palm with relatively long fingers", theme: "ideas and communication", themeHi: "विचार और संवाद", alternative: "A hand may not fit one element type; proportions are descriptive, not diagnostic.", alternativeHi: "हाथ किसी एक तत्व-वर्ग में पूरी तरह न आए; अनुपात वर्णन हैं, निदान नहीं।", variations: ["square palm", "long fingers"], traditions: ["western", "cheiro"] },
   { id: "shape.fire", label: "Fire hand", category: "hand shape", location: "Long palm with relatively shorter fingers", theme: "initiative and action", themeHi: "पहल और क्रिया", alternative: "Element labels are a modern Western classification and are not universal across traditions.", alternativeHi: "तत्व-आधारित नाम आधुनिक पश्चिमी वर्गीकरण हैं और सभी परंपराओं में समान नहीं हैं।", variations: ["long palm", "short fingers"], traditions: ["western"] },
@@ -85,13 +89,24 @@ const rows: Array<Omit<PalmFeatureDefinition, "traditions" | "sourceIds"> & { tr
   { id: "mark.horizontal", label: "Horizontal markings", category: "marking", location: "Short lines crossing a mount or major line", theme: "a traditional crossing or interruption accent", themeHi: "पारंपरिक रूप से काटने या रुकावट का संकेत", alternative: "Do not interpret marks without a clear, repeatable location." },
 ];
 
+const featureLabelsHi: Record<string, string> = {
+  "shape.earth": "पृथ्वी हाथ", "shape.air": "वायु हाथ", "shape.fire": "अग्नि हाथ", "shape.water": "जल हाथ",
+  "line.life": "जीवन रेखा", "line.head": "मस्तिष्क रेखा", "line.heart": "हृदय रेखा", "line.fate": "भाग्य रेखा", "line.sun": "सूर्य रेखा", "line.mercury": "बुध रेखा",
+  "secondary.relationship": "संबंध / विवाह रेखाएँ", "secondary.travel": "यात्रा रेखाएँ", "secondary.intuition": "अंतर्ज्ञान रेखा", "secondary.venus-girdle": "शुक्र वलय", "secondary.mars": "मंगल रेखा", "secondary.health": "स्वास्थ्य रेखा (पारंपरिक नाम)",
+  "mount.jupiter": "बृहस्पति पर्वत", "mount.saturn": "शनि पर्वत", "mount.apollo": "अपोलो पर्वत", "mount.mercury": "बुध पर्वत", "mount.venus": "शुक्र पर्वत", "mount.moon": "चंद्र पर्वत", "mount.upper-mars": "ऊपरी मंगल पर्वत", "mount.lower-mars": "निचला मंगल पर्वत", "mount.plain-mars": "मंगल का मैदान",
+  "finger.index": "तर्जनी", "finger.middle": "मध्यमा", "finger.ring": "अनामिका", "finger.little": "कनिष्ठा", "finger.thumb": "अंगूठा",
+  "mark.island": "द्वीप चिह्न", "mark.break": "टूटन", "mark.branch": "शाखा", "mark.cross": "क्रॉस", "mark.star": "तारा", "mark.square": "वर्ग", "mark.triangle": "त्रिकोण", "mark.grille": "जाल", "mark.chain": "श्रृंखला", "mark.circle": "वृत्त", "mark.fork": "काँटा", "mark.vertical": "ऊर्ध्व चिह्न", "mark.horizontal": "क्षैतिज चिह्न",
+};
+
 export const PALM_FEATURE_DEFINITIONS: PalmFeatureDefinition[] = rows.map((row) => ({
   ...row,
-  traditions: row.traditions ?? ["western", "cheiro"],
-  sourceIds: (row.traditions ?? ["western", "cheiro"]).flatMap((tradition) => {
-    if (tradition === "western") return sources.western;
-    if (tradition === "cheiro") return sources.cheiro;
-    return sources.indian;
+  labelHi: row.labelHi ?? featureLabelsHi[row.id] ?? row.label,
+  themeHi: row.themeHi ?? row.theme,
+  alternativeHi: row.alternativeHi ?? row.alternative,
+  variations: row.variations ?? ["shape", "depth", "length", "direction", "continuity"],
+  traditions: row.traditions ?? (row.category === "marking" ? ["western", "cheiro", "hasta-samudrika"] : ["western", "cheiro"]),
+  sourceIds: (row.traditions ?? (row.category === "marking" ? ["western", "cheiro", "hasta-samudrika"] : ["western", "cheiro"])).flatMap((tradition) => {
+    return PALM_SOURCES_BY_TRADITION[tradition];
   }),
 }));
 
