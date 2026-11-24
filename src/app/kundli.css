@@ -27,6 +27,13 @@
 .divisional-section{padding:18px 20px;min-width:0}
 .divisional-explanation{margin:12px 0;padding:12px;background:#f7f3e9;border:1px solid #e8e1d2;color:#59635f;font-size:10px;line-height:1.6}
 .divisional-explanation h3{margin:0 0 7px;color:#8c754c;font:10px var(--mono);letter-spacing:.04em}
+.kp-ruling-planets{display:grid;gap:5px;margin:12px 0;padding:11px 13px;border-left:2px solid #b98c4e;background:#f7f3e9;color:#59635f;font-size:10px}
+.kp-ruling-planets b{color:#725d3d}
+.kp-interpretation{margin-top:16px;padding-top:14px;border-top:1px solid #e8e5dd}
+.kp-interpretation-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:12px}
+.kp-interpretation-grid article{display:grid;gap:5px;min-width:0;padding:10px;border:1px solid #e8e5dd;background:#fffefa}
+.kp-interpretation-grid article b{color:#46514f;font-size:10px;line-height:1.45}
+.kp-interpretation-grid article span{color:#737a77;font-size:9px;line-height:1.45;overflow-wrap:anywhere}
 .divisional-explanation p{margin:6px 0}
 .divisional-explanation p:last-child{color:#737a77}
 .divisional-section h2{margin:7px 0 0}
@@ -182,6 +189,8 @@
 .analysis-readiness p{margin:0;color:#69726e;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
 .analysis-readiness a{color:#8c754c;font-size:10px;white-space:nowrap}
 .mobile-menu-toggle,.mobile-menu-backdrop{display:none}
+@media(max-width:760px){.kp-interpretation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:430px){.kp-interpretation-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:760px){.dasha-current-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.analysis-readiness{grid-template-columns:1fr;align-items:start}}
 @media(max-width:760px){.analysis-readiness a{white-space:normal}}

@@ -20,6 +20,11 @@ export const SEO_PAGE_DEFINITIONS = [
     description: "Published articles from the LIFE Jyotish workbench. Editorial content is informational and does not promise future outcomes.",
   },
   {
+    path: "/palmistry",
+    title: "Palmistry | LIFE",
+    description: "A private, offline-first palmistry workspace with manual observations, deterministic interpretations and locally saved readings. No AI or image analysis.",
+  },
+  {
     path: "/disclaimer",
     title: "Disclaimer | LIFE",
     description: "Read LIFE's educational, calculation and astrology limitations before using the Jyotish workbench.",

@@ -9,6 +9,7 @@ export default function GlobalFooter() {
       <a href="/blogs">Blog</a>
       <a href="/#contact">Contact</a>
       <a href="/developers">Documentation</a>
+      <a href="/palmistry">Palmistry</a>
       <a href="/api/docs">API documentation</a>
       <DeveloperFooterSection />
       <a href="/references">References</a>

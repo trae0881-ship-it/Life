@@ -74,6 +74,7 @@ model User {
   apiPlatformAuditLogs ApiPlatformAuditLog[] @relation("ApiPlatformAuditActor")
   apiUsageWindows ApiAccountUsageWindow[]
   kundaliDocument KundaliDocument?
+  astrologyReadings SavedAstrologyReading[]
 }
 
 model ApiProduct {
@@ -384,6 +385,18 @@ model KundliQuestion {
   @@unique([userId, requestId])
   @@index([userId, createdAt])
   @@index([userId, topic, createdAt])
+}
+
+model SavedAstrologyReading {
+  id        String   @id @default(cuid())
+  userId    String
+  service   String   @db.VarChar(32)
+  title     String   @db.VarChar(120)
+  payload   Json
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, service, createdAt])
 }
 
 enum KundaliProcessingStatus {

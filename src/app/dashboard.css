@@ -14,6 +14,11 @@
 .dashboard-nav button:hover,.dashboard-nav button.active{background:#26394e;color:#fff}
 .dashboard-nav button.active{box-shadow:inset 2px 0 var(--gold)}
 .dashboard-nav button:focus-visible,.dashboard-sidebar-foot a:focus-visible,.dashboard-sidebar-foot button:focus-visible,.dashboard-menu-button:focus-visible,.dashboard-topbar select:focus-visible,.dashboard-content button:focus-visible,.dashboard-content a:focus-visible,.dashboard-content input:focus-visible,.dashboard-content select:focus-visible,.dashboard-report-modal button:focus-visible{outline:2px solid #cba96d;outline-offset:2px}
+.dashboard-service-nav{display:grid;gap:4px;margin-top:22px;padding-top:15px;border-top:1px solid #304054;overflow-y:auto}
+.dashboard-service-nav>span{padding:0 10px 5px;color:#8f9ba6;font:8px var(--mono);letter-spacing:.13em}
+.dashboard-service-nav>a{min-height:37px;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:4px;color:#aeb7c0;text-decoration:none;font-size:10px}
+.dashboard-service-nav>a:hover{background:#26394e;color:#fff}
+.dashboard-service-nav>a>span{width:18px;color:var(--gold);text-align:center;font-size:15px}
 .dashboard-sidebar-foot{display:grid;gap:10px;margin-top:auto;border-top:1px solid #304054;padding:17px 10px 4px}
 .dashboard-sidebar-foot a,.dashboard-sidebar-foot button{border:0;background:transparent;color:#9aa6b0;text-align:left;text-decoration:none;font:10px var(--sans);cursor:pointer}
 .dashboard-sidebar-foot a:hover,.dashboard-sidebar-foot button:hover{color:#f4f0e6}
@@ -32,6 +37,19 @@
 .dashboard-eyebrow,.dashboard-card-kicker{color:#9d855d;font:8px var(--mono);letter-spacing:.14em;text-transform:uppercase}
 .dashboard-welcome-mark{display:grid;place-items:center;width:52px;height:52px;border:1px solid #dfd4bd;border-radius:50%;color:#b79860;font-size:24px}
 .dashboard-home{display:grid;gap:16px}
+.dashboard-services{padding:21px;border:1px solid #e8e5dc;border-radius:5px;background:#fff}
+.dashboard-services-heading{display:flex;justify-content:space-between;margin-bottom:15px}
+.dashboard-services-heading h2{margin:6px 0;color:#273541;font:500 21px var(--serif)}
+.dashboard-services-heading p{margin:0;color:#858b89;font-size:10px;line-height:1.6}
+.dashboard-service-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px}
+.dashboard-service-card{position:relative;min-width:0;display:grid;align-content:start;justify-items:start;gap:8px;min-height:195px;padding:17px;border:1px solid #e9e6de;border-radius:4px;background:linear-gradient(145deg,#fff,#fbfaf7);transition:transform .16s,border-color .16s,box-shadow .16s}
+.dashboard-service-card:hover{transform:translateY(-2px);border-color:#cdbb98;box-shadow:0 8px 18px #17283b0e}
+.dashboard-service-index{position:absolute;top:14px;right:14px;color:#aaa08d;font:8px var(--mono);letter-spacing:.08em}
+.dashboard-service-icon{width:39px;height:39px;display:grid;place-items:center;border:1px solid #e7deca;border-radius:50%;background:#faf7ef;color:#a88853;font:20px var(--serif)}
+.dashboard-service-card h3{margin:2px 0 0;color:#34414b;font:500 16px var(--serif)}
+.dashboard-service-card p{flex:1;margin:0;color:#7e8785;font-size:10px;line-height:1.6}
+.dashboard-service-card>a{display:flex;align-items:center;justify-content:center;min-height:35px;width:100%;margin-top:5px;padding:0 10px;border:1px solid #ded5c4;border-radius:3px;background:#fff;color:#8b724a;text-decoration:none;text-align:center;font:10px var(--sans)}
+.dashboard-service-card>a:hover{border-color:#b89a67;background:#faf7ef}
 .dashboard-welcome-card{min-height:142px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:26px 29px;border:1px solid #27394d;border-radius:5px;background:linear-gradient(110deg,#17293d,#263b50);color:#f2eee5}
 .dashboard-welcome-card h2{margin:9px 0 5px;font:500 23px var(--serif)}
 .dashboard-welcome-card p{margin:0;color:#c0c6c8;font-size:11px;overflow-wrap:anywhere}
@@ -171,6 +189,11 @@
   .dashboard-stat-card{min-height:96px;padding:12px}
   .dashboard-stat-card strong{font-size:23px}
   .dashboard-two-column{grid-template-columns:minmax(0,1fr)}
+  .dashboard-services{padding:16px 13px}
+  .dashboard-service-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .dashboard-service-card{min-height:190px;padding:13px 11px}
+  .dashboard-service-card h3{font-size:14px}
+  .dashboard-service-card p{font-size:9px}
   .dashboard-panel{padding:17px 15px}
   .dashboard-profile-form{grid-template-columns:minmax(0,1fr)}
   .dashboard-profile-readiness,.dashboard-help,.dashboard-primary{grid-column:1}

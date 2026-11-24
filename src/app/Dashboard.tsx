@@ -57,6 +57,12 @@ type ProfileForm = {
 
 const sections: Section[] = ["home", "profile", "kundlis", "ask", "reports", "settings"];
 const sectionIcon: Record<Section, string> = { home: "⌂", profile: "◉", kundlis: "◇", ask: "✧", reports: "▤", settings: "⚙" };
+const astrologyServices = [
+  { name: "Palmistry", description: "Record palm lines, mounts and hand observations for a private rule-based reading.", href: "/palmistry", icon: "♧", action: "Explore Palmistry" },
+  { name: "KP Astrology", description: "Explore KP cusps, sub-lords, significators and chart details in Chart Studio.", href: "/kp-astrology", icon: "⌖", action: "Open KP Astrology" },
+  { name: "Ank Jyotish", description: "Explore birth, destiny and name numbers with a detailed traditional report.", href: "/ank-jyotish", icon: "१", action: "Start Ank Jyotish" },
+  { name: "Tarot Card Reading", description: "Select a card or spread and read locally stored upright and reversed meanings.", href: "/tarot-reading", icon: "✧", action: "Start a Tarot Reading" },
+] as const;
 const blankForm: ProfileForm = { label: "", birthPlace: "", localDate: "", localTime: "", birthTimeAccuracy: "", timeZone: "", latitude: "", longitude: "" };
 
 function profileForm(profile: Profile): ProfileForm {
@@ -440,6 +446,10 @@ export default function Dashboard({ user }: { user: AuthUser }) {
           <span aria-hidden="true">{sectionIcon[item]}</span>{t(`dashboard.section.${item}`)}
         </button>)}
       </nav>
+      <nav className="dashboard-service-nav" aria-label="Astrology services">
+        <span>ASTROLOGY SERVICES</span>
+        {astrologyServices.map((service) => <a href={service.href} key={service.name}><span aria-hidden="true">{service.icon}</span>{service.name}</a>)}
+      </nav>
       <div className="dashboard-sidebar-foot">
         <a href="/terms-and-conditions">{t("legal.termsLink")}</a>
         <a href="/privacy-policy">{t("legal.privacyLink")}</a>
@@ -464,6 +474,13 @@ export default function Dashboard({ user }: { user: AuthUser }) {
             <div><span className="dashboard-card-kicker">{t("dashboard.personalSpace")}</span><h2>{t("dashboard.welcome")}</h2><p>{user.email}{selectedProfile ? ` · ${selectedProfile.label} · ${selectedProfile.localDate}` : ` · ${t("dashboard.noSelectedProfile")}`}</p></div>
             <span className="dashboard-welcome-symbol" aria-hidden="true">☾</span>
           </article>
+          <section className="dashboard-services" aria-labelledby="dashboard-services-title">
+            <div className="dashboard-services-heading"><div><span className="dashboard-card-kicker">YOUR PERSONAL TOOLKIT</span><h2 id="dashboard-services-title">Explore Astrology Services</h2><p>Open any service directly from your dashboard.</p></div></div>
+            <div className="dashboard-service-grid">{astrologyServices.map((service, index) => <article className="dashboard-service-card" key={service.name}>
+              <span className="dashboard-service-index">0{index + 1}</span><span className="dashboard-service-icon" aria-hidden="true">{service.icon}</span>
+              <h3>{service.name}</h3><p>{service.description}</p><a href={service.href}>{service.action}<span aria-hidden="true"> ↗</span></a>
+            </article>)}</div>
+          </section>
           <div className="dashboard-stat-grid">
             <button type="button" className="dashboard-stat-card" onClick={() => changeSection("profile")}><span>{t("dashboard.stat.profile")}</span><strong>{profileStatus === "error" ? "—" : profiles.length}</strong><small>{profileStatus === "error" ? t("dashboard.unavailable") : t("dashboard.profileCount")}</small></button>
             <button type="button" className="dashboard-stat-card" onClick={() => changeSection("kundlis")}><span>{t("dashboard.stat.kundlis")}</span><strong>{reportStatus === "error" ? "—" : reports.length}</strong><small>{reportStatus === "error" ? t("dashboard.unavailable") : t("dashboard.savedCount")}</small></button>

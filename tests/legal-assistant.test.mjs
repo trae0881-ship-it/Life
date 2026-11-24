@@ -98,6 +98,9 @@ test("question history and terms are localized and avoid unsupported paid-policy
   const terms = source("src/presentation/language.ts");
   assert.match(terms, /The current application has no in-app purchase, subscription, or cancellation workflow/);
   assert.match(terms, /self-service account deletion/);
+  assert.match(terms, /When you save a Palmistry reading, its manually selected observations and optional palm photo are stored with your authenticated LIFE account/);
+  assert.match(terms, /हस्तरेखा रीडिंग सहेजने पर/);
+  assert.match(terms, /Palmistry reading save karne par aapke manually selected observations aur optional photo aapke authenticated LIFE account/);
 });
 
 test("question and answer storage is additive and deletes only through the user's owned record path", () => {

@@ -20,6 +20,7 @@ export const featuredTools = [
   { title: "Remedy reference", description: "Browse the existing categorized reference catalog.", href: "/remedies", icon: "02" },
   { title: "Marriage timing", description: "Review documented input and limitation guidance; event-timing rules are not implemented.", href: "/marriage-timing", icon: "03" },
   { title: "Ask My Kundli", description: "Use deterministic, rule-based answers from a calculated chart.", href: "/dashboard/assistant", icon: "04" },
+  { title: "Palmistry", description: "Record palm observations and create private, offline rule-based readings—no AI or image analysis.", href: "/palmistry", icon: "05" },
 ] as const;
 
 export function carouselScrollOffset(current: number, viewport: number, maximum: number, direction: -1 | 1) {

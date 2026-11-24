@@ -11,6 +11,21 @@ test("dashboard route requires a server-validated session", () => {
   assert.match(page, /<Dashboard user=\{user\}/);
 });
 
+test("authenticated dashboard exposes all astrology services with working routes", () => {
+  const dashboard = source("src/app/Dashboard.tsx");
+  assert.match(dashboard, /Explore Astrology Services/);
+  for (const route of ["/palmistry", "/kp-astrology", "/ank-jyotish", "/tarot-reading"]) {
+    assert.ok(dashboard.includes(`href: "${route}"`), `${route} is in the dashboard service inventory`);
+    assert.ok(dashboard.includes(`href={service.href}`), `${route} card and service navigation use actual hrefs`);
+    assert.ok(source(`src/app${route}/page.tsx`).includes("getCurrentUser"), `${route} checks for authentication`);
+  }
+  assert.match(dashboard, /className="dashboard-service-grid"/);
+  assert.match(dashboard, /aria-label="Astrology services"/);
+  const styles = source("src/app/dashboard.css");
+  assert.match(styles, /dashboard-service-card/);
+  assert.match(styles, /@media\(max-width:560px\)[\s\S]*?dashboard-service-grid/);
+});
+
 test("shared public footer links legal routes and does not expose the health endpoint", () => {
   const page = source("src/app/HomepageSections.tsx");
   const footer = source("src/app/GlobalFooter.tsx");

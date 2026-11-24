@@ -27,6 +27,7 @@ test("all global footer links resolve to real routes or existing homepage sectio
     ["/blogs", "src/app/blogs/page.tsx"],
     ["/developers", "src/app/developers/page.tsx"],
     ["/api/docs", "src/app/api/docs/page.tsx"],
+    ["/palmistry", "src/app/palmistry/page.tsx"],
     ["/references", "src/app/references/page.tsx"],
     ["/privacy-policy", "src/app/privacy-policy/page.tsx"],
     ["/terms-and-conditions", "src/app/terms-and-conditions/page.tsx"],

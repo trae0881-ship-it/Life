@@ -38,7 +38,7 @@ test("public homepage stays public and Kundli CTAs target the protected existing
 });
 
 test("featured carousel links point to existing tools and support keyboard, touch scrolling and reduced motion", () => {
-  const routes = new Set(["/life-timeline", "/remedies", "/marriage-timing", "/dashboard/assistant"]);
+  const routes = new Set(["/life-timeline", "/remedies", "/marriage-timing", "/dashboard/assistant", "/palmistry"]);
   assert.equal(featuredTools.length, routes.size);
   for (const tool of featuredTools) {
     assert.ok(routes.has(tool.href));

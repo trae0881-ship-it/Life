@@ -619,10 +619,28 @@ function KpSection({ chart, language }: { chart: Chart; language: Language }) {
     <div className="card-head"><div><div className="section-index">KP</div><h2>{r("results.kpTitle")}</h2></div><span className="table-count">{translate(language, "overview.unavailable")}</span></div>
     <p className="empty-result" role="status">{r("results.kpUnavailable")} {r("results.adjustInput")}</p>
   </section>;
+  const ascendant = chart.kp.cusps.find((cusp) => cusp.house === 1);
+  const moon = chart.kp.planets.find((planet) => planet.name === "Moon");
+  const weekdayLord: Record<string, string> = { Sunday: "Sun", Monday: "Moon", Tuesday: "Mars", Wednesday: "Mercury", Thursday: "Jupiter", Friday: "Venus", Saturday: "Saturn" };
+  const rulingPlanets = [...new Set([
+    weekdayLord[chart.vara.civilWeekday],
+    ascendant?.signLord,
+    ascendant?.nakshatra.lord,
+    moon?.signLord,
+    moon?.nakshatra.lord,
+  ].filter((lord): lord is string => Boolean(lord)))];
+  const houseThemes = [
+    "Self and personal approach", "Resources and values", "Communication and initiative",
+    "Home and foundations", "Learning and creative expression", "Work, routines and service",
+    "Partnerships and agreements", "Change and shared matters", "Beliefs and broader learning",
+    "Career and public responsibilities", "Community and aspirations", "Rest and letting go",
+  ];
   return <section className="card positions-card" id="kp">
     <div className="card-head"><div><div className="section-index">KP</div><h2>{r("results.kpTitle")}</h2></div><span className="table-count">{chart.kp.houseSystem} · {chart.kp.ayanamsa} {chart.kp.ayanamsaValue.toFixed(6)}°</span></div>
     <p className="result-guide">{r("results.kpGuide")}</p>
+    <div className="kp-ruling-planets"><b>Ruling planets at birth</b><span>{rulingPlanets.length ? rulingPlanets.join(" · ") : "Unavailable"} · civil weekday, Ascendant and Moon sign/star lords</span></div>
     <div className="table-scroll"><table><thead><tr><th>{r("results.body")}</th><th>RĀŚI</th><th>{r("results.signLord")}</th><th>{r("results.starLord")}</th><th>{r("results.subLord")}</th><th>{r("results.subSubLord")}</th><th>{r("results.houseColumn")}</th><th>{r("results.signifies")}</th></tr></thead><tbody>{chart.kp.planets.map((planet) => <tr key={planet.name}><td>{planet.name}</td><td>{planet.sign}</td><td>{planet.signLord}</td><td>{planet.nakshatra.name} · {planet.nakshatra.lord}</td><td>{planet.sub.lord}</td><td>{planet.subSub.lord}</td><td>H{String(planet.house).padStart(2, "0")}</td><td>{planet.significations.houses.map((house) => `H${house}`).join(" · ") || "—"}</td></tr>)}</tbody></table></div>
     <div className="table-scroll"><table><thead><tr><th>{r("results.cusp")}</th><th>RĀŚI</th><th>{r("results.signLord")}</th><th>{r("results.starLord")}</th><th>{r("results.subLord")}</th><th>{r("results.subSubLord")}</th><th>{r("results.signifiedBy")}</th></tr></thead><tbody>{chart.kp.cusps.map((cusp) => <tr key={cusp.house}><td>H{String(cusp.house).padStart(2, "0")}</td><td>{cusp.sign}</td><td>{cusp.signLord}</td><td>{cusp.nakshatra.name} · {cusp.nakshatra.lord}</td><td>{cusp.sub.lord}</td><td>{cusp.subSub.lord}</td><td>{cusp.signifiedBy.join(" · ") || "—"}</td></tr>)}</tbody></table></div>
+    <div className="kp-interpretation"><div className="card-head"><div><div className="section-index">HOUSE ANALYSIS</div><h2>KP cusp interpretation</h2></div></div><p className="result-guide">Descriptive house themes are paired with calculated cusp sub-lords and significators. These are traditional symbolic associations, not predictions.</p><div className="kp-interpretation-grid">{chart.kp.cusps.map((cusp) => <article key={cusp.house}><b>House {cusp.house} · {houseThemes[cusp.house - 1]}</b><span>Sub-lord: {cusp.sub.lord}</span><span>Significators: {cusp.signifiedBy.join(" · ") || "None calculated"}</span></article>)}</div></div>
   </section>;
 }
