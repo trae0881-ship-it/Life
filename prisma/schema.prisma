@@ -75,11 +75,7 @@ model User {
   apiUsageWindows ApiAccountUsageWindow[]
   kundaliDocument KundaliDocument?
   astrologyReadings SavedAstrologyReading[]
-  kundaliDocument KundaliDocument?
-  astrologyReadings SavedAstrologyReading[]
-  palmistryRecord PalmistryRecord?
-  palmistryHandImages PalmistryHandImage[]
-  palmistryReadings PalmistryReading[]
+  
 
 }
 
