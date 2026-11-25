@@ -80,7 +80,7 @@ model User {
   palmistryRecord PalmistryRecord?
   palmistryHandImages PalmistryHandImage[]
   palmistryReadings PalmistryReading[]
-}
+
 }
 
 model ApiProduct {
