@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-<<<<<<< HEAD
+import { deflateSync } from "node:zlib";
+import { readFileSync } from "node:fs";
 import {
   PALM_RULES,
   PALM_KNOWLEDGE,
@@ -13,7 +14,18 @@ import {
 } from "../src/palmistry/engine.ts";
 import { PALM_FEATURE_DEFINITIONS, PALM_SOURCES_BY_TRADITION } from "../src/palmistry/knowledge.ts";
 import { deletePalmReading, listPalmReadings, savePalmReading } from "../src/palmistry/storage.ts";
-import { readFileSync } from "node:fs";
+import { assistantQuestionCatalog } from "../src/presentation/assistant-questions.ts";
+import { answerPalmistryQuestion } from "../src/presentation/palmistry-assistant.ts";
+import {
+  emptyPalmistryObservations,
+  parsePalmistryObservations,
+  readPalmistryObservationsInput,
+} from "../src/server/palmistry-observations.ts";
+import {
+  MAX_PALMISTRY_FILE_BYTES,
+  palmistryDownloadName,
+  validatePalmistryUpload,
+} from "../src/server/palmistry-files.ts";
 
 const observations = {
   handShape: "earth",
@@ -196,20 +208,6 @@ test("Palmistry readings save, reload, cap and delete from browser localStorage"
     else globalThis.window = previousWindow;
   }
 });
-=======
-import { deflateSync } from "node:zlib";
-import { assistantQuestionCatalog } from "../src/presentation/assistant-questions.ts";
-import { answerPalmistryQuestion } from "../src/presentation/palmistry-assistant.ts";
-import {
-  emptyPalmistryObservations,
-  parsePalmistryObservations,
-  readPalmistryObservationsInput,
-} from "../src/server/palmistry-observations.ts";
-import {
-  MAX_PALMISTRY_FILE_BYTES,
-  palmistryDownloadName,
-  validatePalmistryUpload,
-} from "../src/server/palmistry-files.ts";
 
 function crc32(bytes) {
   let crc = 0xffffffff;
@@ -271,19 +269,57 @@ test("validates Palmistry image extension, MIME, and file signature", () => {
   );
 });
 
-test("accepts only the five enumerated user-verified line observations", () => {
+test("accepts only structured user-verified line observations", () => {
   assert.deepEqual(parsePalmistryObservations(emptyPalmistryObservations), emptyPalmistryObservations);
-  assert.equal(parsePalmistryObservations({ ...emptyPalmistryObservations, heartLine: "invented" }), null);
+  const observed = {
+    ...emptyPalmistryObservations,
+    hands: {
+      ...emptyPalmistryObservations.hands,
+      left: {
+        ...emptyPalmistryObservations.hands.left,
+        lines: {
+          ...emptyPalmistryObservations.hands.left.lines,
+          heartLine: { ...emptyPalmistryObservations.hands.left.lines.heartLine, visibility: "clear" },
+        },
+      },
+    },
+  };
+  assert.deepEqual(parsePalmistryObservations(observed), observed);
+  assert.equal(parsePalmistryObservations({
+    ...observed,
+    hands: {
+      ...observed.hands,
+      left: {
+        ...observed.hands.left,
+        lines: {
+          ...observed.hands.left.lines,
+          heartLine: { ...observed.hands.left.lines.heartLine, visibility: "invented" },
+        },
+      },
+    },
+  }), null);
   assert.equal(parsePalmistryObservations({ ...emptyPalmistryObservations, extra: "data" }), null);
-  assert.equal(readPalmistryObservationsInput({ ...emptyPalmistryObservations, lifeLine: "clear" }).lifeLine, "clear");
-  assert.equal(readPalmistryObservationsInput({ ...emptyPalmistryObservations, customText: "claim" }), null);
+  assert.deepEqual(readPalmistryObservationsInput(observed), observed);
+  assert.equal(readPalmistryObservationsInput({ ...observed, customText: "claim" }), null);
 });
 
 test("answers only from marked observations and returns insufficient or unsupported instead of predictions", () => {
-  const observations = { ...emptyPalmistryObservations, heartLine: "clear" };
+  const observations = {
+    ...emptyPalmistryObservations,
+    hands: {
+      ...emptyPalmistryObservations.hands,
+      left: {
+        ...emptyPalmistryObservations.hands.left,
+        lines: {
+          ...emptyPalmistryObservations.hands.left.lines,
+          heartLine: { ...emptyPalmistryObservations.hands.left.lines.heartLine, visibility: "clear" },
+        },
+      },
+    },
+  };
   assert.deepEqual(answerPalmistryQuestion(observations, "marriage_factors"), {
     status: "traditional",
-    factors: [{ factor: "heartLine", visibility: "clear" }],
+    factors: [{ hand: "left", factor: "heartLine", visibility: "clear" }],
   });
   assert.deepEqual(answerPalmistryQuestion(observations, "career_growth"), {
     status: "insufficient",
@@ -315,4 +351,3 @@ test("original hand-image filenames are generated from validated server metadata
   );
   assert.throws(() => palmistryDownloadName("../another-user", new Date(), "png"));
 });
->>>>>>> origin/main

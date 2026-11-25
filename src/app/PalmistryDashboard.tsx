@@ -9,8 +9,10 @@ import type { PalmistryAnswer } from "@/presentation/palmistry-assistant";
 import {
   emptyPalmistryObservations,
   palmistryFactors,
+  palmistryLegacyFactors,
   palmistryVisibility,
   parsePalmistryObservations,
+  type PalmistryHand,
   type PalmistryFactor,
   type PalmistryObservations,
 } from "@/server/palmistry-observations";
@@ -64,6 +66,7 @@ function beginBrowserDownload(url: string, filename: string) {
 export default function PalmistryDashboard({ language }: { language: Language }) {
   const [record, setRecord] = useState<PalmistryRecord | null>(null);
   const [observations, setObservations] = useState<PalmistryObservations>(emptyPalmistryObservations);
+  const [selectedHand, setSelectedHand] = useState<PalmistryHand>("left");
   const [previewUrl, setPreviewUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -84,7 +87,7 @@ export default function PalmistryDashboard({ language }: { language: Language })
     fetch("/api/palmistry", { cache: "no-store" })
       .then(async (response) => {
         if (response.status === 401) {
-          window.location.assign("/login?next=%2Fdashboard");
+          window.location.assign("/login");
           throw new Error("signed out");
         }
         if (!response.ok) throw new Error("load failed");
@@ -158,7 +161,7 @@ export default function PalmistryDashboard({ language }: { language: Language })
         return;
       }
       if (xhr.status === 401) {
-        window.location.assign("/login?next=%2Fdashboard");
+        window.location.assign("/login");
         setUploading(false);
         return;
       }
@@ -189,7 +192,7 @@ export default function PalmistryDashboard({ language }: { language: Language })
         body: JSON.stringify({ observations }),
       });
       if (response.status === 401) {
-        window.location.assign("/login?next=%2Fdashboard");
+        window.location.assign("/login");
         return;
       }
       const body = await response.json() as { palmistry?: unknown; error?: unknown };
@@ -220,7 +223,7 @@ export default function PalmistryDashboard({ language }: { language: Language })
         body: JSON.stringify({ questionId: selectedQuestion, language }),
       });
       if (response.status === 401) {
-        window.location.assign("/login?next=%2Fdashboard");
+        window.location.assign("/login");
         return;
       }
       const body = await response.json() as { answer?: unknown; error?: unknown };
@@ -241,7 +244,7 @@ export default function PalmistryDashboard({ language }: { language: Language })
     try {
       const response = await fetch("/api/palmistry/original", { cache: "no-store" });
       if (response.status === 401) {
-        window.location.assign("/login?next=%2Fdashboard");
+        window.location.assign("/login");
         return;
       }
       if (!response.ok) throw new Error("download failed");
@@ -273,7 +276,7 @@ export default function PalmistryDashboard({ language }: { language: Language })
     try {
       const response = await fetch("/api/palmistry", { method: "DELETE", cache: "no-store" });
       if (response.status === 401) {
-        window.location.assign("/login?next=%2Fdashboard");
+        window.location.assign("/login");
         return;
       }
       if (!response.ok) throw new Error("delete failed");
@@ -344,18 +347,38 @@ export default function PalmistryDashboard({ language }: { language: Language })
       <p className="palmistry-copy">{t("palmistry.observationsHelp")}</p>
       <div className="palmistry-observations">
         <h3>{t("palmistry.observationsTitle")}</h3>
-        {palmistryFactors.map((factor) => <fieldset className="palmistry-factor" key={factor}>
+        <label className="dashboard-field">{t("palmistry.selectHand")}
+          <select value={selectedHand} onChange={(event) => {
+            if (event.target.value === "left" || event.target.value === "right") setSelectedHand(event.target.value);
+          }}>
+            <option value="left">{t("palmistry.hand.left")}</option>
+            <option value="right">{t("palmistry.hand.right")}</option>
+          </select>
+        </label>
+        {palmistryLegacyFactors.map((factor) => <fieldset className="palmistry-factor" key={factor}>
           <legend>{t(`palmistry.factor.${factor}`)}</legend>
           <div className="palmistry-options">
             {palmistryVisibility.map((visibility) => <label key={visibility}>
               <input
                 type="radio"
-                name={`palmistry-${factor}`}
+                name={`palmistry-${selectedHand}-${factor}`}
                 value={visibility}
-                checked={(observations as Record<string, string>)[factor] === visibility}
+                checked={observations.hands[selectedHand].lines[factor].visibility === visibility}
                 disabled={saving}
                 onChange={() => {
-                  setObservations((current) => ({ ...current, [factor]: visibility }));
+                  setObservations((current) => ({
+                    ...current,
+                    hands: {
+                      ...current.hands,
+                      [selectedHand]: {
+                        ...current.hands[selectedHand],
+                        lines: {
+                          ...current.hands[selectedHand].lines,
+                          [factor]: { ...current.hands[selectedHand].lines[factor], visibility },
+                        },
+                      },
+                    },
+                  }));
                   setAnswer(null);
                   setNotice("");
                 }}
@@ -388,8 +411,8 @@ export default function PalmistryDashboard({ language }: { language: Language })
           <p>{answerDetail}</p>
           {answer.factors.length > 0 && <div>
             <b>{t("palmistry.answer.evidence")}</b>
-            <ul>{answer.factors.map(({ factor, visibility }) => <li key={factor}>
-              {t(`palmistry.factor.${factor}`)} · {t(`palmistry.visibility.${visibility}`)} — {t(`palmistry.theme.${factor}`)}
+            <ul>{answer.factors.map(({ hand, factor, visibility }) => <li key={`${hand}-${factor}`}>
+              {t(`palmistry.hand.${hand}`)} · {t(`palmistry.factor.${factor}`)} · {t(`palmistry.visibility.${visibility}`)} — {t(`palmistry.theme.${factor}`)}
             </li>)}</ul>
           </div>}
         </section>}

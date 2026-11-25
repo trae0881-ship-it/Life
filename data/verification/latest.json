@@ -1,45 +1,45 @@
 {
   "format": "life-verification-run-v1",
   "version": "life-verification-1.0.0",
-  "runId": "a374e8f0-2a2b-4e6b-84ac-8c3d2ca6caf4",
-  "sourceFingerprint": "e9a548fa14a2043d43a947998f113d7d539578255eb3160df744f357c56228e8",
+  "runId": "fd6703cf-45de-458e-8f71-f62a7a0d9bcb",
+  "sourceFingerprint": "e230015ab5f22fdd4db6749419e3c345a4fa9b679f1098c19cbb9e1d6c2d5048",
   "evidenceFresh": true,
   "environment": "win32-x64; Node v26.13.0",
-  "startedAt": "2026-11-25T11:41:10.182Z",
-  "completedAt": "2026-11-25T11:42:18.444Z",
+  "startedAt": "2026-11-25T12:02:17.695Z",
+  "completedAt": "2026-11-25T12:03:26.668Z",
   "checks": [
     {
       "command": "npm test",
-      "status": "FAIL",
-      "exitCode": 1,
-      "startedAt": "2026-11-25T11:41:10.556Z",
-      "completedAt": "2026-11-25T11:41:23.532Z",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-25T12:02:18.126Z",
+      "completedAt": "2026-11-25T12:02:31.118Z",
       "testCounts": {
-        "tests": 497,
-        "passed": 493,
-        "failed": 4
+        "tests": 512,
+        "passed": 512,
+        "failed": 0
       }
     },
     {
       "command": "npx tsc --noEmit",
-      "status": "FAIL",
-      "exitCode": 2,
-      "startedAt": "2026-11-25T11:41:23.533Z",
-      "completedAt": "2026-11-25T11:41:39.096Z"
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-25T12:02:31.121Z",
+      "completedAt": "2026-11-25T12:02:36.637Z"
     },
     {
       "command": "npx prisma validate",
       "status": "PASS",
       "exitCode": 0,
-      "startedAt": "2026-11-25T11:41:39.097Z",
-      "completedAt": "2026-11-25T11:41:43.519Z"
+      "startedAt": "2026-11-25T12:02:36.638Z",
+      "completedAt": "2026-11-25T12:02:41.073Z"
     },
     {
       "command": "npm run build",
-      "status": "FAIL",
-      "exitCode": 1,
-      "startedAt": "2026-11-25T11:41:43.525Z",
-      "completedAt": "2026-11-25T11:42:18.187Z"
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-25T12:02:41.074Z",
+      "completedAt": "2026-11-25T12:03:26.401Z"
     }
   ]
 }
