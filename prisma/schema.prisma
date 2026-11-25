@@ -74,13 +74,13 @@ model User {
   apiPlatformAuditLogs ApiPlatformAuditLog[] @relation("ApiPlatformAuditActor")
   apiUsageWindows ApiAccountUsageWindow[]
   kundaliDocument KundaliDocument?
-<<<<<<< HEAD
   astrologyReadings SavedAstrologyReading[]
-=======
+  kundaliDocument KundaliDocument?
+  astrologyReadings SavedAstrologyReading[]
   palmistryRecord PalmistryRecord?
   palmistryHandImages PalmistryHandImage[]
   palmistryReadings PalmistryReading[]
->>>>>>> origin/main
+}
 }
 
 model ApiProduct {
