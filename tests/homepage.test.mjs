@@ -63,6 +63,10 @@ test("featured carousel links point to existing tools and support keyboard, touc
   assert.match(homepage, /prefers-reduced-motion: reduce/);
   assert.match(homepageCss, /overscroll-behavior-inline: contain/);
   assert.match(homepageCss, /scroll-snap-type: x mandatory/);
+  assert.match(homepageCss, /@keyframes home-tool-wave/);
+  assert.match(homepageCss, /animation:\s*home-tool-wave 4\.6s ease-in-out infinite/);
+  assert.match(homepageCss, /\.home-tool-card:nth-child\(5\)\s*\{\s*animation-delay:\s*-1\.84s/);
+  assert.match(homepageCss, /prefers-reduced-motion: reduce[\s\S]*?\.home-tool-card\s*\{\s*animation:\s*none !important/);
   assert.equal(carouselScrollOffset(0, 300, 500, -1), 0);
   assert.equal(carouselScrollOffset(0, 300, 500, 1), 240);
   assert.equal(carouselScrollOffset(450, 300, 500, 1), 500);
