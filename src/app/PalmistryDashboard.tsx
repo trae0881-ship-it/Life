@@ -352,7 +352,7 @@ export default function PalmistryDashboard({ language }: { language: Language })
                 type="radio"
                 name={`palmistry-${factor}`}
                 value={visibility}
-                checked={observations[factor] === visibility}
+                checked={(observations as Record<string, string>)[factor] === visibility}
                 disabled={saving}
                 onChange={() => {
                   setObservations((current) => ({ ...current, [factor]: visibility }));

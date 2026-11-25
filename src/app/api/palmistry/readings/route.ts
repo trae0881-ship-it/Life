@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       data: {
         id: randomBytes(24).toString("base64url"),
         userId: user.id,
-        title: body.title.trim(),
+        title: typeof body.title === "string" && body.title.trim() ? body.title.trim() : "Palmistry Reading",
         observations,
         report,
       },
