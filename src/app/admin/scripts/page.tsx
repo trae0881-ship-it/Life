@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminScriptsPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login?next=%2Fadmin%2Fscripts");
+  if (!user) redirect("/login");
   if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") notFound();
   return <AdminScriptManager email={user.email} role={user.role} />;
 }

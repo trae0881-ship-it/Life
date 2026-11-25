@@ -17,7 +17,7 @@ export default async function AdminPage() {
       <p>The database connection or required authentication schema could not be checked. This is not treated as an empty database.</p>
     </main>;
   }
-  if (!user) redirect("/login?next=%2Fadmin");
+  if (!user) redirect("/login");
   if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") notFound();
 
   let initialization;

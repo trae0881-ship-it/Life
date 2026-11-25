@@ -28,7 +28,7 @@ export default async function DevelopersPage({ searchParams }: DevelopersPagePro
   );
 
   return <main className="developers-page">
-    <header className="developers-header"><a href="/">✳ LIFE</a><nav aria-label="Developer navigation"><a href="/developer/login?next=%2Fdevelopers%2Fdashboard">Developer Login</a><a href="/developer/signup">Create Developer Account</a><a href="/developers/dashboard">Developer dashboard</a><a href="/api/docs">Interactive API docs</a><a href="/api/openapi.json">OpenAPI JSON</a></nav></header>
+    <header className="developers-header"><a href="/">✳ LIFE</a><nav aria-label="Developer navigation"><a href="/developer/login">Developer Login</a><a href="/developer/signup">Create Developer Account</a><a href="/developers/dashboard">Developer dashboard</a><a href="/api/docs">Interactive API docs</a><a href="/api/openapi.json">OpenAPI JSON</a></nav></header>
     {accessMessage && <p className="developers-note" role="status">{accessMessage}</p>}
     <section className="developers-hero">
       <p className="super-admin-eyebrow">LIFE · DEVELOPERS</p>

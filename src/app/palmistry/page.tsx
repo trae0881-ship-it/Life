@@ -11,6 +11,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function PalmistryPage() {
-  if (!await getCurrentUser()) redirect("/login?next=%2Fpalmistry");
+  if (!await getCurrentUser()) redirect("/login");
   return <PalmistryWorkspace />;
 }

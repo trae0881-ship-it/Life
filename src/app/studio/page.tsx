@@ -23,7 +23,7 @@ export default async function ChartStudioPage({ searchParams }: StudioPageProps)
       else if (Array.isArray(value)) for (const item of value) query.append(key, item);
     }
     const target = query.size ? `/studio?${query}` : "/studio";
-    redirect(`/login?next=${encodeURIComponent(target)}`);
+    redirect("/login");
   }
   return <ChartStudioWorkspace />;
 }

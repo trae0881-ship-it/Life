@@ -16,11 +16,21 @@ import {
   createFutureCycleOverview,
   createNumerologyComparison,
   createProfessionalNumerologyReport,
+  compareNumerologyModules,
+  explainMarriageScore,
   type NumerologyLanguage,
   type NumerologySystem,
   type LoShuMode,
 } from "@/calculation/numerology";
 import { createTarotReading, drawTarotCards, TAROT_CARDS, TAROT_SPREADS, TAROT_TOPICS, type TarotCardId, type TarotSpread, type TarotTopic } from "@/calculation/tarot";
+import {
+  createNameRecommendations,
+  createMobileRecommendations,
+  createCareerRecommendations,
+  createMarriageRecommendations,
+  compareSavedNumerologyReports,
+  sanitizeNumerologyExport,
+} from "@/calculation/numerology-recommendations";
 import "./astrology-services.css";
 
 type Service = "ank-jyotish" | "tarot";
@@ -51,6 +61,7 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
   const [historicalMode, setHistoricalMode] = useState(false);
   const [historicalYear, setHistoricalYear] = useState("");
   const [historicalMonth, setHistoricalMonth] = useState("");
+  const [historyCompareId, setHistoryCompareId] = useState("");
   const [spread, setSpread] = useState<TarotSpread>("single");
   const [topic, setTopic] = useState<TarotTopic>("general");
   const [selections, setSelections] = useState<TarotSelection[]>([{ id: "", reversed: false }]);
@@ -150,6 +161,37 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
       });
     } catch { return null; }
   }, [name,dateOfBirth,comparisonNameRight,comparisonDobRight,numerologySystem,loShuMode]);
+  const crossModuleEvidence = useMemo(() => {
+    if (!name.trim()||!dateOfBirth) return null;
+    try {
+      return compareNumerologyModules({
+        dateOfBirth,name,system:numerologySystem,countryCode:mobileCountryCode,
+        mobileNumber:mobileNumber||undefined,
+        referenceDate:new Date(),
+        timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+    } catch { return null; }
+  }, [name,dateOfBirth,numerologySystem,mobileCountryCode,mobileNumber]);
+  const marriageScoreEvidence = useMemo(() => {
+    if (!name.trim()||!dateOfBirth||!partnerName.trim()||!partnerDob) return null;
+    try { return explainMarriageScore(name,dateOfBirth,partnerName,partnerDob,numerologySystem); } catch { return null; }
+  }, [name,dateOfBirth,partnerName,partnerDob,numerologySystem]);
+  const nameRecommendations = useMemo(() => {
+    if (!name.trim()||!dateOfBirth) return null;
+    try { return createNameRecommendations({name,dateOfBirth,system:numerologySystem,preferredSpelling:preferredNameSpelling}); } catch { return null; }
+  }, [name,dateOfBirth,numerologySystem,preferredNameSpelling]);
+  const mobileRecommendations = useMemo(() => {
+    if (!dateOfBirth||!mobileNumber) return [];
+    try { return createMobileRecommendations({countryCode:mobileCountryCode,mobileNumber,dateOfBirth}); } catch { return []; }
+  }, [dateOfBirth,mobileCountryCode,mobileNumber]);
+  const careerRecommendations = useMemo(() => {
+    if (!name.trim()||!dateOfBirth) return [];
+    try { return createCareerRecommendations({name,dateOfBirth,system:numerologySystem}); } catch { return []; }
+  }, [name,dateOfBirth,numerologySystem]);
+  const marriageRecommendations = useMemo(() => {
+    if (!partnerName.trim()||!partnerDob||!name.trim()||!dateOfBirth) return null;
+    try { return createMarriageRecommendations({firstName:name,firstDob:dateOfBirth,secondName:partnerName,secondDob:partnerDob,system:numerologySystem}); } catch { return null; }
+  }, [partnerName,partnerDob,name,dateOfBirth,numerologySystem]);
   const tarotReport = useMemo(() => {
     if (service !== "tarot" || selections.length !== requiredCards || selections.some((card) => !card.id)) return null;
     try {
@@ -286,6 +328,31 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
             <article><span>Personal Day</span><strong>{unifiedProfile.cycles.personalDay}</strong><small>Current day cycle</small></article>
             <article><span>Lo Shu balance</span><strong>{unifiedProfile.loShu.present.length}/9</strong><small>{unifiedProfile.loShu.repeated.length} repeated · {unifiedProfile.loShu.missing.length} missing</small></article>
           </div>}
+          {history.length>=2&&<div className="service-calculation-breakdown">
+            <b>Compare saved reports</b>
+            <label>Second saved report
+              <select value={historyCompareId} onChange={(event)=>setHistoryCompareId(event.target.value)}>
+                <option value="">Choose a report</option>
+                {history.map((item)=><option value={item.id} key={item.id}>{item.title}</option>)}
+              </select>
+            </label>
+            {reading&&historyCompareId&&(()=>{
+              const right=history.find((item)=>item.id===historyCompareId);
+              if (!right) return null;
+              const comparison=compareSavedNumerologyReports(String(reading.title??"Opened report"),sanitizeNumerologyExport(reading),right.title,sanitizeNumerologyExport(right.payload));
+              return <div>
+                <p><b>{comparison.summary}</b></p>
+                {comparison.differences.map((difference)=><p key={difference.field}><b>{difference.field}:</b> {difference.left} → {difference.right}</p>)}
+                <button type="button" className="service-secondary" onClick={()=>{
+                  const blob=new Blob([JSON.stringify(sanitizeNumerologyExport(comparison as unknown as Record<string,unknown>),null,2)],{type:"application/json"});
+                  const url=URL.createObjectURL(blob);
+                  const anchor=document.createElement("a");
+                  anchor.href=url;anchor.download="numerology-report-comparison.json";anchor.click();
+                  URL.revokeObjectURL(url);
+                }}>Export comparison JSON</button>
+              </div>;
+            })()}
+          </div>}
           <details className="service-calculation-breakdown">
             <summary>View exact name calculation</summary>
             <p><b>{ankReport.system === "chaldean" ? "Chaldean" : "Pythagorean"} mapping:</b> {Object.entries(ankReport.nameAnalysis.mapping).map(([letter,value])=>`${letter}=${value}`).join(" · ")}</p>
@@ -316,7 +383,7 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
           </details>
           {mobileAnalysis && <details className="service-calculation-breakdown">
             <summary>Mobile Number Analysis</summary>
-            <p><b>Full number:</b> {mobileAnalysis.fullNumber} · <b>Compound:</b> {mobileAnalysis.compound} · <b>Root:</b> {mobileAnalysis.root}</p>
+            <p><b>Masked number:</b> ****{mobileAnalysis.fullNumber.slice(-4)} · <b>Compound:</b> {mobileAnalysis.compound} · <b>Root:</b> {mobileAnalysis.root}</p>
             <p><b>Repeated digits:</b> {mobileAnalysis.repeated.map((item)=>`${item.digit}×${item.count}`).join(", ")||"None"} · <b>Missing digits:</b> {mobileAnalysis.missing.join(", ")||"None"}</p>
             <p><b>Patterns:</b> {mobileAnalysis.patterns.join("; ")||"No simple documented pattern detected"}</p>
             {(mobileAnalysis as unknown as {dobCompatibility?:Record<string,unknown>}).dobCompatibility && <p><b>DOB compatibility:</b> {JSON.stringify((mobileAnalysis as unknown as {dobCompatibility:unknown}).dobCompatibility)}</p>}
@@ -378,13 +445,61 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
             <p>{Object.entries(comparisonStudio.right).map(([key,value])=>`${key}: ${JSON.stringify(value)}`).join(" · ")}</p>
             <p><b>Differences:</b> {comparisonStudio.differences.join("; ")||"No differences in displayed fields"}</p>
           </details>}
+          {crossModuleEvidence && <details className="service-calculation-breakdown">
+            <summary>Cross-Module Consistency Evidence</summary>
+            {crossModuleEvidence.relations.map((relation)=><p key={relation.module}><b>{relation.module} — {relation.relation}:</b> {relation.formula}. Evidence: {relation.evidence}. {relation.explanation}</p>)}
+          </details>}
+          {marriageScoreEvidence && <details className="service-calculation-breakdown">
+            <summary>Explainable Marriage Score</summary>
+            <p><b>Formula:</b> {marriageScoreEvidence.formula}</p>
+            <p><b>Weights:</b> {Object.entries(marriageScoreEvidence.weights).map(([factor,points])=>`${factor}=${points}`).join(" · ")}</p>
+            {marriageScoreEvidence.positive.map((item)=><p key={item.factor}><b>Positive +{item.points}:</b> {item.factor} — {item.evidence}</p>)}
+            {marriageScoreEvidence.negative.map((item)=><p key={item.factor}><b>Negative {item.points}:</b> {item.factor} — {item.evidence}</p>)}
+            {marriageScoreEvidence.neutral.map((item)=><p key={item.factor}><b>Neutral:</b> {item.factor} — {item.evidence}</p>)}
+            <p><b>Final:</b> {marriageScoreEvidence.finalScore}/{marriageScoreEvidence.maximumScore}. {marriageScoreEvidence.explanation}</p>
+          </details>}
+          {nameRecommendations && <details className="service-calculation-breakdown">
+            <summary>Personalized Name Recommendations</summary>
+            <p><b>Original:</b> {nameRecommendations.original}</p>
+            {nameRecommendations.alternatives.slice(0,4).map((item)=><p key={item.spelling}>
+              <b>{item.spelling}</b> · Score {item.score}/90 · Chaldean {item.chaldeanCompound}→{item.chaldeanRoot} · Pythagorean {item.pythagoreanCompound}→{item.pythagoreanRoot}
+              · Changes {item.changedLetters.map((change)=>`${change.original||"∅"}→${change.suggested}`).join(", ")||"none"}
+              · Moolank {item.moolankAligned?"aligned":"neutral"} · Bhagyank {item.bhagyankAligned?"aligned":"neutral"} · Lo Shu {item.loShuAligned?"present":"missing"}
+            </p>)}
+            {nameRecommendations.alternatives.length===0&&<p>No safe bounded spelling alternatives were generated.</p>}
+          </details>}
+          {mobileRecommendations.length>0&&<details className="service-calculation-breakdown">
+            <summary>Personalized Mobile Pattern Recommendations</summary>
+            {mobileRecommendations.map((item,index)=><p key={`${item.maskedNumber}-${index}`}>
+              <b>{item.maskedNumber}</b> · Compound {item.compound} · Root {item.root} · Score {item.score}/95
+              · DOB {item.dobAligned?"aligned":"not aligned"} · Lo Shu {item.loShuAligned?"present":"missing"}
+            </p>)}
+            <p><b>Privacy:</b> Full mobile digits are masked. Patterns do not establish availability.</p>
+          </details>}
+          {careerRecommendations.length>0&&<details className="service-calculation-breakdown">
+            <summary>Personalized Career Recommendations</summary>
+            {careerRecommendations.slice(0,6).map((item)=><p key={item.category}>
+              <b>{item.category}</b> · Score {item.score}/100 · {item.employmentOrBusiness}
+              · Supporting {item.supporting.map((entry)=>entry.evidence).join("; ")||"none"}
+              · Contradictory {item.contradictory.map((entry)=>entry.evidence).join("; ")||"none"}
+              · Development {item.development.join("; ")}
+            </p>)}
+          </details>}
+          {marriageRecommendations&&<details className="service-calculation-breakdown">
+            <summary>Personalized Marriage Recommendations</summary>
+            <p><b>Traditional score:</b> {marriageRecommendations.score}/{marriageRecommendations.maximumScore}</p>
+            <p><b>Communication:</b> {marriageRecommendations.communication.join("; ")}</p>
+            <p><b>Cooperation:</b> {marriageRecommendations.cooperation.join("; ")}</p>
+            <p><b>Practical:</b> {marriageRecommendations.practicalSuggestions.join("; ")}</p>
+          </details>}
           <div className="service-report-grid">{ankReport.sections.map((section) => <article key={section.title}><h3>{reportLanguage==="hi"?section.titleHi:section.title}</h3><b>{section.value}</b><p>{reportLanguage==="hi"?section.interpretationHi:section.interpretation}</p><small>{section.evidence}</small></article>)}</div>
           <p className="service-disclaimer">{ankReport.disclaimer}</p>
           <div className="service-actions">
             <button className="service-primary" type="button" disabled={busy} onClick={() => void saveReport()}>{busy ? "Saving…" : "Save report to my account"} ↗</button>
             <button className="service-secondary" type="button" onClick={() => window.print()}>Print / PDF</button>
             <button className="service-secondary" type="button" onClick={() => {
-              const blob = new Blob([JSON.stringify(ankReport,null,2)],{type:"application/json"});
+              const exportReport=sanitizeNumerologyExport({...ankReport,mobileNumberMask:mobileNumber?`****${mobileNumber.slice(-4)}`:null,mobileNumber:undefined} as Record<string,unknown>);
+              const blob = new Blob([JSON.stringify(exportReport,null,2)],{type:"application/json"});
               const url = URL.createObjectURL(blob);
               const anchor = document.createElement("a");
               anchor.href=url; anchor.download=`numerology-${ankReport.date.iso}.json`; anchor.click();

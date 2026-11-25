@@ -93,11 +93,17 @@ export function calculateDateNumbers(dateOfBirth: string) {
   return { ...date, moolank, bhagyankCompound, bhagyank, birthDay, lifePath, attitude };
 }
 
-export function getPersonalCycles(dateOfBirth: string, referenceDate = new Date()) {
+export function getPersonalCycles(dateOfBirth: string, referenceDate = new Date(), timezone = "UTC") {
   const birth = parseIsoDate(dateOfBirth);
-  const year = referenceDate.getUTCFullYear();
-  const month = referenceDate.getUTCMonth() + 1;
-  const day = referenceDate.getUTCDate();
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(referenceDate);
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const day = Number(parts.find((part) => part.type === "day")?.value);
   const personalYear = reduceDigitSum(birth.month + birth.day + year);
   const personalMonth = reduceDigitSum(personalYear + month);
   const personalDay = reduceDigitSum(personalMonth + day);
@@ -228,7 +234,7 @@ export function calculateLoShu(dateOfBirth: string, mode: LoShuMode) {
 export type AdvancedLoShuAnalysis = {
   dobOnly: ReturnType<typeof calculateLoShu>;
   indianExtended: ReturnType<typeof calculateLoShu>;
-  nameEnhanced: ReturnType<typeof calculateLoShu>;
+  nameEnhanced: ReturnType<typeof calculateLoShu> | ReturnType<typeof calculateNameEnhancedLoShu>;
   presentOverlap: number[];
   missingOverlap: number[];
   contradictions: string[];
@@ -528,7 +534,7 @@ export function calculateCareerProfile(dateOfBirth:string,name:string,system:Num
     ["Business",[1,3,5,8]],["Management",[1,4,8]],["Technology",[4,5,7]],
     ["Sales",[1,5,3]],["Marketing",[3,5,9]],["Finance",[4,8,6]],
     ["Education",[3,7,9]],["Creative professions",[2,3,6,9]],["Communication",[3,5,6]],
-    ["Entrepreneurship",[1,8,9]],
+    ["Entrepreneurship",[1,8,9]],["Research",[4,7,9]],["Leadership",[1,8,9]],
   ] as const;
   return {
     roots,
@@ -596,6 +602,7 @@ export function createUnifiedNumerologyProfile(input: {
   mobileNumber?:string;
   keepMasterNumbers?:boolean;
   now?:Date;
+  timezone?:string;
 }) {
   const system=input.system??"pythagorean";
   const date=calculateDateNumbers(input.dateOfBirth);
@@ -605,7 +612,8 @@ export function createUnifiedNumerologyProfile(input: {
   const loShu=calculateLoShu(input.dateOfBirth,input.loShuMode??"dob-only");
   const advancedLoShu=analyzeAdvancedLoShu(input.dateOfBirth,input.name,system);
   const mobile=input.countryCode&&input.mobileNumber?analyzeMobileNumber(input.countryCode,input.mobileNumber,input.dateOfBirth):null;
-  const cycles=getPersonalCycles(input.dateOfBirth,input.now);
+  const timezone=input.timezone?.trim()||"UTC";
+  const cycles=getPersonalCycles(input.dateOfBirth,input.now,timezone);
   const stages=calculatePinnaclesAndChallenges(input.dateOfBirth);
   return {date,name,chaldean,pythagorean,loShu,advancedLoShu,mobile,cycles,stages};
 }
@@ -645,6 +653,102 @@ export function createNumerologyComparison(input:{
 
 export type ProfessionalNumerologySection = { title:string; titleHi:string; value:string; evidence:string; interpretation:string; interpretationHi:string };
 
+export type EvidenceRelation = {
+  module: string;
+  relation: "supporting" | "contradictory" | "neutral";
+  formula: string;
+  evidence: string;
+  explanation: string;
+};
+
+export type ExplainableScore = {
+  formula: string;
+  weights: Record<string, number>;
+  positive: Array<{ factor:string; points:number; evidence:string }>;
+  negative: Array<{ factor:string; points:number; evidence:string }>;
+  neutral: Array<{ factor:string; evidence:string }>;
+  finalScore: number;
+  maximumScore: number;
+  explanation: string;
+};
+
+export function compareNumerologyModules(input:{
+  dateOfBirth:string;
+  name:string;
+  system?:NumerologySystem;
+  countryCode?:string;
+  mobileNumber?:string;
+  referenceDate?:Date;
+  timezone?:string;
+}) {
+  const system=input.system??"pythagorean";
+  const date=calculateDateNumbers(input.dateOfBirth);
+  const name=calculateNameName(input.name,system);
+  const grid=calculateLoShu(input.dateOfBirth,"dob-only");
+  const cycles=getPersonalCycles(input.dateOfBirth,input.referenceDate,input.timezone??"UTC");
+  const mobile=input.countryCode&&input.mobileNumber?analyzeMobileNumber(input.countryCode,input.mobileNumber,input.dateOfBirth):null;
+  const relations:EvidenceRelation[]=[];
+  relations.push({
+    module:"DOB vs Name",
+    relation:name.expression.reduced===date.moolank||name.expression.reduced===date.bhagyank?"supporting":"neutral",
+    formula:"name.expression.root == moolank OR bhagyank",
+    evidence:`Name root ${name.expression.reduced}; Moolank ${date.moolank}; Bhagyank ${date.bhagyank}`,
+    explanation:name.expression.reduced===date.moolank||name.expression.reduced===date.bhagyank
+      ?"A core root is shared by the DOB and name calculations."
+      :"No core root is shared; this is a neutral relationship, not a conflict.",
+  });
+  relations.push({
+    module:"DOB vs Lo Shu",
+    relation:grid.present.includes(date.moolank)&&grid.present.includes(date.bhagyank)?"supporting":grid.present.includes(date.moolank)||grid.present.includes(date.bhagyank)?"neutral":"contradictory",
+    formula:"moolank/bhagyank in DOB-only present set",
+    evidence:`Present {${grid.present.join(",")}}; Moolank ${date.moolank}; Bhagyank ${date.bhagyank}`,
+    explanation:"This reports whether core roots occur in the raw DOB grid, without inferring a guaranteed outcome.",
+  });
+  if (mobile) {
+    relations.push({
+      module:"DOB vs Mobile",
+      relation:mobile.root===date.moolank&&mobile.root===date.bhagyank?"supporting":mobile.root===date.moolank||mobile.root===date.bhagyank?"neutral":"contradictory",
+      formula:"mobile.full-digit-root == moolank OR bhagyank",
+      evidence:`Mobile root ${mobile.root}; Moolank ${date.moolank}; Bhagyank ${date.bhagyank}`,
+      explanation:"Phone-digit alignment is a traditional comparison only.",
+    });
+  }
+  relations.push({
+    module:"DOB vs Personal Year",
+    relation:cycles.personalYear===date.moolank||cycles.personalYear===date.bhagyank?"supporting":"neutral",
+    formula:"reduce(birth.month + birth.day + reference.year)",
+    evidence:`Personal Year ${cycles.personalYear}; Moolank ${date.moolank}; Bhagyank ${date.bhagyank}`,
+    explanation:"A shared cycle root is recorded when present; it does not predict events.",
+  });
+  return {system,relations};
+}
+
+export function explainMarriageScore(firstName:string,firstDob:string,secondName:string,secondDob:string,system:NumerologySystem="pythagorean"):ExplainableScore {
+  const result=calculateMarriageCompatibility(firstName,firstDob,secondName,secondDob,system);
+  const weights={moolank:3,bhagyank:4,name:3,complementaryLoShu:1};
+  const positive:Array<{factor:string;points:number;evidence:string}>=[];
+  const negative:Array<{factor:string;points:number;evidence:string}>=[];
+  const neutral:Array<{factor:string;evidence:string}>=[];
+  const first=calculateDateNumbers(firstDob),second=calculateDateNumbers(secondDob);
+  if (first.moolank===second.moolank) positive.push({factor:"Matching Moolank",points:weights.moolank,evidence:`Both reduce to ${first.moolank}`});
+  else neutral.push({factor:"Different Moolank",evidence:`First ${first.moolank}; second ${second.moolank}`});
+  if (first.bhagyank===second.bhagyank) positive.push({factor:"Matching Bhagyank",points:weights.bhagyank,evidence:`Both reduce to ${first.bhagyank}`});
+  else neutral.push({factor:"Different Bhagyank",evidence:`First ${first.bhagyank}; second ${second.bhagyank}`});
+  const firstNameValue=calculateNameName(firstName,system),secondNameValue=calculateNameName(secondName,system);
+  if (firstNameValue.expression.reduced===secondNameValue.expression.reduced) positive.push({factor:"Matching name root",points:weights.name,evidence:`Both ${firstNameValue.expression.reduced}`});
+  else negative.push({factor:"Different name roots",points:-1,evidence:`First ${firstNameValue.expression.reduced}; second ${secondNameValue.expression.reduced}`});
+  if (result.complementary>0) positive.push({factor:"Lo Shu complementarity",points:Math.min(result.complementary,weights.complementaryLoShu*2),evidence:`${result.complementary} complementary missing/present relationships`});
+  else neutral.push({factor:"No complementary Lo Shu relationship detected",evidence:"No counted opposite present/missing relationship"});
+  const raw=result.traditionalMethodScore;
+  const maximum=10;
+  const finalScore=Math.max(0,Math.min(maximum,raw));
+  return {
+    formula:"3 for matching Moolank + 4 for matching Bhagyank + 3 for matching name root + complementary Lo Shu points, capped at 10",
+    weights,positive,negative,neutral,finalScore,maximumScore:maximum,
+    explanation:`Final score ${finalScore}/${maximum}. It is an auditable traditional similarity summary, not probability or relationship success.`,
+  };
+}
+
 export function createProfessionalNumerologyReport(input:{
   name:string;
   dateOfBirth:string;
@@ -664,10 +768,20 @@ export function createProfessionalNumerologyReport(input:{
   const career=calculateCareerProfile(input.dateOfBirth,input.name,input.system);
   const marriage=input.partnerName&&input.partnerDob?calculateMarriageCompatibility(input.name,input.dateOfBirth,input.partnerName,input.partnerDob,input.system):null;
   const timezone=input.timezone||Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const consistency=compareNumerologyModules({
+    dateOfBirth:input.dateOfBirth,
+    name:input.name,
+    system:input.system,
+    countryCode:input.countryCode,
+    mobileNumber:input.mobileNumber,
+    referenceDate:input.now,
+    timezone,
+  });
+  const marriageScore=marriage?explainMarriageScore(input.name,input.dateOfBirth,input.partnerName!,input.partnerDob!,input.system):null;
   const dateRange=analyzeDateRange(input.dateOfBirth,timezone,input.historical
     ? {historical:true,year:input.historical.year,month:input.historical.month,now:input.now}
     : {historical:false,now:input.now});
-  const sections:ProfessionalNumerologySection[]=[
+  const sectionRows: ReadonlyArray<readonly [string,string,string,string,string,string]>=[
     ["Personal Numerology Summary","व्यक्तिगत अंक-ज्योतिष सारांश",`${profile.date.moolank}/${profile.date.bhagyank}/${profile.name.expression.reduced}`,`Moolank ${profile.date.moolank}; Bhagyank ${profile.date.bhagyank}; name ${profile.name.expression.reduced}`, "A transparent traditional profile, not a prediction.","एक पारदर्शी पारंपरिक प्रोफ़ाइल, भविष्यवाणी नहीं।"],
     ["DOB and Core Numbers","जन्मतिथि और मूल अंक",`M ${profile.date.moolank} · D ${profile.date.bhagyank}`,`Day ${profile.date.day}; compound ${profile.date.bhagyankCompound}; life path ${profile.date.lifePath}`,"Core numbers are calculated independently.","मूल अंक अलग-अलग गणना किए जाते हैं।"],
     ["Lo Shu Grid","लो शु जाल",profile.loShu.present.join(","),`DOB digits ${profile.loShu.gridDigits.join(",")}; layout 4-9-2/3-5-7/8-1-6`,"DOB, Indian extended and optional name-enhanced methods are labelled separately.","तीनों जाल-पद्धतियाँ अलग नामांकित हैं।"],
@@ -686,6 +800,7 @@ export function createProfessionalNumerologyReport(input:{
     ["Calculation Evidence","गणना प्रमाण",`M ${profile.date.moolank} · D ${profile.date.bhagyank} · N ${profile.name.expression.compound}→${profile.name.expression.reduced}`,`Lo Shu ${JSON.stringify(profile.loShu.frequency)}; mobile ${profile.mobile?.fullNumber?`****${profile.mobile.fullNumber.slice(-4)}`:"not provided"}`,"Every intermediate result should remain visible.","हर मध्यवर्ती परिणाम दिखाई देना चाहिए।"],
     ["Methodology and Limitations","पद्धति और सीमाएँ","Traditional belief system","Chaldean, Pythagorean, Indian and Lo Shu traditions are kept separate.","No scientifically validated prediction or guarantee.","कोई वैज्ञानिक भविष्यवाणी या गारंटी नहीं।"],
   ];
+  const sections:ProfessionalNumerologySection[]=sectionRows.map(([title,titleHi,value,evidence,interpretation,interpretationHi])=>({title,titleHi,value,evidence,interpretation,interpretationHi}));
   return {
     title:`Professional Numerology · ${profile.name.normalized}`,
     language,
@@ -694,6 +809,8 @@ export function createProfessionalNumerologyReport(input:{
     career,
     marriage,
     dateRange,
+    consistency,
+    marriageScore,
     sections,
     disclaimer:language==="hi"
       ? "यह केवल पारंपरिक और मनोरंजनात्मक अंक-ज्योतिष है। यह विवाह, धन, स्वास्थ्य, रोजगार या भविष्य की गारंटी नहीं देता।"

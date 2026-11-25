@@ -77,7 +77,7 @@ test("marriage comparison handles two profiles and missing or conflicting inputs
 
 test("career report covers all categories and keeps practical actions separate", () => {
   const career=calculateCareerProfile("1990-08-15","Ada Lovelace","pythagorean");
-  assert.deepEqual(career.categories.map((item)=>item.category),["Business","Management","Technology","Sales","Marketing","Finance","Education","Creative professions","Communication","Entrepreneurship"]);
+  assert.deepEqual(career.categories.map((item)=>item.category),["Business","Management","Technology","Sales","Marketing","Finance","Education","Creative professions","Communication","Entrepreneurship","Research","Leadership"]);
   assert.ok(career.roots.every((root)=>root>=1&&root<=9));
   assert.ok(career.practicalActions.length>=4);
   assert.match(career.disclaimer,/do not determine ability/);

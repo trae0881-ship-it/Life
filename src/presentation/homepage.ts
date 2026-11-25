@@ -3,7 +3,7 @@ export const homepageNavigation = [
   { label: "About Us", href: "#about", sectionId: "about" },
   { label: "Blog", href: "#blog", sectionId: "blog" },
   { label: "Contact Us", href: "#contact", sectionId: "contact" },
-  { label: "Login / Sign Up", href: "/signup?next=%2Fdashboard", sectionId: "account" },
+  { label: "Login / Sign Up", href: "/signup", sectionId: "account" },
 ] as const;
 
 export const homepageFeatures = [

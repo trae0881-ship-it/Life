@@ -81,7 +81,7 @@ export default function DeveloperFooterSection() {
         {role === "DEVELOPER" && <a href="/developers/dashboard">{t("developer.footer.dashboard")}</a>}
       </div>
       <div className="global-footer-developer-actions">
-        <a href="/developer/login?next=%2Fdevelopers%2Fdashboard">{t("developer.footer.login")}</a>
+        <a href="/developer/login">{t("developer.footer.login")}</a>
         <a href="/developer/signup">{t("developer.footer.createAccount")}</a>
       </div>
       <p className="global-footer-developer-note">{t("developer.footer.approval")}</p>

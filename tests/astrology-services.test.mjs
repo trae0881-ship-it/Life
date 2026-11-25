@@ -64,7 +64,7 @@ test("service pages and reading APIs enforce authentication and per-user ownersh
   const schema = readFileSync(new URL("../prisma/schema.prisma", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../prisma/migrations/20261124160000_saved_astrology_readings/migration.sql", import.meta.url), "utf8");
   assert.match(protectedPalmistry, /getCurrentUser/);
-  assert.match(protectedPalmistry, /redirect\("\/login\?next=%2Fpalmistry"\)/);
+  assert.match(protectedPalmistry, /redirect\("\/login"\)/);
   assert.match(readingsApi, /getUserFromRequest\(request\)/);
   assert.match(readingsApi, /where: \{ userId: user\.id, service \}/);
   assert.match(readingsApi, /userId: user\.id/);

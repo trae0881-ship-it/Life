@@ -6,6 +6,6 @@ export const dynamic = "force-dynamic";
 
 export default async function UserDashboardPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login?next=%2Fdashboard");
+  if (!user) redirect("/login");
   return <Dashboard user={user} />;
 }

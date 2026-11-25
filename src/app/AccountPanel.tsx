@@ -173,7 +173,13 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
         setUser(result.user);
         formElement.reset();
         window.dispatchEvent(new Event("life-account-changed"));
-        window.location.assign(returnTo);
+        const role = result.user.role;
+        const destination = authPortal === "developer"
+          ? role === "DEVELOPER" ? "/developers/dashboard" : "/developers"
+          : role === "SUPER_ADMIN" ? "/super-admin"
+            : role === "ADMIN" ? "/admin"
+              : "/dashboard";
+        window.location.assign(destination);
         return;
       }
       setUser(result.user);
@@ -415,7 +421,7 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
       <button className="account-action" type="submit" disabled={busy}>{busy ? t("account.wait") : mode === "register" ? t("account.register") : t("account.signIn")}</button>
       {mode === "login" && <a className="account-recovery-link" href="/forgot-password">Forgot password?</a>}
     </form>}
-    {message && <p role="status" className="account-message">{t(message)}{message === "account.registrationSessionUnverified" && <> <a href={`/login?next=${encodeURIComponent(returnTo ?? "/dashboard")}`}>Sign in to continue</a>.</>}</p>}
+    {message && <p role="status" className="account-message">{t(message)}{message === "account.registrationSessionUnverified" && <> <a href="/login">Sign in to continue</a>.</>}</p>}
     </div>
   </section>;
 }

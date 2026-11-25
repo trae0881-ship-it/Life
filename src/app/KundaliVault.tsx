@@ -53,7 +53,7 @@ export default function KundaliVault({ language, onAsk }: { language: Language; 
     fetch("/api/kundalis", { cache: "no-store" })
       .then(async (response) => {
         if (response.status === 401) {
-          window.location.assign("/login?next=%2Fdashboard");
+          window.location.assign("/login");
           throw new Error("signed out");
         }
         if (!response.ok) throw new Error("load failed");
@@ -100,7 +100,7 @@ export default function KundaliVault({ language, onAsk }: { language: Language; 
         return;
       }
       if (xhr.status === 401) {
-        window.location.assign("/login?next=%2Fdashboard");
+        window.location.assign("/login");
         setUploading(false);
         return;
       }
@@ -122,7 +122,7 @@ export default function KundaliVault({ language, onAsk }: { language: Language; 
     try {
       const response = await fetch(`/api/kundalis/${encodeURIComponent(saved.id)}/original`, { cache: "no-store" });
       if (response.status === 401) {
-        window.location.assign("/login?next=%2Fdashboard");
+        window.location.assign("/login");
         return;
       }
       if (!response.ok) throw new Error("download failed");
@@ -141,7 +141,7 @@ export default function KundaliVault({ language, onAsk }: { language: Language; 
     try {
       const response = await fetch(`/api/kundalis/${encodeURIComponent(record.id)}/original`, { cache: "no-store" });
       if (response.status === 401) {
-        window.location.assign("/login?next=%2Fdashboard");
+        window.location.assign("/login");
         return;
       }
       if (!response.ok) throw new Error("download failed");
@@ -173,7 +173,7 @@ export default function KundaliVault({ language, onAsk }: { language: Language; 
     try {
       const response = await fetch(`/api/kundalis/${encodeURIComponent(record.id)}`, { method: "DELETE", cache: "no-store" });
       if (response.status === 401) {
-        window.location.assign("/login?next=%2Fdashboard");
+        window.location.assign("/login");
         return;
       }
       if (!response.ok) throw new Error("delete failed");

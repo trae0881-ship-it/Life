@@ -25,10 +25,10 @@ test("login and signup routes render distinct forms and preserve a safe return d
   const accountPanel = source("src/app/AccountPanel.tsx");
 
   assert.match(login, /title: "Sign In \| LIFE"/);
-  assert.match(login, /return <LoginExperience returnTo=\{destination\} \/>/);
+  assert.match(login, /return <LoginExperience returnTo="\/dashboard" \/>/);
   assert.match(signup, /title: "Create an Account \| LIFE"/);
   assert.match(signup, /initialMode="register"/);
-  assert.match(signup, /safeReturnTo/);
+  assert.doesNotMatch(signup, /safeReturnTo|\?next=/);
   assert.match(experience, /key=\{initialMode\}/);
   assert.match(experience, /Create Account \/ Sign Up/);
   assert.match(experience, /Login \/ Sign In/);
@@ -46,7 +46,7 @@ test("successful login and signup verify the issued session before redirecting t
   assert.match(accountPanel, /sessionResult\.user\.id !== result\.user\.id/);
   assert.match(accountPanel, /account\.registrationSessionUnverified/);
   assert.match(accountPanel, /Sign in to continue/);
-  assert.match(accountPanel, /window\.location\.assign\(returnTo\)/);
+  assert.match(accountPanel, /window\.location\.assign\(destination\)/);
   assert.match(loginApi, /createSession\(user\.id, getPrisma\(\)\)/);
   assert.match(registrationApi, /registerAccountWithSession/);
   assert.match(registrationApi, /sessionCookie\(token, expiresAt\)/);
@@ -58,7 +58,7 @@ test("dashboard protects anonymous visitors and exposes authenticated dashboard/
   const dashboard = source("src/app/Dashboard.tsx");
   const logoutApi = source("src/app/api/auth/logout/route.ts");
 
-  assert.match(dashboardPage, /if \(!user\) redirect\("\/login\?next=%2Fdashboard"\)/);
+  assert.match(dashboardPage, /if \(!user\) redirect\("\/login"\)/);
   assert.match(dashboardPage, /return <Dashboard user=\{user\} \/>/);
   assert.match(dashboard, /dashboard-sidebar.*aria-label/);
   assert.match(dashboard, /dashboard-user-chip/);
@@ -87,11 +87,10 @@ test("Chart Studio and its calculation API require the server-side session", () 
   const accountPanel = source("src/app/AccountPanel.tsx");
   const chartApi = source("src/app/api/charts/route.ts");
   assert.match(studio, /getCurrentUser\(\)/);
-  assert.match(studio, /redirect\(`\/login\?next=/);
-  assert.match(studio, /searchParams/);
-  assert.match(loginPage, /safeReturnTo/);
-  assert.match(loginPage, /redirect\(destination\)/);
-  assert.match(accountPanel, /window\.location\.assign\(returnTo\)/);
+  assert.match(studio, /redirect\("\/login"\)/);
+  assert.doesNotMatch(loginPage, /safeReturnTo|\?next=/);
+  assert.match(loginPage, /redirect\("\/dashboard"\)/);
+  assert.match(accountPanel, /window\.location\.assign\(destination\)/);
   assert.match(chartApi, /requireRole\(request, \["USER", "DEVELOPER", "ADMIN", "SUPER_ADMIN"\]\)/);
   assert.ok(chartApi.indexOf("requireRole(request") < chartApi.indexOf("readJson(request"), "authentication must precede chart payload processing");
   assert.match(chartApi, /"UNAUTHENTICATED"[\s\S]*?auth\.status/);
@@ -107,7 +106,7 @@ test("sign-up route provides required identity fields without collecting Kundli 
   const userNameMigration = source("prisma/migrations/20261026130000_user_full_name/migration.sql");
 
   assert.match(signup, /initialMode="register"/);
-  assert.match(signup, /safeReturnTo/);
+  assert.doesNotMatch(signup, /safeReturnTo|\?next=/);
   assert.match(experience, /lockAuthMode/);
   assert.match(accountPanel, /name="fullName"[^>]*required/);
   assert.match(accountPanel, /name="email"[^>]*required/);

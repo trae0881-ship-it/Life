@@ -25,7 +25,7 @@ test("authenticated dashboard exposes all astrology services with working routes
     assert.ok(dashboard.includes(`href={service.href}`), `${route} card and service navigation use actual hrefs`);
     const page = source(`src/app${route}/page.tsx`);
     assert.ok(page.includes("getCurrentUser"), `${route} checks for authentication`);
-    assert.ok(page.includes(`next=%2F${route.slice(1)}`), `${route} returns the user to the selected service after sign-in`);
+    assert.ok(page.includes('redirect("/login")'), `${route} redirects logged-out users to the clean login route`);
   }
   assert.match(dashboard, /className="dashboard-service-grid"/);
   assert.match(dashboard, /aria-label="Astrology services"/);

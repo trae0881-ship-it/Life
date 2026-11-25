@@ -133,7 +133,7 @@ export default function Dashboard({ user }: { user: AuthUser }) {
       ]);
       if (controller.signal.aborted) return;
       if (profileResponse?.status === 401 || reportResponse?.status === 401) {
-        window.location.assign("/?panel=account");
+        window.location.assign("/dashboard");
         return;
       }
       const [profileJson, reportJson] = await Promise.all([
@@ -360,7 +360,7 @@ export default function Dashboard({ user }: { user: AuthUser }) {
       });
       const body = await response.json();
       if (response.status === 401) {
-        window.location.assign("/?panel=account");
+        window.location.assign("/dashboard");
         return;
       }
       if (!response.ok) {
@@ -396,7 +396,7 @@ export default function Dashboard({ user }: { user: AuthUser }) {
     try {
       const response = await fetch(`/api/saved-charts/${encodeURIComponent(report.id)}`, { cache: "no-store" });
       if (response.status === 401) {
-        window.location.assign("/?panel=account");
+        window.location.assign("/dashboard");
         return;
       }
       const body = await response.json();

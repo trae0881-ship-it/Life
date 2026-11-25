@@ -10,8 +10,8 @@ export default function LoginExperience({ returnTo, initialMode = "login", porta
       <a className="login-brand" href="/">✳ LIFE</a>
       <nav className="login-account-nav" aria-label="Account navigation">
         {isRegistration
-          ? <a href={isDeveloperPortal ? "/developer/login?next=%2Fdevelopers%2Fdashboard" : `/login?next=${encodeURIComponent(returnTo)}`}>{isDeveloperPortal ? "Developer Login" : "Login / Sign In"}</a>
-          : <a href={isDeveloperPortal ? `/developer/signup?next=${encodeURIComponent(returnTo)}` : `/signup?next=${encodeURIComponent(returnTo)}`}>{isDeveloperPortal ? "Create Developer Account" : "Create Account / Sign Up"}</a>}
+          ? <a href={isDeveloperPortal ? "/developer/login" : "/login"}>{isDeveloperPortal ? "Developer Login" : "Login / Sign In"}</a>
+          : <a href={isDeveloperPortal ? "/developer/signup" : "/signup"}>{isDeveloperPortal ? "Create Developer Account" : "Create Account / Sign Up"}</a>}
       </nav>
     </header>
     <section className="login-card" aria-labelledby="login-title">

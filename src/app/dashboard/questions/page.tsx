@@ -5,6 +5,6 @@ import { getCurrentUser } from "@/server/auth";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardQuestionsPage() {
-  if (!await getCurrentUser()) redirect("/login?next=%2Fdashboard%2Fquestions");
+  if (!await getCurrentUser()) redirect("/login");
   return <AssistantWorkspacePage />;
 }

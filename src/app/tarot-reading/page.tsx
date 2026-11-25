@@ -6,6 +6,6 @@ export const dynamic = "force-dynamic";
 
 export default async function TarotReadingPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login?next=%2Ftarot-reading");
+  if (!user) redirect("/login");
   return <AstrologyServiceWorkspace service="tarot" />;
 }

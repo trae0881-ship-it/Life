@@ -346,7 +346,7 @@ export default function KundliAssistant({ chart, language, profileId, accountDat
     </div>
     <p className="assistant-intro">{t("assistant.intro")}</p>
     {authStatus === "checking" && <p role="status">{t("assistant.loading")}</p>}
-    {authStatus === "signedOut" && <p className="assistant-empty">{t("assistant.signInRequired")} <a href="/login?next=%2Fdashboard">{t("account.signIn")}</a></p>}
+    {authStatus === "signedOut" && <p className="assistant-empty">{t("assistant.signInRequired")} <a href="/login">{t("account.signIn")}</a></p>}
     {authStatus === "error" && <p className="assistant-error" role="alert">{t("assistant.accountError")}</p>}
     {authStatus === "termsRequired" && <div className="assistant-terms" role="status">
       <p>{t("assistant.termsRequired")} <a href="/terms-and-conditions">{t("legal.termsLink")}</a> · <a href="/privacy-policy">{t("legal.privacyLink")}</a></p>

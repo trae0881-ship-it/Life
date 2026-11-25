@@ -4,6 +4,6 @@ import { getCurrentUser } from "@/server/auth";
 export const dynamic = "force-dynamic";
 
 export default async function KpAstrologyPage() {
-  if (!await getCurrentUser()) redirect("/login?next=%2Fkp-astrology");
+  if (!await getCurrentUser()) redirect("/login");
   redirect("/studio#kp");
 }

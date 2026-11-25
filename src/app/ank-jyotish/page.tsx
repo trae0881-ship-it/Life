@@ -6,6 +6,6 @@ export const dynamic = "force-dynamic";
 
 export default async function AnkJyotishPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login?next=%2Fank-jyotish");
+  if (!user) redirect("/login");
   return <AstrologyServiceWorkspace service="ank-jyotish" />;
 }
