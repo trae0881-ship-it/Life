@@ -98,9 +98,9 @@ test("question history and terms are localized and avoid unsupported paid-policy
   const terms = source("src/presentation/language.ts");
   assert.match(terms, /The current application has no in-app purchase, subscription, or cancellation workflow/);
   assert.match(terms, /self-service account deletion/);
-  assert.match(terms, /Palmistry observations, reports and optional photos are saved only in this browser's local storage/);
-  assert.match(terms, /हस्तरेखा रीडिंग सहेजने पर/);
-  assert.match(terms, /Palmistry observations, reports aur optional photos sirf is browser ke local storage mein save hote hain/);
+  assert.match(terms, /Palmistry images are stored privately as PostgreSQL BYTEA/);
+  assert.match(terms, /हस्तरेखा तस्वीरें PostgreSQL BYTEA में निजी रूप से सहेजी जाती हैं/);
+  assert.match(terms, /Palmistry images privately PostgreSQL BYTEA mein store hoti hain/);
 });
 
 test("question and answer storage is additive and deletes only through the user's owned record path", () => {
