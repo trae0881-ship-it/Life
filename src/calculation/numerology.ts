@@ -1,0 +1,502 @@
+export type NumerologySystem = "chaldean" | "pythagorean";
+export type LoShuMode = "dob-only" | "indian-extended";
+export type NumerologyLanguage = "en" | "hi";
+
+export type LoShuPlane = {
+  id: string;
+  label: string;
+  labelHi: string;
+  numbers: number[];
+  presentNumbers: number[];
+  missingNumbers: number[];
+  status: "complete" | "partial" | "empty";
+  strength: "strong" | "moderate" | "weak" | "absent";
+};
+
+export type Pinnacle = { index: number; compound: number; reduced: number; fromAge: number; toAge: number };
+export type Challenge = { index: number; compound: number; reduced: number; fromAge: number; toAge: number };
+
+const CHALDEAN: Record<string, number> = {
+  A:1,I:1,J:1,Q:1,Y:1,
+  B:2,K:2,R:2,
+  C:3,G:3,L:3,S:3,
+  D:4,M:4,T:4,
+  E:5,H:5,N:5,X:5,
+  U:6,V:6,W:6,
+  O:7,Z:7,
+  F:8,P:8,
+};
+
+const PYTHAGOREAN: Record<string, number> = {
+  A:1,J:1,S:1,
+  B:2,K:2,T:2,
+  C:3,L:3,U:3,
+  D:4,M:4,V:4,
+  E:5,N:5,W:5,
+  F:6,O:6,X:6,
+  G:7,P:7,Y:7,
+  H:8,Q:8,Z:8,
+  I:9,R:9,
+};
+
+export const GRID_LAYOUT = [[4,9,2],[3,5,7],[8,1,6]] as const;
+export const PLANE_IDS = [
+  ["mind","Mind Plane","मानसिक तल",[4,9,2]],
+  ["emotional","Emotional Plane","भावनात्मक तल",[3,5,7]],
+  ["practical","Practical Plane","व्यावहारिक तल",[8,1,6]],
+  ["planning","Planning Plane","योजना तल",[4,3,8]],
+  ["willpower","Willpower Plane","संकल्प तल",[9,5,1]],
+  ["success","Success Plane","सफलता तल",[2,7,6]],
+  ["golden","Golden Yog","स्वर्ण योग",[4,5,6]],
+  ["silver","Silver Yog","रजत योग",[2,5,8]],
+] as const;
+
+export function parseIsoDate(dateOfBirth: string): { iso: string; year: number; month: number; day: number } {
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOfBirth);
+  const ddmmyyyyMatch = /^(\d{2})-(\d{2})-(\d{4})$/.exec(dateOfBirth);
+  if (!isoMatch && !ddmmyyyyMatch) throw new Error("Enter date of birth as DD-MM-YYYY or YYYY-MM-DD.");
+  const [, first, second, third] = (isoMatch ?? ddmmyyyyMatch)!;
+  const year = isoMatch ? Number(first) : Number(third);
+  const month = isoMatch ? Number(second) : Number(second);
+  const day = isoMatch ? Number(third) : Number(first);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new Error("Enter a valid calendar date.");
+  }
+  if (year < 1800 || year > 2399) throw new Error("Date of birth must be between 1800 and 2399.");
+  return { iso: dateOfBirth, year, month, day };
+}
+
+export function reduceDigitSum(value: number, keepMaster = false): number {
+  let total = Math.abs(Math.trunc(value));
+  while (total > 9) {
+    if (keepMaster && [11,22,33].includes(total)) return total;
+    total = String(total).split("").reduce((sum, digit) => sum + Number(digit), 0);
+  }
+  return total;
+}
+
+export function compoundAndReduced(value: number, keepMaster = false) {
+  const compound = Math.abs(Math.trunc(value));
+  return { compound, reduced: keepMaster && [11,22,33].includes(compound) ? compound : reduceDigitSum(compound, keepMaster) };
+}
+
+export function calculateDateNumbers(dateOfBirth: string) {
+  const date = parseIsoDate(dateOfBirth);
+  const moolank = reduceDigitSum(date.day);
+  const digitString = `${String(date.day).padStart(2,"0")}${String(date.month).padStart(2,"0")}${date.year}`;
+  const bhagyankCompound = [...digitString].reduce((sum,digit)=>sum+Number(digit),0);
+  const bhagyank = reduceDigitSum(bhagyankCompound);
+  const birthDay = reduceDigitSum(date.day);
+  const lifePath = reduceDigitSum(bhagyankCompound);
+  const attitude = reduceDigitSum(date.month + date.day);
+  return { ...date, moolank, bhagyankCompound, bhagyank, birthDay, lifePath, attitude };
+}
+
+export function getPersonalCycles(dateOfBirth: string, referenceDate = new Date()) {
+  const birth = parseIsoDate(dateOfBirth);
+  const year = referenceDate.getUTCFullYear();
+  const month = referenceDate.getUTCMonth() + 1;
+  const day = referenceDate.getUTCDate();
+  const personalYear = reduceDigitSum(birth.month + birth.day + year);
+  const personalMonth = reduceDigitSum(personalYear + month);
+  const personalDay = reduceDigitSum(personalMonth + day);
+  return { year, month, day, personalYear, personalMonth, personalDay };
+}
+
+export function calculatePinnaclesAndChallenges(dateOfBirth: string) {
+  const birth = parseIsoDate(dateOfBirth);
+  const m = reduceDigitSum(birth.month), d = reduceDigitSum(birth.day), y = reduceDigitSum(birth.year);
+  const p1 = reduceDigitSum(m + d), p2 = reduceDigitSum(d + y), p3 = reduceDigitSum(p1 + p2), p4 = reduceDigitSum(m + y);
+  const c1 = Math.abs(m - d), c2 = Math.abs(d - y), c3 = Math.abs(c1 - c2), c4 = Math.abs(m - y);
+  const destiny = reduceDigitSum(birth.day + birth.month + birth.year);
+  const firstEnd = Math.max(0, 36 - destiny);
+  const ages = [
+    [0, firstEnd],
+    [firstEnd + 1, firstEnd + 9],
+    [firstEnd + 10, firstEnd + 18],
+    [firstEnd + 19, 999],
+  ] as const;
+  const pinnacleCompounds = [m+d,d+y,p1+p2,m+y];
+  const challengeCompounds = [c1,c2,c3,c4];
+  const pinnacleNumbers = [p1,p2,p3,p4];
+  const challengeNumbers = [c1,c2,c3,c4];
+  return {
+    pinnacles: pinnacleNumbers.map((reduced, index): Pinnacle => ({ index:index+1, compound:pinnacleCompounds[index], reduced, fromAge:ages[index][0], toAge:ages[index][1] })),
+    challenges: challengeNumbers.map((reduced, index): Challenge => ({ index:index+1, compound:challengeCompounds[index], reduced, fromAge:ages[index][0], toAge:ages[index][1] })),
+  };
+}
+
+export function normalizeName(name: string): { normalized: string; supported: string[]; unsupported: string[] } {
+  if (!name.trim()) throw new Error("Enter a name.");
+  if (name.length > 100) throw new Error("Name must be 100 characters or fewer.");
+  const devanagariTransliteration: Record<string,string> = {
+    "अ":"A","आ":"AA","इ":"I","ई":"EE","उ":"U","ऊ":"OO","ए":"E","ऐ":"AI","ओ":"O","औ":"AU",
+    "क":"K","ख":"KH","ग":"G","घ":"GH","ङ":"NG","च":"CH","छ":"CHH","ज":"J","झ":"JH","ञ":"NY",
+    "ट":"T","ठ":"TH","ड":"D","ढ":"DH","ण":"N","त":"T","थ":"TH","द":"D","ध":"DH","न":"N",
+    "प":"P","फ":"PH","ब":"B","भ":"BH","म":"M","य":"Y","र":"R","ल":"L","व":"V","श":"SH","ष":"SH","स":"S","ह":"H",
+  };
+  let transliterated = name;
+  if (/[\u0900-\u097F]/.test(name)) {
+    transliterated = [...name].map((char)=>devanagariTransliteration[char] ?? (/\u093E|\u093F|\u0940|\u0941|\u0942|\u0947|\u0948|\u094B|\u094C/.test(char) ? "" : char)).join("").replace(/[\u0900-\u097F]/g," ");
+  }
+  const decomposed = transliterated.normalize("NFKD").replace(/\p{M}+/gu, "").toLocaleUpperCase();
+  const normalized = decomposed.replace(/[^A-Z\s'.\-]/g, " ");
+  const letters = [...decomposed].filter((char) => /\p{L}/u.test(char));
+  const latin = letters.filter((char) => /[A-Z]/.test(char));
+  const unsupported = [...new Set(letters.filter((char) => !/[A-Z]/.test(char)))];
+  return { normalized: normalized.replace(/\s+/g," ").trim(), supported: latin, unsupported };
+}
+
+function letterGroups(word: string) {
+  const chars = [...word.toLocaleUpperCase().replace(/[^A-Z]/g,"")];
+  const vowels: number[] = [];
+  const consonants: number[] = [];
+  chars.forEach((char, index) => {
+    let vowel = ["A","E","I","O","U"].includes(char);
+    if (char === "Y") {
+      const previous = chars[index-1];
+      const next = chars[index+1];
+      vowel = Boolean((!previous || !/^[AEIOU]$/.test(previous)) && (!next || !/^[AEIOU]$/.test(next)));
+    }
+    (vowel ? vowels : consonants).push(char.charCodeAt(0));
+  });
+  return { vowels, consonants };
+}
+
+export function calculateNameName(name: string, system: NumerologySystem, keepMaster = false) {
+  const { normalized, unsupported } = normalizeName(name);
+  if (!normalized) throw new Error("Enter a name containing supported letters.");
+  const mapping = system === "chaldean" ? CHALDEAN : PYTHAGOREAN;
+  const letters = [...normalized].filter((char) => /^[A-Z]$/.test(char));
+  const breakdown = letters.map((letter) => ({ letter, value:mapping[letter] })).filter((item) => item.value);
+  const letterValues = breakdown.map((item) => item.value);
+  const expressionCompound = letterValues.reduce((sum,value)=>sum+value,0);
+  const words = normalized.split(/[\s'.-]+/).filter(Boolean);
+  const vowelValues: number[] = [];
+  const consonantValues: number[] = [];
+  const vowelBreakdown: string[] = [];
+  for (const word of words) {
+    const group = letterGroups(word);
+    for (const code of group.vowels) {
+      const letter = String.fromCharCode(code);
+      vowelValues.push(mapping[letter]);
+      vowelBreakdown.push(letter);
+    }
+    for (const code of group.consonants) consonantValues.push(mapping[String.fromCharCode(code)]);
+  }
+  const soulCompound = vowelValues.reduce((sum,value)=>sum+value,0);
+  const personalityCompound = consonantValues.reduce((sum,value)=>sum+value,0);
+  return {
+    normalized,
+    unsupported,
+    system,
+    breakdown,
+    mapping: Object.fromEntries(Object.keys(mapping).sort().map((letter)=>[letter,mapping[letter]])),
+    expression: compoundAndReduced(expressionCompound,keepMaster),
+    soulUrge: compoundAndReduced(soulCompound,keepMaster),
+    personality: compoundAndReduced(personalityCompound,keepMaster),
+    vowelLetters: vowelBreakdown,
+  };
+}
+
+export function calculateLoShu(dateOfBirth: string, mode: LoShuMode) {
+  const date = parseIsoDate(dateOfBirth);
+  const digits = `${date.day}${String(date.month).padStart(2,"0")}${date.year}`.replaceAll("0","").split("").map(Number).filter(Boolean);
+  const frequency: Record<number,number> = Object.fromEntries(Array.from({length:9},(_,index)=>[index+1,0]));
+  for (const digit of digits) frequency[digit] += 1;
+  let gridDigits = [...digits];
+  if (mode === "indian-extended") {
+    const dateNumbers = calculateDateNumbers(dateOfBirth);
+    gridDigits.push(dateNumbers.moolank, dateNumbers.bhagyank);
+    frequency[dateNumbers.moolank] += 1;
+    frequency[dateNumbers.bhagyank] += 1;
+  }
+  const present = Array.from({length:9},(_,index)=>index+1).filter((number)=>frequency[number]>0);
+  const missing = Array.from({length:9},(_,index)=>index+1).filter((number)=>frequency[number]===0);
+  const repeated = present.filter((number)=>frequency[number]>1).map((number)=>({number,count:frequency[number]}));
+  const planes: LoShuPlane[] = PLANE_IDS.map(([id,label,labelHi,numbers]) => {
+    const presentNumbers = numbers.filter((number)=>frequency[number]>0);
+    const missingNumbers = numbers.filter((number)=>frequency[number]===0);
+    const status = presentNumbers.length === 3 ? "complete" : presentNumbers.length === 0 ? "empty" : "partial";
+    const strength = presentNumbers.length === 3 ? "strong" : presentNumbers.length === 2 ? "moderate" : presentNumbers.length === 1 ? "weak" : "absent";
+    return {id,label,labelHi,numbers:[...numbers],presentNumbers,missingNumbers,status,strength};
+  });
+  return { mode, layout:GRID_LAYOUT, gridDigits, frequency, present, missing, repeated, planes };
+}
+
+export const NUMEROLOGY_NUMBER_PROFILES = [
+  null,
+  {planet:"Sun",theme:"initiative, identity and leadership",strength:"pioneering and self-directed",challenge:"stubbornness or dominance"},
+  {planet:"Moon",theme:"cooperation, sensitivity and intuition",strength:"adaptable and empathetic",challenge:"indecision or mood dependence"},
+  {planet:"Jupiter",theme:"expression, creativity and teaching",strength:"optimistic and articulate",challenge:"scattered focus or extravagance"},
+  {planet:"Rahu",theme:"structure, reform and unconventional method",strength:"enduring and systematic",challenge:"restlessness or rigidity"},
+  {planet:"Mercury",theme:"communication, versatility and curiosity",strength:"quick-learning and adaptable",challenge:"inconsistency or nervous energy"},
+  {planet:"Venus",theme:"harmony, care and responsibility",strength:"cooperative and aesthetic",challenge:"over-attachment or people-pleasing"},
+  {planet:"Ketu",theme:"analysis, reflection and spirituality",strength:"observant and independent",challenge:"isolation or detachment"},
+  {planet:"Saturn",theme:"discipline, organization and resilience",strength:"patient and persevering",challenge:"delay or workaholism"},
+  {planet:"Mars",theme:"energy, courage and completion",strength:"determined and direct",challenge:"impulsiveness or conflict"},
+] as const;
+
+export type NumerologyReportSection = { title:string; titleHi:string; value:string; evidence:string; interpretation:string; interpretationHi:string };
+
+export function createNumerologyReport(input:{name:string;dateOfBirth:string;system?:NumerologySystem;loShuMode?:LoShuMode;language?:NumerologyLanguage;comparisonName?:string;referenceDate?:Date;keepMasterNumbers?:boolean}) {
+  const date = calculateDateNumbers(input.dateOfBirth);
+  const system = input.system ?? "pythagorean";
+  const loShuMode = input.loShuMode ?? "dob-only";
+  const language = input.language ?? "en";
+  const keepMasterNumbers = input.keepMasterNumbers ?? false;
+  const name = calculateNameName(input.name,system,keepMasterNumbers);
+  const comparison = input.comparisonName?.trim() ? calculateNameName(input.comparisonName,system,keepMasterNumbers) : null;
+  const grid = calculateLoShu(input.dateOfBirth,loShuMode);
+  const cycles = getPersonalCycles(input.dateOfBirth,input.referenceDate);
+  const stages = calculatePinnaclesAndChallenges(input.dateOfBirth);
+  const sections: NumerologyReportSection[] = [
+    ["Numerology Overview","संख्या-ज्योतिष सारांश",`Name · ${name.normalized}`,`DOB ${input.dateOfBirth}; system ${system}; grid ${loShuMode}`,"A 30-section traditional, calculation-led reflection report.","एक पारंपरिक और गणना-आधारित 30 भागों का चिंतन-पठन।"],
+    ["Moolank Analysis","मूलांक विश्लेषण",String(date.moolank),`Day ${date.day}; digit sum ${date.day} → ${date.moolank}`,`Traditional Indian Moolank is derived from the birth day only.`,"भारतीय मूलांक केवल जन्म-दिन की अंकों के योग से निकाला जाता है।"],
+    ["Bhagyank Analysis","भाग्यांक विश्लेषण",String(date.bhagyank),`Day + month + year = ${date.bhagyankCompound} → ${date.bhagyank}`,`Bhagyank/Life Path uses all digits and reduces their sum.`,"भाग्यांक/लाइफ पाथ पूरी जन्मतिथि के अंकों के योग का घटा हुआ रूप है।"],
+    ["Name Number Analysis","नामांक विश्लेषण",String(name.expression.reduced),`${system} expression compound ${name.expression.compound} → ${name.expression.reduced}`,`The selected name system is used consistently for the full name.`,"चयनित नाम-पद्धति पूरे नाम पर एकसमान रूप से लागू है।"],
+    ["Chaldean Analysis","चाल्दीयन विश्लेषण",system==="chaldean"?String(name.expression.reduced):"System not selected",`Chaldean mapping used: ${system==="chaldean"?"yes":"no"}`,`Chaldean and Pythagorean mappings are never mixed.`,"चाल्दीयन और पाइथागोरियन मानचित्रण कभी नहीं मिलाए जाते।"],
+    ["Pythagorean Analysis","पाइथागोरियन विश्लेषण",system==="pythagorean"?String(name.expression.reduced):"System not selected",`Pythagorean mapping used: ${system==="pythagorean"?"yes":"no"}`,`Pythagorean and Chaldean calculations remain separate.`,"पाइथागोरियन और चाल्दीयन गणनाएँ अलग रहती हैं।"],
+    ["Lo Shu Grid","लो शु जाल",loShuMode,`Layout 4-9-2 / 3-5-7 / 8-1-6`,grid.mode==="dob-only"?"Traditional mode uses raw non-zero birth-date digits only.":"Indian extended mode also adds Moolank and Bhagyank separately.","पारंपरिक रूप में कच्चे जन्मतिथि-अंक; भारतीय विस्तृत रूप में मूलांक और भाग्यांक भी अलग जोड़े जाते हैं।"],
+    ["Present Numbers","उपस्थित अंक",grid.present.join(", ")||"None",`Frequency ${JSON.stringify(grid.frequency)}`,`These numbers occur in the selected grid mode.`,"चयनित जाल-पद्धति में ये अंक उपस्थित हैं।"],
+    ["Missing Numbers","अनुपस्थित अंक",grid.missing.join(", ")||"None",`Absent from frequency map`,`Missing numbers are developmental prompts, not faults.`,"अनुपस्थित अंक दोष नहीं बल्कि विकास-सूचक हैं।"],
+    ["Repeated Numbers","दोहराए गए अंक",grid.repeated.map((item)=>`${item.number}×${item.count}`).join(", ")||"None",`Repeated counts from selected grid`,`Repeated numbers indicate a traditionally amplified theme.`,"दोहराए अंक पारंपरिक रूप से उभरे हुए विषय बताते हैं।"],
+    ["All Eight Planes","आठों तल",grid.planes.map((plane)=>`${plane.label}: ${plane.status}`).join(" · "),grid.planes.map((plane)=>`${plane.numbers.join("-")}`).join(" | "),`Complete: 3 cells present; partial: 1–2; empty: 0; per the magic-square line model.`,"पूर्ण: 3 कक्ष उपस्थित; आंशिक: 1–2; रिक्त: 0।"],
+    ["Personality Interpretation","व्यक्तित्व व्याख्या",String(name.expression.reduced),`Expression ${name.expression.reduced}; Moolank ${date.moolank}`,`Traditional number themes are used as reflection prompts.`,"संख्या-विषयों को चिंतन संकेत माना गया है।"],
+    ["Communication Tendencies","संवाद प्रवृत्तियाँ",String(name.personality.reduced),`Personality compound ${name.personality.compound} → ${name.personality.reduced}`,`The consonant sum represents the selected traditional Personality number.`,"व्यंजन-अंक योग चयनित पारंपरिक व्यक्तित्व-अंक देता है।"],
+    ["Thinking Tendencies","सोच प्रवृत्तियाँ",String(date.moolank),`Moolank ${date.moolank}; Mind plane ${grid.planes[0].status}`,`Thinking is described symbolically, not measured.`,"सोच का वर्णन प्रतीकात्मक है, मापा हुआ नहीं।"],
+    ["Emotional Tendencies","भावनात्मक प्रवृत्तियाँ",String(name.soulUrge.reduced),`Soul Urge ${name.soulUrge.compound} → ${name.soulUrge.reduced}`,`The vowel sum represents an inner-name theme under the chosen system.`,"स्वर-अंक योग चयनित पद्धति में अंतर्नाम-विषय देता है।"],
+    ["Relationships","संबंध",comparison ? `${name.expression.reduced} / ${comparison.expression.reduced}`:"Not provided",comparison?`Name totals ${name.expression.compound}/${comparison.expression.compound}`:"No comparison name","No relationship outcome or romantic guarantee is inferred.","कोई संबंध-परिणाम या रोमांटिक गारंटी नहीं दी गई।"],
+    ["Career Tendencies","करियर प्रवृत्तियाँ",String(date.bhagyank),`Bhagyank ${date.bhagyank}; Expression ${name.expression.reduced}`,`Career is a traditional reflection category, not suitability or success prediction.`,"करियर चिंतन-वर्ग है, योग्यता या सफलता की भविष्यवाणी नहीं।"],
+    ["Business Tendencies","व्यवसाय प्रवृत्तियाँ",String(date.moolank),`Moolank ${date.moolank}; name ${name.expression.reduced}`,`Use human judgment and evidence before business decisions.`,"व्यावसायिक निर्णयों में मानवीय विवेक और प्रमाण आवश्यक हैं।"],
+    ["Financial Habits and Tendencies","वित्तीय आदतें",String(grid.planes[5].status),`Success plane ${grid.planes[5].numbers.join("-")} is ${grid.planes[5].status}`,`The plane is a cultural prompt, not financial evidence or advice.`,"यह सांस्कृतिक संकेत है, वित्तीय प्रमाण या सलाह नहीं।"],
+    ["Leadership","नेतृत्व",String(date.moolank),`Moolank ${date.moolank}; Willpower plane ${grid.planes[4].status}`,`Leadership themes are symbolic prompts only.`,"नेतृत्व विषय केवल प्रतीकात्मक संकेत हैं।"],
+    ["Strengths","बल",grid.present.join(", "),`Present numbers ${grid.present.join(", ")}`,`Present numbers and complete planes provide reflective strengths.`,"उपस्थित अंक और पूर्ण तल चिंतन बल देते हैं।"],
+    ["Development Areas","विकास क्षेत्र",grid.missing.join(", ")||"None",`Missing numbers ${grid.missing.join(", ")||"none"}`,`Missing numbers indicate qualities the tradition suggests practising.`,"अनुपस्थित अंक वे गुण बताते हैं जिन्हें परंपरा अभ्यास योग्य कहती है।"],
+    ["Personal Year","व्यक्तिगत वर्ष",String(cycles.personalYear),`${cycles.year}: month ${cycles.month} + birth ${date.month}/${date.day}; year cycle ${cycles.personalYear}`,`Calendar year ${cycles.year}; personal year is the reduced birth month + birth day + calendar year.`,"व्यक्तिगत वर्ष जन्म-माह + जन्म-दिन + वर्ष का घटा योग है।"],
+    ["Personal Month","व्यक्तिगत माह",String(cycles.personalMonth),`Personal year ${cycles.personalYear} + calendar month ${cycles.month}`,`Monthly cycle uses the documented personal-year plus calendar-month rule.`,"मासिक चक्र व्यक्तिगत-वर्ष और कैलेंडर-माह के योग से बनता है।"],
+    ["Personal Day","व्यक्तिगत दिन",String(cycles.personalDay),`Personal month ${cycles.personalMonth} + calendar day ${cycles.day}`,`Day cycle uses the documented personal-month plus calendar-day rule.`,"दैनिक चक्र व्यक्तिगत-माह और कैलेंडर-दिन के योग से बनता है।"],
+    ["Number Compatibility","अंक सामंजस्य",name.expression.reduced+" / "+date.moolank+ " / "+date.bhagyank,`Name ${name.expression.reduced}; Moolank ${date.moolank}; Bhagyank ${date.bhagyank}`,`Traditional friendship checks are descriptive; no score or outcome is guaranteed.`,"यह वर्णनात्मक पारंपरिक संगति है; अंक नहीं और परिणाम की गारंटी नहीं।"],
+    ["Name and Date Compatibility","नाम-विज्ञान संगति",`${name.expression.reduced} + ${date.moolank}/${date.bhagyank}`,`Expression ${name.expression.reduced}; Moolank ${date.moolank}; Bhagyank ${date.bhagyank}`,`Name and date totals are compared only as separate symbolic themes.`,"नाम और जन्मांक केवल अलग प्रतीकात्मक विषयों के रूप में तुलना किए जाते हैं।"],
+    ["Traditional Suggestions","पारंपरिक सुझाव","Practice, reflection, and evidence-based action",`Based on missing numbers ${grid.missing.join(", ")||"none"} and repeated numbers ${grid.repeated.map((item)=>item.number).join(", ")||"none"}`,`Suggestions are practical reflection prompts, not remedies or guarantees.`,"सुझाव चिंतन संकेत हैं, उपाय या गारंटी नहीं।"],
+    ["Calculation Evidence","गणना प्रमाण",`M ${date.moolank} · D ${date.bhagyank} · Name ${name.expression.compound}→${name.expression.reduced}`,`DOB ${input.dateOfBirth}; grid ${JSON.stringify(grid.frequency)}; plane lines ${grid.planes.map((plane)=>plane.numbers.join("-")).join(",")}`,`Every displayed result traces back to the inputs and documented reductions.`,"हर परिणाम इनपुट और दस्तावेज़ घटाव से जुड़ा है।"],
+    ["Final Summary","अंतिम सारांश",`${name.expression.reduced}/${date.moolank}/${date.bhagyank}`,`Expression/Moolank/Bhagyank are shown together`,`Traditional symbolism may support reflection but cannot predict life, marriage, wealth, health or employment.`,"पारंपरिक प्रतीक चिंतन में सहायक हो सकते हैं, पर जीवन, विवाह, धन, स्वास्थ्य या रोजगार नहीं तय करते।"],
+  ].map(([title,titleHi,value,evidence,interpretation,interpretationHi]) => ({title,titleHi,value,evidence,interpretation,interpretationHi}));
+  return {
+    title:`Ank Jyotish · ${name.normalized}`,
+    name:name.normalized,
+    dateOfBirth:input.dateOfBirth,
+    system,
+    loShuMode,
+    language,
+    date,
+    nameAnalysis:name,
+    comparison,
+    grid,
+    cycles,
+    ...stages,
+    sections,
+    disclaimer:language==="hi"
+      ? "यह सांस्कृतिक और मनोरंजन उद्देश्य की पारंपरिक व्याख्या है, वैज्ञानिक रूप से प्रमाणित नहीं है। यह विवाह, धन, रोजगार, स्वास्थ्य या भविष्य की गारंटी नहीं देता। पेशेवर सलाह के लिए योग्य विशेषज्ञ से सलाह लें।"
+      : "This is a traditional cultural and reflective interpretation, not scientifically validated. It does not guarantee marriage, wealth, employment, health or future events. Seek qualified professionals for consequential advice.",
+  };
+}
+
+export const NUMEROLOGY_SOURCES = [
+  {id:"traditional-indian-lo-shu",title:"Traditional Indian Ank Jyotish / Lo Shu practice",tradition:"Indian numerology",covered:["Moolank","Bhagyank","Lo Shu","Indian name traditions"],basis:"Internally documented traditional framework; no single textbook claim is presented as universal.",url:""},
+  {id:"western-chaldean-pythagorean",title:"Chaldean and Pythagorean numerology references",tradition:"Western numerology",covered:["Name trinity","letter mappings","master numbers","personal cycles"],basis:"Letter mappings are documented conventions; schools vary.",url:""},
+  {id:"magic-square-reference",title:"Lo Shu magic-square geometry",tradition:"Chinese and Lo Shu",covered:["3x3 layout","rows","columns","diagonals"],basis:"The fixed 4-9-2 / 3-5-7 / 8-1-6 arrangement and 15 sums are mathematical properties.",url:""},
+] as const;
+
+export type MobileAnalysis = {
+  countryCode: string;
+  nationalNumber: string;
+  fullNumber: string;
+  compound: number;
+  root: number;
+  digitFrequency: Record<number, number>;
+  repeated: Array<{ digit:number; count:number }>;
+  missing: number[];
+  patterns: string[];
+};
+
+export function analyzeMobileNumber(countryCode: string, mobileNumber: string, dateOfBirth?: string) {
+  if (!/^\+?\d{1,4}$/.test(countryCode.trim())) throw new Error("Country code must contain 1 to 4 digits.");
+  const code = countryCode.trim().replace(/^\+/, "").replace(/\D/g, "");
+  const national = mobileNumber.trim().replace(/[^\d]/g, "");
+  if (!/^\d{1,4}$/.test(code)) throw new Error("Country code must contain 1 to 4 digits.");
+  if (!/^\d{7,15}$/.test(national)) throw new Error("Mobile number must contain 7 to 15 digits.");
+  if (national.length > 1 && national.startsWith("00")) throw new Error("Remove international zero padding from the country code or number.");
+  const fullNumber = `${code}${national}`;
+  const compound = [...fullNumber].reduce((sum, digit) => sum + Number(digit), 0);
+  const root = reduceDigitSum(compound);
+  const digitFrequency: Record<number,number> = Object.fromEntries(Array.from({length:10},(_,digit)=>[digit,0]));
+  for (const digit of [...fullNumber]) digitFrequency[Number(digit)] += 1;
+  const repeated = Array.from({length:10},(_,digit)=>({digit,count:digitFrequency[digit]})).filter((item)=>item.count>1);
+  const missing = Array.from({length:10},(_,digit)=>digit).filter((digit)=>digitFrequency[digit]===0);
+  const patterns: string[] = [];
+  if (/(\d)\1{2}/.test(fullNumber)) patterns.push("Triple or longer repeated-digit run");
+  if (/^(.+)\1+$/.test(national)) patterns.push("Repeating block pattern");
+  if ([...new Set(national)].length === 1) patterns.push("Uniform repeated digit");
+  if (/123|234|345|456|567|678|789/.test(national)) patterns.push("Ascending sequence");
+  if (/987|876|765|654|543|432|321/.test(national)) patterns.push("Descending sequence");
+  const result: MobileAnalysis = { countryCode:code,nationalNumber:national,fullNumber,compound,root,digitFrequency,repeated,missing,patterns };
+  if (dateOfBirth) {
+    const date = calculateDateNumbers(dateOfBirth);
+    const grid = calculateLoShu(dateOfBirth,"dob-only");
+    const compatibleRoots = [date.moolank,date.bhagyank,root].filter((value,index,array)=>array.indexOf(value)===index);
+    Object.assign(result,{dobCompatibility:{
+      moolank:date.moolank,
+      bhagyank:date.bhagyank,
+      mobileRoot:root,
+      moolankAligned:root===date.moolank,
+      bhagyankAligned:root===date.bhagyank,
+      loShuAligned:grid.present.includes(root),
+      compatibleRoots,
+    }});
+  }
+  return result;
+}
+
+export type MobilePatternSuggestion = {
+  pattern: string;
+  example: string;
+  targetRoot: number;
+  compoundDelta: number;
+  rationale: string;
+  score: number;
+};
+
+export function generateMobileCorrectionPatterns(countryCode: string, mobileNumber: string, dateOfBirth: string, targets: number[] = []) {
+  const existing = analyzeMobileNumber(countryCode,mobileNumber,dateOfBirth);
+  const date = calculateDateNumbers(dateOfBirth);
+  const targetRoots = [...new Set([...targets, date.moolank, date.bhagyank].filter((root)=>Number.isInteger(root)&&root>=1&&root<=9))];
+  const prefixes = ["","1","2","3","7","9"];
+  const suggestions: MobilePatternSuggestion[] = [];
+  for (const root of targetRoots) {
+    for (const prefix of prefixes) {
+      let digits = prefix ? prefix + existing.nationalNumber.slice(prefix.length) : existing.nationalNumber;
+      if (digits.length !== existing.nationalNumber.length) digits = existing.nationalNumber;
+      const countryCompound = [...existing.countryCode].reduce((sum,digit)=>sum+Number(digit),0);
+      const nationalCompound = [...digits].reduce((sum,digit)=>sum+Number(digit),0);
+      const actualFullCompound = countryCompound + nationalCompound;
+      const prefixSum = countryCompound + [...digits.slice(0,-1)].reduce((sum,digit)=>sum+Number(digit),0);
+      let finalDigit = ((root - (prefixSum % 9)) + 9) % 9;
+      if (finalDigit === 0) finalDigit = 9;
+      digits = `${digits.slice(0,-1)}${finalDigit}`;
+      const compound = countryCompound + [...digits].reduce((sum,digit)=>sum+Number(digit),0);
+      const actualRoot = reduceDigitSum(compound);
+      if (actualRoot !== root) continue;
+      const loShu = calculateLoShu(dateOfBirth,"dob-only");
+      let score = 0;
+      if (root === date.moolank) score += 40;
+      if (root === date.bhagyank) score += 40;
+      if (loShu.present.includes(root)) score += 10;
+      if (!existing.missing.includes(root)) score += 5;
+      const pattern = `${prefix || "*"}···${digits.slice(-4)}`;
+      const rationale = `Targets root ${root}: ${root === date.moolank ? "matches Moolank" : "does not match Moolank"}; ${root === date.bhagyank ? "matches Bhagyank" : "does not match Bhagyank"}; digit sum is changed transparently.`;
+      suggestions.push({pattern,example:`${existing.countryCode}-${digits}`,targetRoot:root,compoundDelta:compound-existing.compound,rationale,score});
+    }
+  }
+  return suggestions.sort((a,b)=>b.score-a.score||a.compoundDelta-b.compoundDelta).filter((item,index,array)=>array.findIndex((other)=>other.example===item.example)<index?false:true).slice(0,12);
+}
+
+export type ChangedNameLetter = { index:number; original:string; suggested:string };
+
+export function calculateNameCorrections(name:string,dateOfBirth:string,system:NumerologySystem,preferredSpelling = "") {
+  const current = calculateNameName(name,system);
+  const date = calculateDateNumbers(dateOfBirth);
+  const base = (preferredSpelling.trim() || name).normalize("NFKD").replace(/\p{M}+/gu,"").toLocaleUpperCase();
+  const candidates = new Set<string>([base]);
+  const letters = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
+  for (let index=0;index<Math.min(base.length,12);index++) {
+    if (!/^[A-Z]$/.test(base[index])) continue;
+    for (const letter of letters) {
+      if (letter !== base[index]) candidates.add(base.slice(0,index)+letter+base.slice(index+1));
+    }
+  }
+  const ranked = [...candidates].filter((candidate)=>candidate!==base).map((candidate)=>{
+    const spelling = candidate.replace(/([A-Z])([A-Z])/g,"$1$2");
+    const result = calculateNameName(spelling,system);
+    const originalLetters=[...base.replace(/[^A-Z]/g,"")];
+    const suggestedLetters=[...spelling.replace(/[^A-Z]/g,"")];
+    const changedLetters: ChangedNameLetter[] = suggestedLetters.map((letter,index)=>({index,original:originalLetters[index]??"",suggested:letter})).filter((item)=>item.original!==item.suggested);
+    let score=0;
+    if (result.expression.reduced===date.moolank) score+=40;
+    if (result.expression.reduced===date.bhagyank) score+=40;
+    if (result.expression.reduced===date.moolank||result.expression.reduced===date.bhagyank) score+=10;
+    return {original:base,suggested:spelling,changedLetters,originalCompound:current.expression.compound,newCompound:result.expression.compound,originalRoot:current.expression.reduced,newRoot:result.expression.reduced,chaldean:system==="chaldean"?result.expression.reduced:calculateNameName(spelling,"chaldean").expression.reduced,pythagorean:system==="pythagorean"?result.expression.reduced:calculateNameName(spelling,"pythagorean").expression.reduced,score,rationale:`The letter substitutions retain familiar pronunciation; root changed only through this documented mapping.`};
+  }).filter((item)=>item.changedLetters.length>0&&item.changedLetters.length<=2&&item.suggested.length<=100);
+  const unique = [...new Map(ranked.map((item)=>[item.suggested,item])).values()];
+  return unique.sort((a,b)=>b.score-a.score||a.newCompound-b.newCompound).slice(0,12);
+}
+
+export function calculateMarriageCompatibility(firstName:string,firstDob:string,secondName:string,secondDob:string,system:NumerologySystem="pythagorean") {
+  if (!firstName.trim()||!secondName.trim()) throw new Error("Enter both names.");
+  const firstDate=calculateDateNumbers(firstDob), secondDate=calculateDateNumbers(secondDob);
+  const firstNameValue=calculateNameName(firstName,system), secondNameValue=calculateNameName(secondName,system);
+  const pairs=[
+    ["Moolank",firstDate.moolank,secondDate.moolank],
+    ["Bhagyank",firstDate.bhagyank,secondDate.bhagyank],
+    ["Name number",firstNameValue.expression.reduced,secondNameValue.expression.reduced],
+  ] as const;
+  const weights={moolank:3,bhagyank:4,name:3};
+  let score=0;
+  if (firstDate.moolank===secondDate.moolank) score+=weights.moolank;
+  if (firstDate.bhagyank===secondDate.bhagyank) score+=weights.bhagyank;
+  if (firstNameValue.expression.reduced===secondNameValue.expression.reduced) score+=weights.name;
+  const loShuFirst=calculateLoShu(firstDob,"dob-only"),loShuSecond=calculateLoShu(secondDob,"dob-only");
+  const sharedMissing=loShuFirst.missing.filter((number)=>loShuSecond.missing.includes(number));
+  const complementary=loShuFirst.missing.filter((number)=>loShuSecond.present.includes(number)).length+loShuSecond.missing.filter((number)=>loShuFirst.present.includes(number)).length;
+  score+=complementary;
+  score=Math.min(10,score);
+  return {system,pairs,sharedMissing,complementary,traditionalMethodScore:score,maximumScore:10,weights,disclaimer:"This is a documented traditional reflection score, not a measured probability, relationship prediction or success guarantee."};
+}
+
+export function calculateCareerProfile(dateOfBirth:string,name:string,system:NumerologySystem="pythagorean") {
+  const date=calculateDateNumbers(dateOfBirth),nameValue=calculateNameName(name,system),grid=calculateLoShu(dateOfBirth,"dob-only");
+  const roots=[...new Set([date.moolank,date.bhagyank,nameValue.expression.reduced])];
+  const categories: ReadonlyArray<readonly [string, readonly number[]]>=[
+    ["Business",[1,3,5,8]],["Management",[1,4,8]],["Technology",[4,5,7]],
+    ["Sales",[1,5,3]],["Marketing",[3,5,9]],["Finance",[4,8,6]],
+    ["Education",[3,7,9]],["Creative professions",[2,3,6,9]],["Communication",[3,5,6]],
+    ["Entrepreneurship",[1,8,9]],
+  ] as const;
+  return {
+    roots,
+    missing:grid.missing,
+    repeated:grid.repeated,
+    categories:categories.map(([category,numbers])=>({
+      category,
+      match:roots.filter((root)=>numbers.includes(root)),
+      associated:numbers.filter((number)=>roots.includes(number)),
+    })),
+    practicalActions:["Build job evidence through projects and measurable skills.","Develop communication and collaboration through practice.","Use a skill plan separate from numerological symbolism.","Seek qualified career guidance for employment decisions."],
+    disclaimer:"Career associations are traditional reflections only and do not determine ability or guarantee employment.",
+  };
+}
+
+export function analyzeDateRange(dateOfBirth:string,timezone:string,option:{historical:boolean;year?:number;month?:number;now?:Date}={historical:false}) {
+  const birth=parseIsoDate(dateOfBirth);
+  const birthIso=`${birth.year}-${String(birth.month).padStart(2,"0")}-${String(birth.day).padStart(2,"0")}`;
+  const now=option.now??new Date();
+  let year: number,month:number;
+  if (option.historical) {
+    if (!option.year||!option.month) throw new Error("Select a valid year and month for historical analysis.");
+    year=option.year; month=option.month;
+  } else {
+    const parts=new Intl.DateTimeFormat("en-CA",{timeZone:timezone||Intl.DateTimeFormat().resolvedOptions().timeZone,year:"numeric",month:"2-digit"}).formatToParts(now);
+    year=Number(parts.find((part)=>part.type==="year")?.value);
+    month=Number(parts.find((part)=>part.type==="month")?.value);
+  }
+  if (!Number.isInteger(year)||year<birth.year||month<1||month>12) throw new Error("Requested date cannot predate the user's date of birth.");
+  if (year===birth.year&&month<birth.month) throw new Error("Requested month is earlier than the user's birth month.");
+  const selectedIso=`${year}-${String(month).padStart(2,"0")}-01`;
+  if (selectedIso<birthIso.slice(0,7)+"-01") throw new Error("Requested date is earlier than the user's date of birth.");
+  const date=new Date(Date.UTC(year,month-1,1));
+  const personalYear=reduceDigitSum(birth.month+birth.day+year);
+  const personalMonth=reduceDigitSum(personalYear+month);
+  const universalYear=reduceDigitSum(year);
+  return {timezone:timezone||"system",year,month,personalYear,personalMonth,universalYear,historical:option.historical,minimum:{year:birth.year,month:birth.month}};
+}

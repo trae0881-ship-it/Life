@@ -12,6 +12,22 @@ export function validateAstrologyReadingInput(value: unknown) {
   if (typeof record.title !== "string" || record.title.trim().length === 0 || record.title.trim().length > 120) return null;
   if (!record.payload || typeof record.payload !== "object" || Array.isArray(record.payload)) return null;
   const payload = record.payload as Record<string, unknown>;
+  if (record.service === "ank-jyotish") {
+    if (typeof payload.dateOfBirth === "string") {
+      const raw = payload.dateOfBirth;
+      const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+      const dmy = /^(\d{2})-(\d{2})-(\d{4})$/.exec(raw);
+      if (!iso && !dmy) return null;
+      const year = iso ? Number(iso[1]) : Number(dmy![3]);
+      const month = iso ? Number(iso[2]) : Number(dmy![2]);
+      const day = iso ? Number(iso[3]) : Number(dmy![1]);
+      const date = new Date(Date.UTC(year,month-1,day));
+      if (year < 1800 || year > 2399
+        || date.getUTCFullYear() !== year
+        || date.getUTCMonth() !== month-1
+        || date.getUTCDate() !== day) return null;
+    }
+  }
   if (record.service === "palmistry" && payload.imageDataUrl !== null
     && (typeof payload.imageDataUrl !== "string"
       || !/^data:image\/(?:jpeg|png|webp);base64,/.test(payload.imageDataUrl)
