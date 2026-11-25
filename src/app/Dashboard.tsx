@@ -56,19 +56,14 @@ type ProfileForm = {
   longitude: string;
 };
 
-<<<<<<< HEAD
-const sections: Section[] = ["home", "profile", "kundlis", "ask", "reports", "settings"];
-const sectionIcon: Record<Section, string> = { home: "⌂", profile: "◉", kundlis: "◇", ask: "✧", reports: "▤", settings: "⚙" };
 const astrologyServices = [
   { name: "Palmistry", description: "Record palm lines, mounts and hand observations for a private rule-based reading.", href: "/palmistry", icon: "♧", action: "Explore Palmistry" },
   { name: "KP Astrology", description: "Explore KP cusps, sub-lords, significators and chart details in Chart Studio.", href: "/kp-astrology", icon: "⌖", action: "Open KP Astrology" },
   { name: "Ank Jyotish", description: "Explore birth, destiny and name numbers with a detailed traditional report.", href: "/ank-jyotish", icon: "१", action: "Start Ank Jyotish" },
   { name: "Tarot Card Reading", description: "Select a card or spread and read locally stored upright and reversed meanings.", href: "/tarot-reading", icon: "✧", action: "Start a Tarot Reading" },
 ] as const;
-=======
 const sections: Section[] = ["home", "profile", "kundlis", "palmistry", "ask", "reports", "settings"];
 const sectionIcon: Record<Section, string> = { home: "⌂", profile: "◉", kundlis: "◇", palmistry: "☷", ask: "✧", reports: "▤", settings: "⚙" };
->>>>>>> origin/main
 const blankForm: ProfileForm = { label: "", birthPlace: "", localDate: "", localTime: "", birthTimeAccuracy: "", timeZone: "", latitude: "", longitude: "" };
 
 function profileForm(profile: Profile): ProfileForm {
