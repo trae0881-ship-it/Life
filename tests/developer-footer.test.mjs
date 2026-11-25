@@ -27,7 +27,7 @@ test("global footer includes an accessible, separately expandable Developer sect
 });
 
 test("Developer actions stay separate and link to the distinct Developer auth routes", () => {
-  assert.match(section, /href="\/developer\/login\?next=%2Fdevelopers%2Fdashboard"/);
+  assert.match(section, /href="\/developer\/login"/);
   assert.match(section, /href="\/developer\/signup"/);
   assert.match(section, /developer\.footer\.login/);
   assert.match(section, /developer\.footer\.createAccount/);

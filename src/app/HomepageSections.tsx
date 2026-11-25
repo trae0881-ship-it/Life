@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import AstrologyFaq from "./AstrologyFaq";
+import CosmicSolarSystem from "./CosmicSolarSystem";
 import { carouselScrollOffset, featuredTools, homepageFeatures, homepageNavigation } from "@/presentation/homepage";
 import type { Language } from "@/presentation/language";
 
@@ -126,11 +127,7 @@ export default function HomepageSections({ language }: { language: Language }) {
           </div>
           <p className="home-quiet-note">Birth details stay in your control. Calculations use the local engine and bundled ephemeris data.</p>
         </div>
-        <div className="home-hero-art" aria-hidden="true">
-          <div className="hero-orbit hero-orbit-one" /><div className="hero-orbit hero-orbit-two" />
-          <div className="hero-sun">☼</div><span className="hero-star hero-star-one">✦</span><span className="hero-star hero-star-two">✧</span>
-          <div className="hero-art-caption"><span>JYOTISH · CALCULATION</span><span>01 / D1</span></div>
-        </div>
+        <CosmicSolarSystem />
       </section>
 
       <section className="home-section home-feature-section" id="astrology" aria-labelledby="feature-title">

@@ -45,19 +45,19 @@ test("Developer login and signup routes remain separate from ordinary auth route
   const ordinarySignup = source("src/app/signup/page.tsx");
   const experience = source("src/app/login/LoginExperience.tsx");
 
-  assert.match(login, /safeDeveloperReturnTo/);
+  assert.doesNotMatch(login, /\?next=/);
   assert.match(login, /portal="developer"/);
   assert.match(login, /user\?\.role === "DEVELOPER"/);
   assert.match(signup, /initialMode="register"/);
   assert.match(signup, /approval-required/);
-  assert.match(signup, /safeDeveloperSignupReturnTo/);
-  assert.match(signup, /user\?\.role === "DEVELOPER"[\s\S]*safeDeveloperReturnTo/);
-  assert.match(ordinaryLogin, /return <LoginExperience returnTo=\{destination\} \/>/);
+  assert.doesNotMatch(signup, /\?next=|safeDeveloperSignupReturnTo/);
+  assert.match(signup, /user\?\.role === "DEVELOPER"/);
+  assert.match(ordinaryLogin, /return <LoginExperience returnTo="\/dashboard" \/>/);
   assert.match(ordinarySignup, /initialMode="register"/);
   assert.match(experience, /\/developer\/signup/);
   assert.match(experience, /\/developer\/login/);
-  assert.match(experience, /\/developer\/login\?next=%2Fdevelopers%2Fdashboard/);
-  assert.match(experience, /`\/developer\/signup\?next=\$\{encodeURIComponent\(returnTo\)\}`/);
+  assert.match(experience, /href=\{isDeveloperPortal \? "\/developer\/login" \: "\/login"\}/);
+  assert.match(experience, /href=\{isDeveloperPortal \? "\/developer\/signup" \: "\/signup"\}/);
   assert.match(experience, /Developer permissions and API product access are assigned separately/);
 });
 
@@ -73,7 +73,7 @@ test("Developer login authorization is checked before a session is issued; regis
   assert.match(loginApi, /body\.portal === "developer" && user\.role !== "DEVELOPER"/);
   assert.ok(loginApi.indexOf("body.portal === \"developer\"") < loginApi.indexOf("createSession(user.id"), "role authorization precedes session creation");
   assert.match(loginApi, /"DEVELOPER_REQUIRED"/);
-  assert.match(dashboard, /\/developer\/login\?next=%2Fdevelopers%2Fdashboard/);
+  assert.match(dashboard, /\/developer\/login/);
   assert.match(dashboard, /user\.role !== "DEVELOPER"/);
   assert.match(accountPanel, /authPortal === "developer"/);
   assert.match(accountPanel, /portal: mode === "login"/);
@@ -88,7 +88,7 @@ test("Developer login authorization is checked before a session is issued; regis
 test("Developer portal explains approval and links to the dedicated auth routes", () => {
   const portal = source("src/app/developers/page.tsx");
   const footer = source("src/app/DeveloperFooterSection.tsx");
-  assert.match(portal, /developer\/login\?next=%2Fdevelopers%2Fdashboard/);
+  assert.match(portal, /developer\/login/);
   assert.match(portal, /developer\/signup/);
   assert.match(portal, /Developer role and product access require separate approval/);
   assert.match(footer, /href="\/developer\/login/);

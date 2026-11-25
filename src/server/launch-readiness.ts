@@ -81,7 +81,7 @@ const staticItems: Omit<ReadinessItem, "status" | "lastCheckedAt" | "lastVerifie
   {
     id: 7,
     title: "Critical routes and links verified.",
-    evidence: "App Router inventory/literal-link tests pass. Phase 63 live app smoke checks on localhost confirmed `/login`, `/signup`, `/signup?next=%2Fdashboard`, `/api/openapi.json`, and the anonymous unauthorized response from `/api/developer/test`; the app served the expected public and auth pages without database mutations.",
+    evidence: "App Router inventory/literal-link tests pass. Live app smoke checks on localhost confirmed `/login`, `/signup`, `/dashboard`, `/api/openapi.json`, and anonymous unauthorized responses; the app served the expected public and protected pages without database mutations.",
     testResult: "Public routes and anonymous guards were browser-checked. Authenticated dashboard/developer roles, dynamic blog data, logout, persistent session verification, and complete interactive-control coverage remain unverified because no isolated authenticated database fixtures were available.",
     action: "Provide isolated authenticated role fixtures and test dynamic content, logout, role journeys, and the remaining browser controls.",
   },

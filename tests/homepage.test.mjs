@@ -12,7 +12,7 @@ const metadata = readFileSync(new URL("../src/app/layout.tsx", import.meta.url),
 test("homepage navigation destinations resolve to visible public sections or real login route", () => {
   for (const item of homepageNavigation) {
     if (item.sectionId !== "account") assert.ok(homepage.includes(`id="${item.sectionId}"`), `${item.label} destination exists`);
-    if (item.sectionId === "account") assert.equal(item.href, "/signup?next=%2Fdashboard");
+    if (item.sectionId === "account") assert.equal(item.href, "/signup");
     else assert.ok(homepage.includes("href={item.href}"), `${item.label} link is rendered from homepage navigation data`);
   }
   assert.match(homepage, /aria-expanded=\{menuOpen\}/);
@@ -34,7 +34,7 @@ test("public homepage stays public and Kundli CTAs target the protected existing
   assert.equal((homepage.match(/href="\/studio#birth-form"/g) ?? []).length, 2);
   const studioPage = readFileSync(new URL("../src/app/studio/page.tsx", import.meta.url), "utf8");
   assert.match(studioPage, /getCurrentUser/);
-  assert.match(studioPage, /redirect\(`\/login\?next=/);
+  assert.match(studioPage, /redirect\("\/login"\)/);
 });
 
 test("featured carousel links point to existing tools and support keyboard, touch scrolling and reduced motion", () => {
