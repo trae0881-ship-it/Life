@@ -56,4 +56,6 @@ test("planet controls and labels remain keyboard accessible",()=>{
   assert.match(component,/aria-live="polite"/);
   assert.match(css,/cosmic-planet:focus-visible/);
   assert.match(css,/cosmic-controls button:focus-visible/);
+  assert.match(component,/cosmic-planet-picker/);
+  assert.match(css,/cosmic-planet-picker button/);
 });

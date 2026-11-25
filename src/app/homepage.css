@@ -393,6 +393,36 @@
   transform: translateX(-50%);
 }
 
+.cosmic-planet-picker {
+  position: absolute;
+  z-index: 13;
+  left: 50%;
+  top: 3.5%;
+  max-width: 82%;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  transform: translateX(-50%);
+}
+
+.cosmic-planet-picker button {
+  min-height: 21px;
+  padding: 0 5px;
+  border: 1px solid #d2c49f;
+  border-radius: 20px;
+  background: #fbf8f0d9;
+  color: #77694f;
+  font: 7px var(--sans);
+  cursor: pointer;
+}
+
+.cosmic-planet-picker button[aria-pressed="true"] {
+  border-color: #9c7d49;
+  background: #eee3c7;
+  color: #5f4d31;
+}
+
 .cosmic-controls button {
   min-height: 28px;
   padding: 0 9px;

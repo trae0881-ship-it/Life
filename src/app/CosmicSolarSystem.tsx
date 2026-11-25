@@ -64,6 +64,19 @@ export default function CosmicSolarSystem() {
         </div>
       ))}
 
+      <div className="cosmic-planet-picker" aria-label="Choose a planet">
+        {PLANETS.map((planet) => (
+          <button
+            type="button"
+            key={`picker-${planet.id}`}
+            aria-pressed={selected === planet.id}
+            onClick={() => setSelected((current) => current === planet.id ? null : planet.id)}
+          >
+            {planet.name}
+          </button>
+        ))}
+      </div>
+
       <div className="cosmic-controls" aria-label="Solar system animation controls">
         <button type="button" onClick={() => setPaused((current) => !current)} aria-pressed={paused}>
           {paused ? "Resume" : "Pause"}
