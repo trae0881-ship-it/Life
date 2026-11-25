@@ -11,6 +11,11 @@ import {
   calculateMarriageCompatibility,
   calculateCareerProfile,
   analyzeDateRange,
+  analyzeAdvancedLoShu,
+  createUnifiedNumerologyProfile,
+  createFutureCycleOverview,
+  createNumerologyComparison,
+  createProfessionalNumerologyReport,
   type NumerologyLanguage,
   type NumerologySystem,
   type LoShuMode,
@@ -41,6 +46,8 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
   const [preferredNameSpelling, setPreferredNameSpelling] = useState("");
   const [partnerName, setPartnerName] = useState("");
   const [partnerDob, setPartnerDob] = useState("");
+  const [comparisonNameRight, setComparisonNameRight] = useState("");
+  const [comparisonDobRight, setComparisonDobRight] = useState("");
   const [historicalMode, setHistoricalMode] = useState(false);
   const [historicalYear, setHistoricalYear] = useState("");
   const [historicalMonth, setHistoricalMonth] = useState("");
@@ -106,6 +113,43 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
       return dateError instanceof Error ? dateError.message : "Invalid historical date.";
     }
   }, [dateOfBirth,historicalMode,historicalYear,historicalMonth]);
+  const advancedLoShu = useMemo(() => {
+    if (!dateOfBirth) return null;
+    try { return analyzeAdvancedLoShu(dateOfBirth,name||undefined,numerologySystem); } catch { return null; }
+  }, [dateOfBirth,name,numerologySystem]);
+  const unifiedProfile = useMemo(() => {
+    if (!name.trim()||!dateOfBirth) return null;
+    try { return createUnifiedNumerologyProfile({name,dateOfBirth,system:numerologySystem,loShuMode,countryCode:mobileCountryCode,mobileNumber:mobileNumber||undefined,keepMasterNumbers:keepMasterNumbers}); } catch { return null; }
+  }, [name,dateOfBirth,numerologySystem,loShuMode,mobileCountryCode,mobileNumber,keepMasterNumbers]);
+  const futureCycles = useMemo(() => {
+    if (!dateOfBirth) return [];
+    try { return createFutureCycleOverview(dateOfBirth,Intl.DateTimeFormat().resolvedOptions().timeZone,12); } catch { return []; }
+  }, [dateOfBirth]);
+  const professionalReport = useMemo(() => {
+    if (!name.trim()||!dateOfBirth) return null;
+    try {
+      return createProfessionalNumerologyReport({
+        name,dateOfBirth,system:numerologySystem,loShuMode,countryCode:mobileCountryCode,mobileNumber:mobileNumber||undefined,
+        partnerName:partnerName||undefined,partnerDob:partnerDob||undefined,language:reportLanguage,
+        timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,
+        historical:historicalMode&&historicalYear&&historicalMonth?{year:Number(historicalYear),month:Number(historicalMonth)}:undefined,
+      });
+    } catch { return null; }
+  }, [name,dateOfBirth,numerologySystem,loShuMode,mobileCountryCode,mobileNumber,partnerName,partnerDob,reportLanguage,historicalMode,historicalYear,historicalMonth]);
+  const comparisonStudio = useMemo(() => {
+    if (!name.trim()||!dateOfBirth||!comparisonNameRight.trim()||!comparisonDobRight) return null;
+    try {
+      const left=createUnifiedNumerologyProfile({name,dateOfBirth,system:numerologySystem,loShuMode});
+      const right=createUnifiedNumerologyProfile({name:comparisonNameRight,dateOfBirth:comparisonDobRight,system:numerologySystem,loShuMode});
+      return createNumerologyComparison({
+        kind:"dobs",
+        leftLabel:`${name} · ${dateOfBirth}`,
+        rightLabel:`${comparisonNameRight} · ${comparisonDobRight}`,
+        left:{moolank:left.date.moolank,bhagyank:left.date.bhagyank,nameCompound:left.name.expression.compound,nameRoot:left.name.expression.reduced,present:left.loShu.present,missing:left.loShu.missing},
+        right:{moolank:right.date.moolank,bhagyank:right.date.bhagyank,nameCompound:right.name.expression.compound,nameRoot:right.name.expression.reduced,present:right.loShu.present,missing:right.loShu.missing},
+      });
+    } catch { return null; }
+  }, [name,dateOfBirth,comparisonNameRight,comparisonDobRight,numerologySystem,loShuMode]);
   const tarotReport = useMemo(() => {
     if (service !== "tarot" || selections.length !== requiredCards || selections.some((card) => !card.id)) return null;
     try {
@@ -223,6 +267,8 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
           <label>Preferred name spelling <input maxLength={100} value={preferredNameSpelling} onChange={(event)=>setPreferredNameSpelling(event.target.value)} placeholder="Optional spelling to compare" /></label>
           <label>Partner name <input maxLength={100} value={partnerName} onChange={(event)=>setPartnerName(event.target.value)} placeholder="Optional for marriage analysis" /></label>
           <label>Partner date of birth <input maxLength={10} value={partnerDob} onChange={(event)=>setPartnerDob(event.target.value)} placeholder="DD-MM-YYYY" /></label>
+          <label>Comparison name <input maxLength={100} value={comparisonNameRight} onChange={(event)=>setComparisonNameRight(event.target.value)} placeholder="Second name for side-by-side comparison" /></label>
+          <label>Comparison DOB <input maxLength={10} value={comparisonDobRight} onChange={(event)=>setComparisonDobRight(event.target.value)} placeholder="DD-MM-YYYY" /></label>
           <label>Historical analysis <select value={historicalMode?"historical":"current"} onChange={(event)=>setHistoricalMode(event.target.value==="historical")}><option value="current">Current year/month</option><option value="historical">Historical year/month</option></select></label>
           {historicalMode && <>
             <label>Historical year <input type="number" min={dateOfBirth?dateOfBirth.slice(-4):1800} value={historicalYear} onChange={(event)=>setHistoricalYear(event.target.value)} /></label>
@@ -234,6 +280,12 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
         {ankReport && <section className="service-report" aria-live="polite">
           <div className="service-panel-heading"><div><p className="service-eyebrow">02 / DETERMINISTIC REPORT</p><h2>{ankReport.title}</h2></div><span className="service-chip">{numerologySystem.toUpperCase()} MAPPING</span></div>
           <div className="service-number-grid"><div><span>Moolank</span><strong>{ankReport.date.moolank}</strong></div><div><span>Bhagyank</span><strong>{ankReport.date.bhagyank}</strong></div><div><span>Name number</span><strong>{ankReport.nameAnalysis.expression.reduced}</strong></div></div>
+          {unifiedProfile && <div className="numerology-overview-grid">
+            <article><span>Personal Year</span><strong>{unifiedProfile.cycles.personalYear}</strong><small>Birthday-based cycle</small></article>
+            <article><span>Personal Month</span><strong>{unifiedProfile.cycles.personalMonth}</strong><small>Calendar month + year</small></article>
+            <article><span>Personal Day</span><strong>{unifiedProfile.cycles.personalDay}</strong><small>Current day cycle</small></article>
+            <article><span>Lo Shu balance</span><strong>{unifiedProfile.loShu.present.length}/9</strong><small>{unifiedProfile.loShu.repeated.length} repeated · {unifiedProfile.loShu.missing.length} missing</small></article>
+          </div>}
           <details className="service-calculation-breakdown">
             <summary>View exact name calculation</summary>
             <p><b>{ankReport.system === "chaldean" ? "Chaldean" : "Pythagorean"} mapping:</b> {Object.entries(ankReport.nameAnalysis.mapping).map(([letter,value])=>`${letter}=${value}`).join(" · ")}</p>
@@ -295,6 +347,36 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
             <summary>{dateReport.historical ? "Historical Year and Month Report" : "Current Year and Month Report"}</summary>
             <p><b>{dateReport.year}-{String(dateReport.month).padStart(2,"0")}</b> · Timezone {dateReport.timezone} · Universal year {dateReport.universalYear} · Personal year {dateReport.personalYear} · Personal month {dateReport.personalMonth}</p>
             <p><b>Valid lifetime range:</b> begins {dateReport.minimum.year}-{String(dateReport.minimum.month).padStart(2,"0")}. Historical dates earlier than DOB are rejected.</p>
+          </details>}
+          {advancedLoShu && <details className="service-calculation-breakdown">
+            <summary>Advanced Lo Shu Method Comparison</summary>
+            <p><b>DOB-only missing:</b> {advancedLoShu.dobOnly.missing.join(", ")||"none"} · <b>Indian extended missing:</b> {advancedLoShu.indianExtended.missing.join(", ")||"none"}</p>
+            <p><b>Overlapping present:</b> {advancedLoShu.presentOverlap.join(", ")||"none"} · <b>Overlapping missing:</b> {advancedLoShu.missingOverlap.join(", ")||"none"}</p>
+            {advancedLoShu.contradictions.map((item)=><p key={item}><b>Contradiction/overlap:</b> {item}</p>)}
+            <p><b>Name-enhanced:</b> Optional method only; name compound and resulting digits are shown separately and are never substituted for the DOB-only grid.</p>
+          </details>}
+          {unifiedProfile && <details className="service-calculation-breakdown">
+            <summary>Unified Numerology Profile</summary>
+            <p><b>Core formula:</b> Moolank {unifiedProfile.date.moolank} · Bhagyank {unifiedProfile.date.bhagyankCompound}→{unifiedProfile.date.bhagyank} · Name {unifiedProfile.name.expression.compound}→{unifiedProfile.name.expression.reduced}</p>
+            <p><b>Chaldean/Pythagorean compounds:</b> {unifiedProfile.chaldean.expression.compound}/{unifiedProfile.pythagorean.expression.compound}</p>
+            <p><b>Personal cycles:</b> Year {unifiedProfile.cycles.personalYear} · Month {unifiedProfile.cycles.personalMonth} · Day {unifiedProfile.cycles.personalDay}</p>
+            {unifiedProfile.mobile && <p><b>Mobile vibration:</b> Full number masked as ****{unifiedProfile.mobile.fullNumber.slice(-4)} · Compound {unifiedProfile.mobile.compound} · Root {unifiedProfile.mobile.root}</p>}
+          </details>}
+          {futureCycles.length>0 && <details className="service-calculation-breakdown">
+            <summary>Future Cycle Overview</summary>
+            {futureCycles.map((item)=><p key={`${item.year}-${item.month}`}><b>{item.year}</b> — Personal year {item.personalYear}; month {item.personalMonth}; universal year {item.universalYear}</p>)}
+          </details>}
+          {professionalReport && <details className="service-calculation-breakdown">
+            <summary>Professional 17-section Report</summary>
+            {professionalReport.sections.map((section)=><p key={section.title}><b>{reportLanguage==="hi"?section.titleHi:section.title}:</b> {section.value} — {reportLanguage==="hi"?section.interpretationHi:section.interpretation}</p>)}
+          </details>}
+          {comparisonStudio && <details className="service-calculation-breakdown">
+            <summary>Comparison Studio</summary>
+            <p><b>{comparisonStudio.leftLabel}</b></p>
+            <p>{Object.entries(comparisonStudio.left).map(([key,value])=>`${key}: ${JSON.stringify(value)}`).join(" · ")}</p>
+            <p><b>{comparisonStudio.rightLabel}</b></p>
+            <p>{Object.entries(comparisonStudio.right).map(([key,value])=>`${key}: ${JSON.stringify(value)}`).join(" · ")}</p>
+            <p><b>Differences:</b> {comparisonStudio.differences.join("; ")||"No differences in displayed fields"}</p>
           </details>}
           <div className="service-report-grid">{ankReport.sections.map((section) => <article key={section.title}><h3>{reportLanguage==="hi"?section.titleHi:section.title}</h3><b>{section.value}</b><p>{reportLanguage==="hi"?section.interpretationHi:section.interpretation}</p><small>{section.evidence}</small></article>)}</div>
           <p className="service-disclaimer">{ankReport.disclaimer}</p>
