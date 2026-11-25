@@ -59,3 +59,16 @@ test("planet controls and labels remain keyboard accessible",()=>{
   assert.match(component,/cosmic-planet-picker/);
   assert.match(css,/cosmic-planet-picker button/);
 });
+
+test("cosmic text and controls are hidden while motion DOM remains",()=>{
+  assert.match(css,/\.cosmic-planet-picker\s*\{[\s\S]*?display:\s*none/);
+  assert.match(css,/\.cosmic-controls\s*\{[\s\S]*?display:\s*none/);
+  assert.match(css,/\.hero-art-caption\s*\{[\s\S]*?display:\s*none/);
+  assert.match(css,/linear-gradient\(145deg,\s*#3a3126/);
+  assert.match(component,/cosmic-sun/);
+  assert.match(component,/cosmic-moon-system/);
+  assert.match(component,/cosmic-saturn-ring/);
+  assert.match(component,/cosmic-orbit/);
+  assert.match(css,/@keyframes cosmic-spin/);
+  assert.match(css,/@keyframes cosmic-counter-spin/);
+});

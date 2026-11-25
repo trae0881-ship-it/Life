@@ -216,9 +216,9 @@
   border: 1px solid #d9d0bd;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 50% 50%, #fffaf0 0 5%, #f5efdf 5.5% 8%, transparent 8.5%),
-    radial-gradient(circle at 50% 50%, #d8c49c18 0 48%, transparent 49%),
-    linear-gradient(145deg, #fbf9f4, #eee7d8);
+    radial-gradient(circle at 50% 50%, #a98a4e22 0 7%, transparent 23%),
+    radial-gradient(circle at 50% 50%, #5a4932 0 48%, transparent 49%),
+    linear-gradient(145deg, #3a3126 0%, #241f19 58%, #17140f 100%);
   box-shadow: 0 26px 70px #2833420b, inset 0 0 0 14px #ffffff55;
   isolation: isolate;
 }
@@ -287,7 +287,7 @@
   width: var(--orbit);
   height: var(--orbit);
   margin: calc(var(--orbit) / -2) 0 0 calc(var(--orbit) / -2);
-  border: 1px solid #baa77855;
+  border: 1px solid #d1b97882;
   border-radius: 50%;
   pointer-events: none;
   transition: border-color .25s ease, box-shadow .25s ease;
@@ -384,6 +384,7 @@
 }
 
 .cosmic-controls {
+  display: none;
   position: absolute;
   z-index: 12;
   left: 50%;
@@ -394,6 +395,7 @@
 }
 
 .cosmic-planet-picker {
+  display: none;
   position: absolute;
   z-index: 13;
   left: 50%;
@@ -442,6 +444,7 @@
 
 .cosmic-planet-card,
 .cosmic-selection-hint {
+  display: none;
   position: absolute;
   z-index: 11;
   right: 6%;
@@ -486,6 +489,7 @@
 }
 
 .hero-art-caption {
+  display: none;
   position: absolute;
   z-index: 10;
   right: 14%;
