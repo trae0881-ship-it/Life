@@ -1,7 +1,7 @@
 import type { Prisma } from "../../generated/prisma/client";
 import { getPrisma } from "./db";
 
-export async function withKundaliDatabaseUser<T>(
+export async function withUserScopedDatabase<T>(
   userId: string,
   operation: (transaction: Prisma.TransactionClient) => Promise<T>,
 ) {
@@ -10,3 +10,5 @@ export async function withKundaliDatabaseUser<T>(
     return operation(transaction);
   });
 }
+
+export const withKundaliDatabaseUser = withUserScopedDatabase;

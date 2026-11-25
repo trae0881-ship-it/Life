@@ -19,7 +19,12 @@ export const REQUIRED_MIGRATIONS = [
   "20261027111700_admin_script_manager",
   "20261027120000_api_platform",
   "20261123140000_kundali_documents",
+<<<<<<< HEAD
   "20261124160000_saved_astrology_readings",
+=======
+  "20261124140000_palmistry_records",
+  "20261124150000_palmistry_hands_readings",
+>>>>>>> origin/main
 ] as const;
 
 const SENSITIVE_TABLES = new Set([
@@ -29,6 +34,9 @@ const SENSITIVE_TABLES = new Set([
   "BirthProfile",
   "SavedChart",
   "KundaliDocument",
+  "PalmistryRecord",
+  "PalmistryHandImage",
+  "PalmistryReading",
   "KundliQuestion",
   "VerificationApproval",
   "SuperAdminAccessLog",

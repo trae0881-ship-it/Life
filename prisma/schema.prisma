@@ -74,7 +74,13 @@ model User {
   apiPlatformAuditLogs ApiPlatformAuditLog[] @relation("ApiPlatformAuditActor")
   apiUsageWindows ApiAccountUsageWindow[]
   kundaliDocument KundaliDocument?
+<<<<<<< HEAD
   astrologyReadings SavedAstrologyReading[]
+=======
+  palmistryRecord PalmistryRecord?
+  palmistryHandImages PalmistryHandImage[]
+  palmistryReadings PalmistryReading[]
+>>>>>>> origin/main
 }
 
 model ApiProduct {
@@ -403,6 +409,11 @@ enum KundaliProcessingStatus {
   MANUAL_REVIEW_REQUIRED
 }
 
+enum PalmistryHandSide {
+  LEFT
+  RIGHT
+}
+
 model KundaliDocument {
   id                 String                  @id
   userId             String
@@ -415,6 +426,49 @@ model KundaliDocument {
   user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId])
+}
+
+model PalmistryRecord {
+  id            String   @id
+  userId        String   @unique
+  contentType   String?  @db.VarChar(32)
+  fileExtension String?  @db.VarChar(8)
+  fileSizeBytes Int?
+  originalFile  Bytes?
+  observations  Json
+  uploadedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
+}
+
+model PalmistryHandImage {
+  id            String            @id
+  userId        String
+  handSide      PalmistryHandSide
+  contentType   String            @db.VarChar(32)
+  fileExtension String            @db.VarChar(8)
+  fileSizeBytes Int
+  originalFile  Bytes
+  uploadedAt    DateTime          @default(now())
+  updatedAt     DateTime          @default(now()) @updatedAt
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, handSide])
+  @@index([updatedAt])
+}
+
+model PalmistryReading {
+  id            String   @id
+  userId        String
+  title         String   @db.VarChar(120)
+  observations  Json
+  report        Json
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 enum SuperAdminAccessAction {

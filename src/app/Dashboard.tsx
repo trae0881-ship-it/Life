@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import KundliAssistant, { type KundliAssistantAccountData } from "./KundliAssistant";
 import KundaliVault from "./KundaliVault";
+import PalmistryDashboard from "./PalmistryDashboard";
 import KundliDetails from "./KundliDetails";
 import { analysisReadiness } from "@/calculation/analysis-readiness";
 import { hasChartCalculationInputs, validateBirthForm } from "@/presentation/birth-form";
@@ -43,7 +44,7 @@ type Question = {
   answerStatus: string;
   createdAt: string;
 };
-type Section = "home" | "profile" | "kundlis" | "ask" | "reports" | "settings";
+type Section = "home" | "profile" | "kundlis" | "palmistry" | "ask" | "reports" | "settings";
 type ProfileForm = {
   label: string;
   birthPlace: string;
@@ -55,6 +56,7 @@ type ProfileForm = {
   longitude: string;
 };
 
+<<<<<<< HEAD
 const sections: Section[] = ["home", "profile", "kundlis", "ask", "reports", "settings"];
 const sectionIcon: Record<Section, string> = { home: "⌂", profile: "◉", kundlis: "◇", ask: "✧", reports: "▤", settings: "⚙" };
 const astrologyServices = [
@@ -63,6 +65,10 @@ const astrologyServices = [
   { name: "Ank Jyotish", description: "Explore birth, destiny and name numbers with a detailed traditional report.", href: "/ank-jyotish", icon: "१", action: "Start Ank Jyotish" },
   { name: "Tarot Card Reading", description: "Select a card or spread and read locally stored upright and reversed meanings.", href: "/tarot-reading", icon: "✧", action: "Start a Tarot Reading" },
 ] as const;
+=======
+const sections: Section[] = ["home", "profile", "kundlis", "palmistry", "ask", "reports", "settings"];
+const sectionIcon: Record<Section, string> = { home: "⌂", profile: "◉", kundlis: "◇", palmistry: "☷", ask: "✧", reports: "▤", settings: "⚙" };
+>>>>>>> origin/main
 const blankForm: ProfileForm = { label: "", birthPlace: "", localDate: "", localTime: "", birthTimeAccuracy: "", timeZone: "", latitude: "", longitude: "" };
 
 function profileForm(profile: Profile): ProfileForm {
@@ -537,6 +543,7 @@ export default function Dashboard({ user }: { user: AuthUser }) {
           </>}
         </section>}
         {!loading && section === "kundlis" && <KundaliVault language={language} onAsk={() => changeSection("ask")} />}
+        {!loading && section === "palmistry" && <PalmistryDashboard language={language} />}
         {!loading && (section === "kundlis" || section === "reports") && <section className="dashboard-panel">
           <div className="dashboard-panel-heading"><div><span className="dashboard-card-kicker">{t("dashboard.savedSnapshot")}</span><h2>{t(section === "kundlis" ? "dashboard.myKundlis" : "dashboard.myReports")}</h2></div><a href="/studio">{t("dashboard.calculateNew")}</a></div>
           {reportStatus === "error" ? <p className="dashboard-muted" role="alert">{t("dashboard.dataUnavailable")}</p> : reports.length === 0 ? <div className="dashboard-empty"><p>{t("dashboard.noReports")}</p><a href="/studio">{t("dashboard.calculateFirst")}</a></div> : <div className="dashboard-report-list">
