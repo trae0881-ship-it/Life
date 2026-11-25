@@ -1145,3 +1145,11 @@
     display: none;
   }
 }
+
+.cosmic-planet-picker,
+.cosmic-controls,
+.cosmic-planet-card,
+.cosmic-selection-hint,
+.hero-art-caption {
+  display: none !important;
+}
