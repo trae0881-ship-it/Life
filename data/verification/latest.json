@@ -1,45 +1,45 @@
 {
   "format": "life-verification-run-v1",
   "version": "life-verification-1.0.0",
-  "runId": "87531d3f-6c2f-4c6a-8dd5-d2d473005a6e",
-  "sourceFingerprint": "89c63e4fff113d602d9608ab401db695c1e23b69164087fbe9d02d952af042b3",
+  "runId": "a374e8f0-2a2b-4e6b-84ac-8c3d2ca6caf4",
+  "sourceFingerprint": "e9a548fa14a2043d43a947998f113d7d539578255eb3160df744f357c56228e8",
   "evidenceFresh": true,
-  "environment": "win32-x64; Node v24.20.0",
-  "startedAt": "2026-10-28T08:00:38.884Z",
-  "completedAt": "2026-10-28T08:02:40.302Z",
+  "environment": "win32-x64; Node v26.13.0",
+  "startedAt": "2026-11-25T11:41:10.182Z",
+  "completedAt": "2026-11-25T11:42:18.444Z",
   "checks": [
     {
       "command": "npm test",
-      "status": "PASS",
-      "exitCode": 0,
-      "startedAt": "2026-10-28T08:00:39.175Z",
-      "completedAt": "2026-10-28T08:00:49.462Z",
+      "status": "FAIL",
+      "exitCode": 1,
+      "startedAt": "2026-11-25T11:41:10.556Z",
+      "completedAt": "2026-11-25T11:41:23.532Z",
       "testCounts": {
-        "tests": 424,
-        "passed": 424,
-        "failed": 0
+        "tests": 497,
+        "passed": 493,
+        "failed": 4
       }
     },
     {
       "command": "npx tsc --noEmit",
-      "status": "PASS",
-      "exitCode": 0,
-      "startedAt": "2026-10-28T08:00:49.469Z",
-      "completedAt": "2026-10-28T08:01:09.997Z"
+      "status": "FAIL",
+      "exitCode": 2,
+      "startedAt": "2026-11-25T11:41:23.533Z",
+      "completedAt": "2026-11-25T11:41:39.096Z"
     },
     {
       "command": "npx prisma validate",
       "status": "PASS",
       "exitCode": 0,
-      "startedAt": "2026-10-28T08:01:10.004Z",
-      "completedAt": "2026-10-28T08:01:34.060Z"
+      "startedAt": "2026-11-25T11:41:39.097Z",
+      "completedAt": "2026-11-25T11:41:43.519Z"
     },
     {
       "command": "npm run build",
-      "status": "PASS",
-      "exitCode": 0,
-      "startedAt": "2026-10-28T08:01:34.067Z",
-      "completedAt": "2026-10-28T08:02:39.978Z"
+      "status": "FAIL",
+      "exitCode": 1,
+      "startedAt": "2026-11-25T11:41:43.525Z",
+      "completedAt": "2026-11-25T11:42:18.187Z"
     }
   ]
 }
