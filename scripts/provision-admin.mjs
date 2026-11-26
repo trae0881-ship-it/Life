@@ -3,6 +3,9 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client.ts";
 import { parseBootstrapArguments, provisionExistingSuperAdmin } from "./provision-admin-core.mjs";
 
+try {
+  process.loadEnvFile();
+} catch {}
 async function main() {
   const { email, operator, databaseName } = parseBootstrapArguments(process.argv.slice(2));
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL must target the intended database.");
