@@ -18,6 +18,7 @@ import { resultCopy } from "@/presentation/result-copy";
 import { birthplaceFormFields, manualLocationEditSource } from "@/presentation/location-selection";
 import { currentDashaSummary } from "@/calculation/dasha-summary";
 import { analysisReadiness } from "@/calculation/analysis-readiness";
+import { printReport } from "@/presentation/report-print";
 import { isValidDateOnly } from "@/calculation/date-only";
 import PlanetaryStatusPanel from "./PlanetaryStatusPanel";
 import HouseAnalysisSections from "./HouseAnalysisSections";
@@ -636,10 +637,20 @@ function KpSection({ chart, language }: { chart: Chart; language: Language }) {
     "Career and public responsibilities", "Community and aspirations", "Rest and letting go",
   ];
   return <section className="card positions-card" id="kp">
-    <div className="card-head"><div><div className="section-index">KP</div><h2>{r("results.kpTitle")}</h2></div><span className="table-count">{chart.kp.houseSystem} · {chart.kp.ayanamsa} {chart.kp.ayanamsaValue.toFixed(6)}°</span></div>
+    <div className="card-head"><div><div className="section-index">KP</div><h2>{r("results.kpTitle")}</h2></div><div><span className="table-count">{chart.kp.houseSystem} · {chart.kp.ayanamsa} {chart.kp.ayanamsaValue.toFixed(6)}°</span><button className="report-print-control" type="button" onClick={() => printReport("kp")}>Print / save as PDF</button></div></div>
     <p className="result-guide">{r("results.kpGuide")}</p>
+    <details className="kp-method-details">
+      <summary>KP calculation rules and how to read this report</summary>
+      <p>Sign and star lords identify the traditional rulers of each sidereal sign and nakshatra. The sub and sub-sub lords are calculated by proportionally dividing the nakshatra and then its sub using Vimshottari year weights. House significators are rule-derived evidence, not guaranteed event predictions.</p>
+      <dl>{Object.entries(chart.kp.convention).map(([key, value]) => <div key={key}><dt>{key.replace(/[A-Z]/g, (letter) => ` ${letter.toLowerCase()}`)}</dt><dd>{value}</dd></div>)}</dl>
+    </details>
+    <p className="report-export-note">Use the browser print dialog and choose Save as PDF. Report printing runs locally on this device.</p>
     <div className="kp-ruling-planets"><b>Ruling planets at birth</b><span>{rulingPlanets.length ? rulingPlanets.join(" · ") : "Unavailable"} · civil weekday, Ascendant and Moon sign/star lords</span></div>
     <div className="table-scroll"><table><thead><tr><th>{r("results.body")}</th><th>RĀŚI</th><th>{r("results.signLord")}</th><th>{r("results.starLord")}</th><th>{r("results.subLord")}</th><th>{r("results.subSubLord")}</th><th>{r("results.houseColumn")}</th><th>{r("results.signifies")}</th></tr></thead><tbody>{chart.kp.planets.map((planet) => <tr key={planet.name}><td>{planet.name}</td><td>{planet.sign}</td><td>{planet.signLord}</td><td>{planet.nakshatra.name} · {planet.nakshatra.lord}</td><td>{planet.sub.lord}</td><td>{planet.subSub.lord}</td><td>H{String(planet.house).padStart(2, "0")}</td><td>{planet.significations.houses.map((house) => `H${house}`).join(" · ") || "—"}</td></tr>)}</tbody></table></div>
+    <div className="table-scroll kp-significator-breakdown"><h3>Planetary significator evidence</h3><p>Each list records which houses contributed to the combined significator result for that planet.</p><table><thead><tr><th>Planet</th><th>Occupied</th><th>Owned</th><th>Star lord occupies</th><th>Star lord owns</th><th>Dispositor occupies</th><th>Dispositor owns</th><th>Combined houses</th></tr></thead><tbody>{chart.kp.planets.map((planet) => {
+      const houses = (values: number[]) => values.length ? values.map((house) => `H${house}`).join(" · ") : "—";
+      return <tr key={`${planet.name}-significators`}><td>{planet.name}</td><td>{houses(planet.significations.occupied)}</td><td>{houses(planet.significations.owned)}</td><td>{houses(planet.significations.starLordOccupied)}</td><td>{houses(planet.significations.starLordOwned)}</td><td>{houses(planet.significations.dispositorOccupied)}</td><td>{houses(planet.significations.dispositorOwned)}</td><td>{houses(planet.significations.houses)}</td></tr>;
+    })}</tbody></table></div>
     <div className="table-scroll"><table><thead><tr><th>{r("results.cusp")}</th><th>RĀŚI</th><th>{r("results.signLord")}</th><th>{r("results.starLord")}</th><th>{r("results.subLord")}</th><th>{r("results.subSubLord")}</th><th>{r("results.signifiedBy")}</th></tr></thead><tbody>{chart.kp.cusps.map((cusp) => <tr key={cusp.house}><td>H{String(cusp.house).padStart(2, "0")}</td><td>{cusp.sign}</td><td>{cusp.signLord}</td><td>{cusp.nakshatra.name} · {cusp.nakshatra.lord}</td><td>{cusp.sub.lord}</td><td>{cusp.subSub.lord}</td><td>{cusp.signifiedBy.join(" · ") || "—"}</td></tr>)}</tbody></table></div>
     <div className="kp-interpretation"><div className="card-head"><div><div className="section-index">HOUSE ANALYSIS</div><h2>KP cusp interpretation</h2></div></div><p className="result-guide">Descriptive house themes are paired with calculated cusp sub-lords and significators. These are traditional symbolic associations, not predictions.</p><div className="kp-interpretation-grid">{chart.kp.cusps.map((cusp) => <article key={cusp.house}><b>House {cusp.house} · {houseThemes[cusp.house - 1]}</b><span>Sub-lord: {cusp.sub.lord}</span><span>Significators: {cusp.signifiedBy.join(" · ") || "None calculated"}</span></article>)}</div></div>
   </section>;

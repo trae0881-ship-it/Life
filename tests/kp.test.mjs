@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateKpAstrology, calculateKpLordChain } from "../src/calculation/kp.ts";
 import { InputError } from "../src/calculation/time.ts";
+import { readFileSync } from "node:fs";
 
 // Placidus cusps for a clean whole-sign test chart (one sign per house).
 const WHOLE_SIGN_CUSPS = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
@@ -111,6 +112,16 @@ test("house significators are the planets that signify that house", () => {
   const house7 = result.cusps.find((cusp) => cusp.house === 7);
   assert.deepEqual(house2.signifiedBy.sort(), ["Ketu", "Rahu", "Sun", "Venus"]);
   assert.deepEqual(house7.signifiedBy.sort(), ["Ketu", "Rahu", "Sun", "Venus"]);
+});
+
+test("KP report exposes calculation conventions and per-rule significator evidence", () => {
+  const workspace = readFileSync(new URL("../src/app/ChartStudioWorkspace.tsx", import.meta.url), "utf8");
+  assert.match(workspace, /KP calculation rules and how to read this report/);
+  assert.match(workspace, /Object\.entries\(chart\.kp\.convention\)/);
+  assert.match(workspace, /Planetary significator evidence/);
+  assert.match(workspace, /starLordOccupied/);
+  assert.match(workspace, /dispositorOwned/);
+  assert.match(workspace, /printReport\("kp"\)/);
 });
 
 test("rejects malformed inputs", () => {

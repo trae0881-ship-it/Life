@@ -31,6 +31,7 @@ import {
   compareSavedNumerologyReports,
   sanitizeNumerologyExport,
 } from "@/calculation/numerology-recommendations";
+import { printReport } from "@/presentation/report-print";
 import "./astrology-services.css";
 
 type Service = "ank-jyotish" | "tarot";
@@ -319,7 +320,7 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
           {dateReportError && <p className="service-alert" role="alert">{dateReportError}</p>}
         </div>
         {!ankReport && <p className="service-empty">Enter a valid name and date of birth to generate the report. Names currently support Latin alphabet characters.</p>}
-        {ankReport && <section className="service-report" aria-live="polite">
+        {ankReport && <section className="service-report" id="numerology-report" aria-live="polite">
           <div className="service-panel-heading"><div><p className="service-eyebrow">02 / DETERMINISTIC REPORT</p><h2>{ankReport.title}</h2></div><span className="service-chip">{numerologySystem.toUpperCase()} MAPPING</span></div>
           <div className="service-number-grid"><div><span>Moolank</span><strong>{ankReport.date.moolank}</strong></div><div><span>Bhagyank</span><strong>{ankReport.date.bhagyank}</strong></div><div><span>Name number</span><strong>{ankReport.nameAnalysis.expression.reduced}</strong></div></div>
           {unifiedProfile && <div className="numerology-overview-grid">
@@ -494,9 +495,10 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
           </details>}
           <div className="service-report-grid">{ankReport.sections.map((section) => <article key={section.title}><h3>{reportLanguage==="hi"?section.titleHi:section.title}</h3><b>{section.value}</b><p>{reportLanguage==="hi"?section.interpretationHi:section.interpretation}</p><small>{section.evidence}</small></article>)}</div>
           <p className="service-disclaimer">{ankReport.disclaimer}</p>
+          <p className="report-export-note">Use the browser print dialog and choose Save as PDF. Report printing runs locally on this device.</p>
           <div className="service-actions">
             <button className="service-primary" type="button" disabled={busy} onClick={() => void saveReport()}>{busy ? "Saving…" : "Save report to my account"} ↗</button>
-            <button className="service-secondary" type="button" onClick={() => window.print()}>Print / PDF</button>
+            <button className="service-secondary" type="button" onClick={() => printReport("numerology-report")}>Print / save as PDF</button>
             <button className="service-secondary" type="button" onClick={() => {
               const exportReport=sanitizeNumerologyExport({...ankReport,mobileNumberMask:mobileNumber?`****${mobileNumber.slice(-4)}`:null,mobileNumber:undefined} as Record<string,unknown>);
               const blob = new Blob([JSON.stringify(exportReport,null,2)],{type:"application/json"});
@@ -511,6 +513,7 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
 
       {service === "tarot" && <section className="service-panel" aria-labelledby="tarot-form-title">
         <div className="service-panel-heading"><div><p className="service-eyebrow">01 / SELECT YOUR SPREAD</p><h2 id="tarot-form-title">Tarot card reading</h2></div><button className="service-secondary" type="button" onClick={drawCards}>Draw {requiredCards} card{requiredCards === 1 ? "" : "s"}</button></div>
+        <p className="service-disclaimer">Current local deck: 22 Major Arcana cards. The 56 Minor Arcana cards are not included in this implementation.</p>
         <div className="service-form-grid">
           <label>Spread <select value={spread} onChange={(event) => updateSpread(event.target.value as TarotSpread)}>{TAROT_SPREADS.map((item) => <option value={item} key={item}>{item === "single" ? "Single card" : item === "three-card" ? "Three-card reflection" : "Past, Present, Future"}</option>)}</select></label>
           <label>Reading focus <select value={topic} onChange={(event) => setTopic(event.target.value as TarotTopic)}>{TAROT_TOPICS.map((item) => <option value={item} key={item}>{item === "general" ? "General guidance" : item === "relationship" ? "Relationship reflection" : "Career reflection"}</option>)}</select></label>
@@ -522,10 +525,15 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
           </select></label>
           <label>Orientation <select value={selection.reversed ? "reversed" : "upright"} onChange={(event) => setSelections((current) => current.map((card, cardIndex) => cardIndex === index ? { ...card, reversed: event.target.value === "reversed" } : card))}><option value="upright">Upright</option><option value="reversed">Reversed</option></select></label>
         </article>)}</div>
-        {tarotReport && <section className="service-report" aria-live="polite">
+        {tarotReport && <section className="service-report" id="tarot-report" aria-live="polite">
           <div className="service-panel-heading"><div><p className="service-eyebrow">02 / BUNDLED CARD MEANINGS</p><h2>{tarotReport.title}</h2></div><span className="service-chip">LOCAL · RULE-BASED</span></div>
           <div className="tarot-reading">{tarotReport.cards.map((card) => <article key={card.id}><span>{card.position} · {card.orientation}</span><h3>{card.name}</h3><p>{card.meaning}</p></article>)}</div>
-          <p className="service-disclaimer">{tarotReport.disclaimer}</p><button className="service-primary" type="button" disabled={busy} onClick={() => void saveReport()}>{busy ? "Saving…" : "Save reading to my account"} ↗</button>
+          <p className="service-disclaimer">{tarotReport.disclaimer}</p>
+          <p className="report-export-note">Use the browser print dialog and choose Save as PDF. Report printing runs locally on this device.</p>
+          <div className="service-actions">
+            <button className="service-primary" type="button" disabled={busy} onClick={() => void saveReport()}>{busy ? "Saving…" : "Save reading to my account"} ↗</button>
+            <button className="service-secondary" type="button" onClick={() => printReport("tarot-report")}>Print / save as PDF</button>
+          </div>
         </section>}
       </section>}
 
@@ -539,7 +547,7 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
             </div><button className="service-secondary" type="button" disabled={busy} onClick={() => setReading(item.payload)}>Open</button><button className="service-delete" type="button" disabled={busy} onClick={() => void deleteReport(item.id)}>Delete</button>
           </article>)}
         </div>}
-        {reading && <article className="service-history-detail"><button className="service-text-button" type="button" onClick={() => setReading(null)}>Close report</button><h3>{String(reading.title ?? "Saved reading")}</h3>
+        {reading && <article className="service-history-detail" id="saved-service-report"><div className="service-actions"><button className="service-text-button" type="button" onClick={() => setReading(null)}>Close report</button><button className="service-secondary" type="button" onClick={() => printReport("saved-service-report")}>Print / save as PDF</button></div><h3>{String(reading.title ?? "Saved reading")}</h3>
           {Array.isArray(reading.sections) && (reading.sections as { title?: string; value?: string; interpretation?: string }[]).map((section, index) => <p key={`${section.title}-${index}`}><strong>{section.title}: {section.value}</strong> — {section.interpretation}</p>)}
           {Array.isArray(reading.cards) && (reading.cards as { position?: string; name?: string; orientation?: string; meaning?: string }[]).map((card, index) => <p key={`${card.name}-${index}`}><strong>{card.position}: {card.name} ({card.orientation})</strong> — {card.meaning}</p>)}
           {typeof reading.interpretation === "string" && <p>{reading.interpretation}</p>}

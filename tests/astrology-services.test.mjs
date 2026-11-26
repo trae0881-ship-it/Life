@@ -74,3 +74,13 @@ test("service pages and reading APIs enforce authentication and per-user ownersh
   assert.match(migration, /ON DELETE CASCADE/);
   assert.doesNotMatch(migration, /\bDROP\b|\bTRUNCATE\b|\bDELETE FROM\b/i);
 });
+
+test("Numerology and Tarot reports can be printed as local PDFs with scope disclosed", () => {
+  const workspace = readFileSync(new URL("../src/app/AstrologyServiceWorkspace.tsx", import.meta.url), "utf8");
+  assert.match(workspace, /id="numerology-report"/);
+  assert.match(workspace, /printReport\("numerology-report"\)/);
+  assert.match(workspace, /id="tarot-report"/);
+  assert.match(workspace, /printReport\("tarot-report"\)/);
+  assert.match(workspace, /22 Major Arcana cards/);
+  assert.match(workspace, /56 Minor Arcana cards are not included/);
+});

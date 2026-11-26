@@ -42,6 +42,7 @@ import {
   savePalmReading,
   type SavedPalmReading,
 } from "@/palmistry/storage";
+import { printReport } from "@/presentation/report-print";
 import "./palmistry/palmistry.css";
 
 type PalmDraft = {
@@ -520,7 +521,7 @@ export default function PalmistryWorkspace() {
           </div>
         </fieldset>
 
-        <section className="palmistry-report-preview" aria-live="polite" aria-labelledby="report-preview-title">
+        <section className="palmistry-report-preview" id="palmistry-current-report" aria-live="polite" aria-labelledby="report-preview-title">
           <div className="palmistry-panel-heading"><div><p className="palmistry-eyebrow">02 / RULE-BASED REPORT</p><h2 id="report-preview-title">{report?.title ?? "Select your observations"}</h2></div>
             <label className="palmistry-language-picker">Report language
               <select value={reportLanguage} onChange={(event) => setReportLanguage(event.target.value as PalmLanguage)}><option value="en">English</option><option value="hi">हिन्दी</option></select>
@@ -538,9 +539,11 @@ export default function PalmistryWorkspace() {
               {section.sources?.length ? <small>References: {section.sources.map((sourceId) => PALM_SOURCES.find((source) => source.id === sourceId)?.title ?? sourceId).join("; ")}</small> : null}
             </article>)}</div>
             <p className="palmistry-disclaimer">{report.disclaimer}</p>
+            <p className="report-export-note">Use the browser print dialog and choose Save as PDF. Report printing runs locally on this device.</p>
             <button className="palmistry-primary-button" type="button" onClick={() => void saveReading()} disabled={busy || !storageReady}>
               {busy ? "Saving locally…" : "Save reading on this device"} <span aria-hidden="true">↗</span>
             </button>
+            <button className="report-print-control palmistry-print-button" type="button" onClick={() => printReport("palmistry-current-report")}>Print / save as PDF</button>
           </> : <p className="palmistry-empty">Choose a palm shape, finger length and thumb observation to create the report. Other line and mount observations are optional.</p>}
         </section>
       </section>}
@@ -576,14 +579,16 @@ export default function PalmistryWorkspace() {
               <span>{labelPalmSide(reading.side)}</span><strong>{reading.title}</strong><small>{formatDate(reading.createdAt)}</small>
             </button>)}
           </div>
-          {selectedReading && <article className="palmistry-saved-report">
+          {selectedReading && <article className="palmistry-saved-report" id="palmistry-saved-report">
             <div className="palmistry-panel-heading"><div><p className="palmistry-eyebrow">{labelPalmSide(selectedReading.side)} · SAVED</p><h3>{selectedReading.title}</h3></div>
-              <button className="palmistry-text-button is-danger" type="button" disabled={busy} onClick={() => void removeReading(selectedReading)}>Delete</button></div>
+              <div><button className="report-print-control" type="button" onClick={() => printReport("palmistry-saved-report")}>Print / save as PDF</button>
+                <button className="palmistry-text-button is-danger" type="button" disabled={busy} onClick={() => void removeReading(selectedReading)}>Delete</button></div></div>
             {selectedReading.imageDataUrl && <details className="palmistry-photo-zoom"><summary>Open saved photo preview</summary><img className="palmistry-saved-photo" src={selectedReading.imageDataUrl} alt={`Saved palm photo for ${selectedReading.title}`} /></details>}
             <button type="button" className="palmistry-text-button" disabled={busy} onClick={() => editSavedReading(selectedReading)}>Edit these observations</button>
             <p>{selectedReading.report.summary}</p>
             {selectedReading.report.sections.map((section) => <article className="palmistry-saved-section" key={section.knowledgeId}><strong>{section.observation}</strong><p>{section.interpretation}</p></article>)}
             <p className="palmistry-disclaimer">{selectedReading.report.disclaimer}</p>
+            <p className="report-export-note">Use the browser print dialog and choose Save as PDF. Report printing runs locally on this device.</p>
           </article>}
         </div>}
       </section>}

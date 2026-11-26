@@ -177,6 +177,8 @@ test("palmistry workspace uses local storage and makes no network or AI integrat
   assert.match(workspace, /register\("\/palmistry-sw\.js"/);
   assert.match(serviceWorker, /url\.pathname\.startsWith\(STATIC_PREFIX\)/);
   assert.doesNotMatch(serviceWorker, /\/api\/|https?:\/\/|openai|anthropic|gemini|claude/i);
+  assert.match(workspace, /printReport\("palmistry-current-report"\)/);
+  assert.match(workspace, /printReport\("palmistry-saved-report"\)/);
 });
 
 test("Palmistry readings save, reload, cap and delete from browser localStorage", async () => {

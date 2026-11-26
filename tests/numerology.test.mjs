@@ -115,7 +115,7 @@ test("workspace and source register remain local, bounded and AI-free", () => {
   assert.match(workspace,/Traditional DOB-only/);
   assert.match(workspace,/Indian extended/);
   assert.match(workspace,/Export JSON/);
-  assert.match(workspace,/window\.print/);
+  assert.match(workspace,/printReport\("numerology-report"\)/);
   assert.doesNotMatch(workspace,/fetch\(.*claude|openai|anthropic|gemini|chatgpt/i);
   assert.doesNotMatch(engine,/fetch\s*\(|https?:\/\/|openai|anthropic|gemini|chatgpt/i);
 });

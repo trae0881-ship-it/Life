@@ -53,6 +53,11 @@
 .palmistry-primary-button:hover:not(:disabled){background:#304c68}
 .palmistry-primary-button:disabled{opacity:.55;cursor:not-allowed}
 .palmistry-primary-button span{margin-left:13px;color:#dcc695}
+.palmistry-print-button,.palmistry-saved-report .report-print-control{min-height:38px;margin:17px 0 0;padding:0 13px;border:1px solid #dcd5c7;border-radius:2px;background:#fff;color:#74603f;font:10px var(--sans,Arial,sans-serif);cursor:pointer}
+.palmistry-saved-report .report-print-control{margin:0 8px 0 0}
+.palmistry-saved-report .palmistry-panel-heading>div:last-child{display:flex;align-items:center;gap:8px}
+.palmistry-print-button:focus-visible,.palmistry-saved-report .report-print-control:focus-visible{outline:2px solid #c9ae7b;outline-offset:2px}
+.palmistry-page .report-export-note{margin:10px 0;color:#918d83;font-size:9px;line-height:1.6}
 .palmistry-empty{padding:22px;border:1px dashed #dedbd2;color:#8a908d;font-size:11px;line-height:1.6;text-align:center}
 .palmistry-compare-pickers{margin-bottom:20px}
 .palmistry-comparison{border:1px solid #eeece6}
