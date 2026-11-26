@@ -43,6 +43,17 @@ test("all global footer links resolve to real routes or existing homepage sectio
   }
 });
 
+test("public blog pages without their own site header use the shared responsive header", () => {
+  const header = source("src/app/PublicPageHeader.tsx");
+  assert.match(header, /aria-label="Main navigation"/);
+  for (const page of ["src/app/blogs/page.tsx", "src/app/blogs/[slug]/page.tsx"]) {
+    assert.match(source(page), /<PublicPageHeader\s*\/>/);
+  }
+  for (const href of ["/", "/dashboard", "/palmistry", "/kp-astrology", "/ank-jyotish", "/tarot-reading", "/login"]) {
+    assert.ok(header.includes(`href: "${href}"`), `shared header includes ${href}`);
+  }
+});
+
 test("page-specific full footers are removed so the global footer is not duplicated", () => {
   const pages = [
     "src/app/HomepageSections.tsx",

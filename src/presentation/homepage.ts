@@ -1,7 +1,6 @@
 export const homepageNavigation = [
   { label: "Home", href: "#home", sectionId: "home" },
   { label: "About Us", href: "#about", sectionId: "about" },
-  { label: "Blog", href: "#blog", sectionId: "blog" },
   { label: "Contact Us", href: "#contact", sectionId: "contact" },
   { label: "Login / Sign Up", href: "/signup", sectionId: "account" },
 ] as const;
