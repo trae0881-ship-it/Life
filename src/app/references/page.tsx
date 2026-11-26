@@ -3,6 +3,8 @@ import { referenceCategories, referenceFeatures, referenceRegistry } from "@/pre
 import { metadataForManagedPage } from "@/server/seo-management";
 import "../references.css";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
   return metadataForManagedPage("/references");
 }

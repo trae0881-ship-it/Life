@@ -9,6 +9,7 @@ import {
   createRobotsMetadata,
   createSitemapEntries,
   defaultSeoSettings,
+  getPublicSiteOrigin,
   getSeoDashboardData,
   metadataForManagedPage,
   readSeoStore,
@@ -36,6 +37,7 @@ async function withTempStore(run) {
 function inMemorySeoRepository() {
   const settings = new Map();
   const audits = [];
+  const blogPosts = [];
   const repository = {
     seoPageSetting: {
       findMany: async () => [...settings.values()],
@@ -60,6 +62,10 @@ function inMemorySeoRepository() {
         }
         return { count: before - audits.length };
       },
+    },
+    blogPost: {
+      count: async () => blogPosts.length,
+      findMany: async ({ take }) => blogPosts.slice(0, take),
     },
     $transaction: async (operation) => operation(repository),
   };
@@ -89,6 +95,24 @@ function sameOriginRequest(url, method, body) {
   });
 }
 
+function validRobotsText(origin) {
+  return [
+    "User-agent: *",
+    "Allow: /",
+    "Disallow: /api",
+    "Disallow: /admin",
+    "Disallow: /dashboard",
+    "Disallow: /super-admin",
+    "Disallow: /super-login",
+    "Disallow: /developer/dashboard",
+    `Sitemap: ${origin}/sitemap.xml`,
+  ].join(String.fromCharCode(10));
+}
+
+function blockedRobotsText(origin) {
+  return ["User-agent: *", "Disallow: /*", `Sitemap: ${origin}/sitemap.xml`].join(String.fromCharCode(10));
+}
+
 test("metadata settings accept only managed routes and bounded local canonical paths", () => {
   const valid = defaultSeoSettings("/");
   assert.equal(validateSeoPageSettings(valid)?.path, "/");
@@ -112,6 +136,13 @@ test("metadata generation uses stored settings and does not invent a public orig
   });
 });
 
+test("public origin prefers configuration, safely falls back to Railway, then the production deployment origin", () => {
+  assert.equal(getPublicSiteOrigin({ LIFE_PUBLIC_APP_URL: "https://custom.life.example" }), "https://custom.life.example");
+  assert.equal(getPublicSiteOrigin({ RAILWAY_PUBLIC_DOMAIN: "life-staging.up.railway.app" }), "https://life-staging.up.railway.app");
+  assert.equal(getPublicSiteOrigin({ NODE_ENV: "production" }), "https://life-production-66edc885.up.railway.app");
+  assert.equal(getPublicSiteOrigin({ RAILWAY_PUBLIC_DOMAIN: "https://user:pass@example.com" }), null);
+});
+
 test("production SEO settings and audit history use the PostgreSQL repository", async () => {
   const repository = inMemorySeoRepository();
   const settings = { ...defaultSeoSettings("/"), title: "Persistent LIFE title" };
@@ -123,7 +154,7 @@ test("production SEO settings and audit history use the PostgreSQL repository", 
   process.env.LIFE_PUBLIC_APP_URL = localOrigin;
   const fetcher = async (input) => {
     const url = new URL(input);
-    if (url.pathname === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /api/\n", { status: 200 });
+    if (url.pathname === "/robots.txt") return new Response(validRobotsText(localOrigin), { status: 200 });
     if (url.pathname === "/sitemap.xml") {
       const entries = SEO_PAGE_DEFINITIONS.map(({ path: pagePath }) => `<url><loc>${localOrigin}${pagePath}</loc></url>`).join("");
       return new Response(`<urlset>${entries}</urlset>`, { status: 200 });
@@ -150,6 +181,55 @@ test("production SEO settings and audit history use the PostgreSQL repository", 
   }
 });
 
+test("technical audit includes published Blog CMS pages and measures noindex pages without adding them to sitemap", async () => {
+  const repository = inMemorySeoRepository();
+  const localOrigin = "http://127.0.0.1:43130";
+  repository.blogPost.count = async () => 2;
+  repository.blogPost.findMany = async () => [
+    {
+      slug: "public-post", title: "Public Article", excerpt: "An article excerpt with enough content.",
+      seoTitle: null, seoDescription: null, canonicalUrl: null, robotsIndex: true,
+    },
+    {
+      slug: "private-post", title: "Private Article", excerpt: "A private article excerpt with enough content.",
+      seoTitle: null, seoDescription: null, canonicalUrl: null, robotsIndex: false,
+    },
+  ];
+  const previousPublicUrl = process.env.LIFE_PUBLIC_APP_URL;
+  process.env.LIFE_PUBLIC_APP_URL = localOrigin;
+  const fetcher = async (input) => {
+    const url = new URL(input);
+    if (url.pathname === "/robots.txt") {
+      return new Response(validRobotsText(localOrigin), { status: 200 });
+    }
+    if (url.pathname === "/sitemap.xml") {
+      const paths = [...SEO_PAGE_DEFINITIONS.map(({ path: pagePath }) => pagePath), "/blogs/public-post"];
+      return new Response(`<urlset>${paths.map((route) => `<url><loc>${localOrigin}${route}</loc></url>`).join("")}</urlset>`, { status: 200 });
+    }
+    const noindex = url.pathname === "/blogs/private-post" ? '<meta name="robots" content="noindex,follow">' : "";
+    return new Response(
+      `<html><head><title>${url.pathname}</title><meta name="description" content="A description for ${url.pathname} that is long enough to inspect."><link rel="canonical" href="${url.pathname}"><meta name="robots" content="${noindex ? "noindex,follow" : "index,follow"}"><meta property="og:title" content="Article"><meta property="og:description" content="A description"><script type="application/ld+json">{"@type":"WebPage"}</script></head><body><h1>Article</h1></body></html>`,
+      { status: 200 },
+    );
+  };
+  try {
+    const audit = await runSeoAudit({ actorUserId: "seo-test-admin", repository, fetcher, localOrigin });
+    const publicPost = audit.pages.find((page) => page.path === "/blogs/public-post");
+    const privatePost = audit.pages.find((page) => page.path === "/blogs/private-post");
+    assert.equal(audit.pagesAudited, SEO_PAGE_DEFINITIONS.length + 2);
+    assert.equal(audit.pagesOmitted, 0);
+    assert.equal(publicPost?.checks?.canonical.status, "PASS");
+    assert.equal(publicPost?.checks?.sitemap.status, "PASS");
+    assert.equal(privatePost?.checks?.robots.status, "PASS");
+    assert.equal(privatePost?.checks?.sitemap.status, "NOT_CHECKED");
+    assert.equal(audit.sitemap.valid, true);
+    assert.equal(audit.robots.valid, true, JSON.stringify(audit.robots));
+  } finally {
+    if (previousPublicUrl === undefined) delete process.env.LIFE_PUBLIC_APP_URL;
+    else process.env.LIFE_PUBLIC_APP_URL = previousPublicUrl;
+  }
+});
+
 test("sitemap and robots helpers include only canonical indexable LIFE routes", () => {
   const pages = SEO_PAGE_DEFINITIONS.map(({ path: pagePath }) => defaultSeoSettings(pagePath));
   pages[1] = { ...pages[1], canonicalPath: "/" };
@@ -160,7 +240,7 @@ test("sitemap and robots helpers include only canonical indexable LIFE routes", 
   assert.deepEqual(createSitemapEntries(null, pages), []);
   const robots = createRobotsMetadata("https://life.example");
   assert.equal(robots.sitemap, "https://life.example/sitemap.xml");
-  assert.deepEqual(robots.rules[0].disallow, ["/api/", "/admin/", "/dashboard/", "/super-admin/"]);
+  assert.deepEqual(robots.rules[0].disallow, ["/api", "/admin", "/dashboard", "/super-admin", "/super-login", "/developer/dashboard"]);
 });
 
 test("technical audit measures managed routes, JSON-LD, status, sitemap and broken internal links", async () => {
@@ -172,7 +252,7 @@ test("technical audit measures managed routes, JSON-LD, status, sitemap and brok
     const fetcher = async (input) => {
       const url = new URL(input);
       calls.push(url.pathname);
-      if (url.pathname === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /api/\n", { status: 200 });
+      if (url.pathname === "/robots.txt") return new Response(validRobotsText(localOrigin), { status: 200 });
       if (url.pathname === "/sitemap.xml") {
         const pages = SEO_PAGE_DEFINITIONS.map(({ path: pagePath }) => `<url><loc>${localOrigin}${pagePath}</loc></url>`).join("");
         return new Response(`<urlset>${pages}</urlset>`, { status: 200 });
@@ -196,9 +276,10 @@ test("technical audit measures managed routes, JSON-LD, status, sitemap and brok
       assert.equal(audit.metrics.imagesMissingAlt, SEO_PAGE_DEFINITIONS.length - 1);
       assert.equal(audit.metrics.missingOpenGraph, SEO_PAGE_DEFINITIONS.length - 1);
       assert.equal(audit.readinessLabel, "internal_heuristic_not_google_ranking");
-      assert.equal(audit.sitemap.valid, true);
+      assert.equal(audit.sitemap.valid, false);
       assert.equal(audit.sitemap.listedPages, SEO_PAGE_DEFINITIONS.length);
-      assert.equal(audit.robots.valid, true);
+      assert.equal(audit.pages.find((page) => page.path === "/privacy-policy")?.checks?.sitemap.status, "FAILED");
+      assert.equal(audit.robots.valid, true, JSON.stringify(audit.robots));
       assert.equal(audit.pages.find((page) => page.path === "/").internalLinkCount, 1);
       assert.ok(audit.pages.find((page) => page.path === "/")?.issues.some((issue) => issue.code === "IMAGE_ALT_MISSING"));
       assert.equal(calls.filter((pathname) => pathname === "/sitemap.xml").length, 1);
@@ -228,7 +309,7 @@ test("technical audit detects wildcard public-page blocks and duplicate sitemap 
     process.env.LIFE_PUBLIC_APP_URL = localOrigin;
     const fetcher = async (input) => {
       const url = new URL(input);
-      if (url.pathname === "/robots.txt") return new Response("User-agent: *\nDisallow: /*\n", { status: 200 });
+      if (url.pathname === "/robots.txt") return new Response(blockedRobotsText(localOrigin), { status: 200 });
       if (url.pathname === "/sitemap.xml") {
         const paths = SEO_PAGE_DEFINITIONS.map(({ path: pagePath }) => pagePath);
         paths[1] = paths[0];

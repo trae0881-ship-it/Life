@@ -90,6 +90,9 @@ export default function BlogManagementDashboard({ author }: { author: string }) 
 
   async function savePost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const alreadyPublished = posts.some((post) => post.id === postId && post.status === "PUBLISHED");
+    if (form.status === "PUBLISHED" && !alreadyPublished
+      && !window.confirm(`Publish "${form.title}" now? It will become publicly accessible.`)) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -113,6 +116,10 @@ export default function BlogManagementDashboard({ author }: { author: string }) 
   }
 
   async function updateStatus(id: string, status: Status) {
+    if (status === "PUBLISHED") {
+      const post = posts.find((entry) => entry.id === id);
+      if (!window.confirm(`Publish "${post?.title ?? "this post"}" now? It will become publicly accessible.`)) return;
+    }
     setBusy(true);
     setError("");
     setNotice("");
@@ -133,6 +140,25 @@ export default function BlogManagementDashboard({ author }: { author: string }) 
     }
   }
 
+  async function deletePost(post: BlogPost) {
+    if (!window.confirm(`Permanently delete "${post.title}"? This cannot be undone.`)) return;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/super-admin/blogs/${encodeURIComponent(post.id)}`, { method: "DELETE" });
+      const result = await response.json();
+      if (!response.ok || !result.deleted) throw new Error(result.error ?? "Blog post could not be deleted.");
+      if (postId === post.id) startNewPost();
+      setNotice("Blog post deleted.");
+      await loadPosts(posts.length === 1 && page > 1 ? page - 1 : page);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Blog post could not be deleted.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function setField<Key extends keyof FormValues>(key: Key, value: FormValues[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
@@ -142,6 +168,7 @@ export default function BlogManagementDashboard({ author }: { author: string }) 
     setForm(emptyPost(author));
     setPreview(false);
     setNotice("");
+    setError("");
   }
 
   return <main className="super-admin-shell">
@@ -167,7 +194,7 @@ export default function BlogManagementDashboard({ author }: { author: string }) 
         <p className="super-admin-eyebrow">LIFE · PUBLISHING</p>
         <h1>Blog Management</h1>
         <p className="super-admin-description">Draft and manage articles stored in PostgreSQL. Only published posts are publicly readable.</p>
-        {error && <p className="super-admin-error" role="alert">{error}</p>}
+        {error && <div className="super-admin-error" role="alert"><p>{error}</p></div>}
         {notice && <p className="seo-message" role="status">{notice}</p>}
         <section className="developers-section">
           <div className="blog-filter">
@@ -176,18 +203,23 @@ export default function BlogManagementDashboard({ author }: { author: string }) 
             <button onClick={() => void loadPosts(1)} type="button">Search</button>
             <button onClick={startNewPost} type="button">Create post</button>
           </div>
-          {loading ? <p aria-live="polite">Loading posts…</p> : <div className="super-admin-table-wrap">
+          {loading ? <p aria-live="polite" className="super-admin-state">Loading posts…</p> : posts.length ? <div className="super-admin-table-wrap">
             <table className="super-admin-user-table">
-              <thead><tr><th>Title</th><th>Slug</th><th>Status</th><th>Updated</th><th>Actions</th></tr></thead>
+              <thead><tr><th scope="col">Title</th><th scope="col">Slug</th><th scope="col">Status</th><th scope="col">Updated</th><th scope="col">Actions</th></tr></thead>
               <tbody>{posts.map((post) => <tr key={post.id}>
-                <td>{post.title}</td><td>{post.slug}</td><td>{post.status}</td><td>{new Date(post.updatedAt ?? "").toLocaleDateString()}</td>
+                <td>{post.title}</td><td>{post.slug}</td><td><span className={`blog-status blog-status-${post.status.toLowerCase()}`}>{post.status}</span></td><td>{new Date(post.updatedAt ?? "").toLocaleDateString()}</td>
                 <td><button disabled={busy} onClick={() => void editPost(post.id)} type="button">Edit</button>{" "}
                   {post.status !== "PUBLISHED" && <button disabled={busy} onClick={() => void updateStatus(post.id, "PUBLISHED")} type="button">Publish</button>}
                   {post.status === "PUBLISHED" && <button disabled={busy} onClick={() => void updateStatus(post.id, "DRAFT")} type="button">Unpublish</button>}
                   {post.status !== "ARCHIVED" && <button disabled={busy} onClick={() => void updateStatus(post.id, "ARCHIVED")} type="button">Archive</button>}
+                  <button className="blog-delete-button" disabled={busy} onClick={() => void deletePost(post)} type="button">Delete</button>
                 </td>
               </tr>)}</tbody>
             </table>
+          </div> : <div className="blog-empty-state">
+            <h2>{query || statusFilter ? "No matching posts" : "No articles yet"}</h2>
+            <p>{query || statusFilter ? "Try a different search or status filter." : "Create a draft and preview it before publishing."}</p>
+            {!query && !statusFilter && <button onClick={startNewPost} type="button">Create your first post</button>}
           </div>}
           <div className="super-admin-pagination"><button disabled={page <= 1 || loading} onClick={() => void loadPosts(page - 1)} type="button">Previous</button><span>Page {page} of {pageCount}</span><button disabled={page >= pageCount || loading} onClick={() => void loadPosts(page + 1)} type="button">Next</button></div>
         </section>
@@ -199,9 +231,9 @@ export default function BlogManagementDashboard({ author }: { author: string }) 
             {form.featuredImageUrl && <img alt={form.featuredImageAlt ?? ""} src={form.featuredImageUrl} />}
             <p className="blog-preview-body">{form.body}</p>
           </article> : <form className="blog-form" onSubmit={(event) => void savePost(event)}>
-            <label>Title<input maxLength={160} onChange={(event) => setField("title", event.target.value)} required value={form.title} /></label>
+            <label>Title<input maxLength={160} onChange={(event) => setField("title", event.target.value)} required value={form.title} /><small className="blog-character-count">{form.title.length}/160</small></label>
             <label>Slug<input maxLength={180} onChange={(event) => setField("slug", event.target.value)} placeholder="generated-from-title" value={form.slug} /></label>
-            <label>Excerpt<textarea maxLength={320} onChange={(event) => setField("excerpt", event.target.value)} required value={form.excerpt} /></label>
+            <label>Excerpt<textarea maxLength={320} onChange={(event) => setField("excerpt", event.target.value)} required value={form.excerpt} /><small className="blog-character-count">{form.excerpt.length}/320</small></label>
             <label>Body (plain text)<textarea maxLength={100000} onChange={(event) => setField("body", event.target.value)} required value={form.body} /></label>
             <label>Author<input maxLength={100} onChange={(event) => setField("authorName", event.target.value)} required value={form.authorName} /></label>
             <label>Category<input maxLength={80} onChange={(event) => setField("category", event.target.value || null)} value={form.category ?? ""} /></label>
@@ -209,8 +241,8 @@ export default function BlogManagementDashboard({ author }: { author: string }) 
             <label>Featured image URL (local path only)<input onChange={(event) => setField("featuredImageUrl", event.target.value || null)} placeholder="/images/article.webp" value={form.featuredImageUrl ?? ""} /></label>
             <label>Image alt text<input maxLength={250} onChange={(event) => setField("featuredImageAlt", event.target.value || null)} value={form.featuredImageAlt ?? ""} /></label>
             <label>Status<select onChange={(event) => setField("status", event.target.value as Status)} value={form.status}><option value="DRAFT">Draft</option><option value="PUBLISHED">Published</option><option value="ARCHIVED">Archived</option></select></label>
-            <label>SEO title<input maxLength={70} onChange={(event) => setField("seoTitle", event.target.value || null)} value={form.seoTitle ?? ""} /></label>
-            <label>SEO description<textarea maxLength={160} onChange={(event) => setField("seoDescription", event.target.value || null)} value={form.seoDescription ?? ""} /></label>
+            <label>SEO title<input maxLength={70} onChange={(event) => setField("seoTitle", event.target.value || null)} value={form.seoTitle ?? ""} /><small className="blog-character-count">{(form.seoTitle ?? "").length}/70</small></label>
+            <label>SEO description<textarea maxLength={160} onChange={(event) => setField("seoDescription", event.target.value || null)} value={form.seoDescription ?? ""} /><small className="blog-character-count">{(form.seoDescription ?? "").length}/160</small></label>
             <label>Canonical URL (same LIFE origin only)<input onChange={(event) => setField("canonicalUrl", event.target.value || null)} value={form.canonicalUrl ?? ""} /></label>
             <label className="blog-checkbox"><input checked={form.robotsIndex} onChange={(event) => setField("robotsIndex", event.target.checked)} type="checkbox" /> Allow indexing</label>
             <button disabled={busy} type="submit">{busy ? "Saving…" : "Save post"}</button>

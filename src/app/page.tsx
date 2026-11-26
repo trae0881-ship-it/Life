@@ -3,6 +3,8 @@ import HomepageSections from "./HomepageSections";
 import { metadataForManagedPage } from "@/server/seo-management";
 import "./homepage.css";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
   return metadataForManagedPage("/");
 }

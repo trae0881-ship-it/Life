@@ -214,3 +214,33 @@
 @media(max-width:640px){.api-operation-summary{grid-template-columns:60px 1fr;gap:10px}.api-operation-summary>span:last-child{grid-column:2}.api-operation-summary code{overflow-wrap:anywhere}}
 @media(max-width:650px){.blog-form{grid-template-columns:1fr}.blog-form label,.blog-form label:nth-child(3),.blog-form label:nth-child(4),.blog-form label:nth-child(13),.blog-form>button{grid-column:auto}}
 @media(max-width:650px){.developers-grid{grid-template-columns:1fr}.developers-header{align-items:flex-start;flex-direction:column}.developers-header nav{gap:12px}}
+.seo-character-count{justify-self:end;color:#7a8385;font:9px var(--mono)}
+.seo-audit-filter{display:flex;align-items:end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:12px 0;padding:14px;border:1px solid #e7e5de;border-radius:4px;background:#fff;color:#737d80;font-size:10px}
+.seo-audit-filter label{display:grid;gap:6px;min-width:min(280px,100%);color:#59666c;font:10px var(--mono)}
+.seo-audit-filter input{min-height:36px;padding:8px 10px;border:1px solid #d9dcd8;border-radius:3px;color:#253544;font:12px var(--sans)}
+.seo-page-results{min-width:1450px}
+.seo-page-results td small{display:block;margin-top:5px;color:#737d80;font-size:9px}
+.seo-status-badge{display:inline-flex;align-items:center;justify-content:center;min-height:22px;padding:3px 7px;border:1px solid transparent;border-radius:3px;font:700 8px var(--mono);letter-spacing:.03em;white-space:nowrap}
+.seo-status-pass{border-color:#b7d9c0;background:#edf8ef;color:#246437}
+.seo-status-warning{border-color:#ead29a;background:#fff8e6;color:#81580a}
+.seo-status-failed{border-color:#e4b7b0;background:#fff1ee;color:#8a352b}
+.seo-status-not-checked{border-color:#d6dadd;background:#f3f5f6;color:#5e6970}
+.seo-issue-list{margin:18px 0;padding:16px;border:1px solid #e7e5de;border-radius:4px;background:#fff}
+.seo-issue-list h3{margin:0 0 10px;color:#273746;font:500 17px var(--serif)}
+.seo-issue-list ul{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.seo-issue-list li{padding:10px;border:1px solid #eeece6;border-radius:3px;color:#59666c;font-size:11px}
+.seo-issue-list li p{margin:5px 0}
+.seo-issue-list li small{color:#737d80}
+.seo-audit-filter :focus-visible{outline:2px solid #cba96d;outline-offset:2px}
+.blog-status{display:inline-flex;padding:4px 7px;border-radius:3px;font:700 8px var(--mono);letter-spacing:.04em}
+.blog-status-draft{background:#fff8e6;color:#81580a}
+.blog-status-published{background:#edf8ef;color:#246437}
+.blog-status-archived{background:#f3f5f6;color:#5e6970}
+.blog-delete-button{border-color:#e4b7b0!important;color:#8a352b!important}
+.blog-empty-state{padding:27px;border:1px dashed #d8d6cf;background:#fff;text-align:center}
+.blog-empty-state h2{margin:0;color:#273746;font:500 20px var(--serif)}
+.blog-empty-state p{color:#737d80;font-size:12px}
+.blog-empty-state button{min-height:36px;padding:0 12px;border:1px solid #c9b58c;border-radius:3px;background:#fff;color:#675331;font:11px var(--sans);cursor:pointer}
+.blog-character-count{justify-self:end;color:#7a8385;font:9px var(--mono)}
+.blog-filter button:focus-visible,.blog-editor-title button:focus-visible,.blog-form button:focus-visible,.super-admin-user-table button:focus-visible,.blog-empty-state button:focus-visible{outline:2px solid #cba96d;outline-offset:2px}
+.super-admin-user-table{min-width:880px}

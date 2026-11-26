@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import {
   BLOG_STATUSES,
   createBlogPost,
+  deleteBlogPost,
   findPublishedBlogPost,
   listBlogPosts,
   makeBlogSlug,
@@ -73,6 +74,7 @@ test("blog management query and publishing helpers keep public reads restricted 
       async findFirst(args) { calls.push(["findFirst", args]); return null; },
       async create(args) { calls.push(["create", args]); return { id: "post-2" }; },
       async update(args) { calls.push(["update", args]); return { id: "post-1", status: args.data.status }; },
+      async deleteMany(args) { calls.push(["deleteMany", args]); return { count: 1 }; },
     },
   };
 
@@ -91,6 +93,12 @@ test("blog management query and publishing helpers keep public reads restricted 
   const publicPost = await findPublishedBlogPost(repository, "draft-post");
   assert.equal(publicPost, null);
   assert.deepEqual(calls.at(-1)[1].where, { slug: "draft-post", status: "PUBLISHED", publishedAt: { lte: calls.at(-1)[1].where.publishedAt.lte } });
+
+  assert.equal(await deleteBlogPost(repository, "post-1"), true);
+  assert.deepEqual(calls.at(-1), ["deleteMany", { where: { id: "post-1" } }]);
+  const callCount = calls.length;
+  assert.equal(await deleteBlogPost(repository, ""), false);
+  assert.equal(calls.length, callCount);
 });
 
 test("Developer documentation matches real route files and OpenAPI contract structure", () => {
@@ -122,12 +130,20 @@ test("developer portal, interactive docs, blog public routes and protected manag
   const blogsApi = source("src/app/api/super-admin/blogs/route.ts");
   const postApi = source("src/app/api/super-admin/blogs/[postId]/route.ts");
   const blogDashboard = source("src/app/super-admin/blogs/BlogManagementDashboard.tsx");
+  const publicArticle = source("src/app/blogs/[slug]/page.tsx");
   assert.match(blogsApi, /requireRole\(request, \["SUPER_ADMIN"\]\)/);
   assert.match(postApi, /requireRole\(request, \["SUPER_ADMIN"\]\)/);
   assert.match(postApi, /isSameOriginMutation/);
+  assert.match(postApi, /export async function DELETE/);
+  const deleteHandler = postApi.slice(postApi.indexOf("export async function DELETE"));
+  assert.match(deleteHandler, /requireRole\(request, \["SUPER_ADMIN"\]\)/);
+  assert.match(deleteHandler, /isSameOriginMutation/);
   assert.match(blogDashboard, /Signed in as/);
   assert.match(blogDashboard, /api\/auth\/logout/);
+  assert.match(blogDashboard, /Permanently delete/);
   assert.doesNotMatch(blogDashboard, /href="\/super-login">Sign in/);
+  assert.match(publicArticle, /"@type": "BlogPosting"/);
+  assert.match(publicArticle, /application\/ld\+json/);
   assert.match(source("prisma/schema.prisma"), /model BlogPost/);
   assert.match(source("prisma/migrations/20261026150000_blog_cms/migration.sql"), /CREATE TABLE "BlogPost"/);
   assert.match(source("src/app/sitemap.ts"), /status: "PUBLISHED"/);

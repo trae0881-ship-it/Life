@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/server/auth";
-import { changeBlogStatus, updateBlogPost } from "@/server/blog-management";
+import { changeBlogStatus, deleteBlogPost, updateBlogPost } from "@/server/blog-management";
 import { getPrisma } from "@/server/db";
 import { isSameOriginMutation, jsonError, readJson, RequestBodyError } from "@/server/http";
 
@@ -48,6 +48,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (error instanceof RequestBodyError) return jsonError(error.message, error.status, error.status === 400 ? "INVALID_JSON" : "PAYLOAD_TOO_LARGE");
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") return jsonError("That blog slug is already in use.", 409, "SLUG_ALREADY_EXISTS");
     console.error("Blog post could not be updated.", { errorType: error instanceof Error ? error.name : "UnknownError" });
+    return jsonError("Blog storage is unavailable. Verify database connectivity and that all required migrations have been applied.", 503, "BLOG_STORAGE_UNAVAILABLE");
+  }
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const authorization = await requireRole(request, ["SUPER_ADMIN"]);
+  if (authorization.status !== 200) return jsonError(authorization.status === 401 ? "Sign in is required." : "Super Admin access is required.", authorization.status, authorization.status === 401 ? "UNAUTHENTICATED" : "FORBIDDEN");
+  if (!isSameOriginMutation(request)) return jsonError("Request origin is not allowed.", 403, "INVALID_ORIGIN");
+  try {
+    const { postId } = await context.params;
+    const deleted = await deleteBlogPost(getPrisma(), postId);
+    if (!deleted) return jsonError("Blog post was not found.", 404, "BLOG_POST_NOT_FOUND");
+    return NextResponse.json({ deleted: true }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    console.error("Blog post could not be deleted.", { errorType: error instanceof Error ? error.name : "UnknownError" });
     return jsonError("Blog storage is unavailable. Verify database connectivity and that all required migrations have been applied.", 503, "BLOG_STORAGE_UNAVAILABLE");
   }
 }

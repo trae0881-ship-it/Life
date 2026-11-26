@@ -96,3 +96,42 @@ Unexpected login, registration, logout, and session-lookup failures return gener
 Current Phase 65 evidence is source-level only. No real Developer session, provider configuration, Linux container run, isolated staging database, backup/restore, migration rehearsal, or deployment was performed. **Deployment is not yet verified as safe for staging or production.**
 
 Local verification on Windows x64 with Node v24.20.0 passed via `npm.cmd run verify`: 424/424 tests, TypeScript, Prisma validation, and production build. The verification report recorded a fresh source fingerprint. These results validate source/build behavior only; they do not replace any of the isolated database, Linux, provider, migration, backup/restore, or live authorization checks above.
+
+## SEO Management and Blog CMS release checklist
+
+This checklist is a deployment plan only. No Railway environment values or production database were changed as part of the SEO/Blog work.
+
+### Required migrations and order
+
+The SEO/Blog models require the complete repository migration chain to be reconciled, including at minimum:
+
+1. Apply or verify every earlier migration required by the current Prisma schema, in timestamp order.
+2. `20261026150000_blog_cms` creates the Blog CMS table, status enum, indexes, and author relation.
+3. `20261126160000_seo_management` creates SEO page settings and audit-history tables and their Super Admin actor relations.
+
+Do not infer production migration status from the presence of SQL files, table shapes, or a successful application build. The previously documented Supabase migration ledger was not found and its status remains **UNKNOWN**. No production migration command was run. On an approved isolated staging database, have the database owner review the ledger and schema first, then use the normal Prisma deployment process only after approving the exact target and backup/rollback plan. The application does not migrate at startup.
+
+### Environment configuration
+
+Set and verify values through the correct Railway environment manager; do not commit credentials:
+
+| Variable | Required configuration |
+|---|---|
+| `DATABASE_URL` | Railway PostgreSQL connection for the intended environment. Never reuse production credentials in staging. |
+| `LIFE_PUBLIC_APP_URL` | Recommended explicit HTTPS origin. For the currently specified production site, use `https://life-production-66edc885.up.railway.app` (origin only, no path/query). Use the staging host for staging. |
+| `RAILWAY_PUBLIC_DOMAIN` | Railway hostname fallback when `LIFE_PUBLIC_APP_URL` is unset; verify that it resolves to the same deployment. |
+| `NODE_ENV` / `PORT` | Platform runtime values; production origin fallback is used only when `NODE_ENV=production` and neither URL variable is set. Confirm that staging sets its own public origin. |
+
+Never print or paste the values of database credentials or other secrets in logs, tickets, or audit reports.
+
+### Metadata migration and publishing gate
+
+- The current production repository stores SEO settings and audit history in PostgreSQL. There is no automatic import from any previous local JSON file. Before rollout, identify whether the old deployment has metadata that must be retained, export it through an approved operator workflow, compare it with the eight current managed routes, and prepare a reviewed/manual import if needed. Do not silently overwrite database settings.
+- Before enabling publishing, verify that `BlogPost` and SEO migrations are present in the approved environment; confirm the Super Admin role gate and same-origin mutation checks; exercise create, draft, publish, unpublish, archive, delete, search, pagination, preview, article metadata, structured data, sitemap, and robots behavior using synthetic staging posts.
+- Confirm drafts and archived posts return no public article, that published posts alone appear in `/blogs`, and that only published, indexable, same-origin canonical blog URLs enter `/sitemap.xml`.
+- Run the repository's targeted SEO/Blog tests, TypeScript validation, Prisma validation, and production build on the reviewed release. Confirm rollback and backup restore before production approval.
+- Do not enable production blog publishing until the migration-history question, settings import decision, staging verification, and rollback plan are signed off by the database/deployment owners.
+
+### Evidence boundary
+
+This source change does not establish that either migration was applied to Railway, that the specified environment variables are set, that legacy settings were imported, or that the live pages have been deployed. Those remain external deployment checks.

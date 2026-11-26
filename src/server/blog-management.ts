@@ -179,6 +179,12 @@ export async function changeBlogStatus(repository: BlogRepository, id: string, s
   });
 }
 
+export async function deleteBlogPost(repository: BlogRepository, id: string) {
+  if (!id || id.length > 100) return false;
+  const result = await repository.blogPost.deleteMany({ where: { id } });
+  return result.count === 1;
+}
+
 export async function findPublishedBlogPost(repository: BlogRepository, slug: string) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 180) return null;
   return repository.blogPost.findFirst({
@@ -187,6 +193,7 @@ export async function findPublishedBlogPost(repository: BlogRepository, slug: st
       title: true, slug: true, excerpt: true, body: true, featuredImageUrl: true,
       featuredImageAlt: true, authorName: true, category: true, tags: true,
       seoTitle: true, seoDescription: true, canonicalUrl: true, robotsIndex: true, publishedAt: true,
+      updatedAt: true,
     },
   });
 }

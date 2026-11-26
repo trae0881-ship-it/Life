@@ -26,7 +26,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const blogEntries = posts.flatMap((post) => {
     const url = post.canonicalUrl ?? new URL(`/blogs/${encodeURIComponent(post.slug)}`, origin).toString();
     try {
-      if (new URL(url).origin !== origin) return [];
+      const canonical = new URL(url);
+      if (canonical.origin !== origin || canonical.username || canonical.password || canonical.search || canonical.hash) return [];
     } catch {
       return [];
     }

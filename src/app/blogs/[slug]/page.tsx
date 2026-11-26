@@ -46,11 +46,32 @@ export default async function BlogPostPage({ params }: BlogPageProps) {
   const post = result.post;
   if (!post) notFound();
   const paragraphs = post.body.split(/\n{2,}/).filter(Boolean);
+  const publicOrigin = getPublicSiteOrigin();
+  const articleUrl = post.canonicalUrl ?? (publicOrigin ? new URL(`/blogs/${post.slug}`, publicOrigin).toString() : undefined);
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    description: post.seoDescription || post.excerpt,
+    author: { "@type": "Person", name: post.authorName },
+    ...(post.publishedAt ? { datePublished: post.publishedAt.toISOString() } : {}),
+    dateModified: post.updatedAt.toISOString(),
+    ...(articleUrl ? { mainEntityOfPage: { "@type": "WebPage", "@id": articleUrl } } : {}),
+    ...(post.featuredImageUrl && publicOrigin
+      ? { image: [new URL(post.featuredImageUrl, publicOrigin).toString()] }
+      : {}),
+    ...(post.category ? { articleSection: post.category } : {}),
+    ...(post.tags.length ? { keywords: post.tags.join(", ") } : {}),
+  };
   return <>
     <PublicPageHeader />
     <main className="public-blog">
     <a href="/blogs">← All articles</a>
     <article className="public-blog-post">
+      <script
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }}
+        type="application/ld+json"
+      />
       <p className="super-admin-eyebrow">{post.category ?? "LIFE JOURNAL"} · {post.publishedAt?.toLocaleDateString("en")}</p>
       <h1>{post.title}</h1>
       <p className="public-blog-excerpt">{post.excerpt}</p>

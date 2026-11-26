@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import type { SeoAuditRecord, SeoPageSettings } from "@/server/seo-management";
+import type { SeoAuditRecord, SeoCheckStatus, SeoPageSettings } from "@/server/seo-management";
 
 type DashboardData = {
   pages: SeoPageSettings[];
@@ -31,17 +31,23 @@ export default function SeoManagementDashboard({ email }: { email: string }) {
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [auditFilter, setAuditFilter] = useState("");
+
+  function statusBadge(status: SeoCheckStatus) {
+    return <span className={`seo-status-badge seo-status-${status.toLowerCase()}`}>{status.replace("_", " ")}</span>;
+  }
 
   async function loadDashboard() {
     setLoading(true);
     setError("");
     try {
       const response = await fetch("/api/super-admin/seo", { cache: "no-store" });
-      if (!response.ok) throw new Error("SEO settings could not be loaded.");
-      const result = await response.json() as DashboardData;
-      if (!Array.isArray(result.pages) || !Array.isArray(result.audits)) throw new Error("SEO response was invalid.");
-      setData(result);
-      const current = result.pages.find((page) => page.path === selectedPath) ?? result.pages[0] ?? null;
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "SEO settings could not be loaded.");
+      const dashboard = result as DashboardData;
+      if (!Array.isArray(dashboard.pages) || !Array.isArray(dashboard.audits)) throw new Error("SEO response was invalid.");
+      setData(dashboard);
+      const current = dashboard.pages.find((page) => page.path === selectedPath) ?? dashboard.pages[0] ?? null;
       if (current) {
         setSelectedPath(current.path);
         setDraft(current);
@@ -101,7 +107,7 @@ export default function SeoManagementDashboard({ email }: { email: string }) {
       });
       const result = await response.json();
       if (!response.ok || !result.audit) throw new Error(result.error ?? "The technical audit could not complete.");
-      setNotice("Technical audit completed against the fixed local LIFE route list.");
+      setNotice(`Technical audit completed. Overall status: ${result.audit.resultStatus ?? "NOT CHECKED"}. Search Console indexing remains unverified.`);
       await loadDashboard();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The technical audit could not complete.");
@@ -129,6 +135,7 @@ export default function SeoManagementDashboard({ email }: { email: string }) {
 
   const metrics = data?.lastAudit?.metrics;
   const metricCards = [
+    { label: "Overall audit status", value: data?.lastAudit?.resultStatus ?? emptyState },
     { label: "Indexed pages", value: data?.indexedPages === null || !data ? "Unavailable" : data.indexedPages, note: "Search Console is not connected; Google indexing is not verified." },
     { label: "Missing titles", value: metrics?.missingTitles ?? emptyState },
     { label: "Missing meta descriptions", value: metrics?.missingDescriptions ?? emptyState },
@@ -144,6 +151,10 @@ export default function SeoManagementDashboard({ email }: { email: string }) {
     { label: "Valid JSON-LD blocks", value: metrics?.validJsonLdBlocks ?? emptyState },
     { label: "Invalid JSON-LD blocks", value: metrics?.invalidJsonLdBlocks ?? emptyState },
   ];
+  const search = auditFilter.trim().toLowerCase();
+  const filteredAuditPages = data?.lastAudit?.pages.filter((page) => !search
+    || page.path.toLowerCase().includes(search)
+    || (page.resultStatus ?? "NOT_CHECKED").toLowerCase().includes(search)) ?? [];
 
   return (
     <main className="super-admin-shell">
@@ -180,14 +191,16 @@ export default function SeoManagementDashboard({ email }: { email: string }) {
           </div>
 
           {notice && <p className="seo-message" role="status">{notice}</p>}
-          {error && <div className="super-admin-error" role="alert"><p>{error}</p><button onClick={() => void loadDashboard()} type="button">Retry</button></div>}
+          {error && <div className="super-admin-error" role="alert"><p>{error}</p></div>}
           {loading && <p aria-live="polite" className="super-admin-state">Loading SEO data…</p>}
 
           <section aria-label="SEO measured results" className="seo-metrics">
             {metricCards.map((card) => (
               <article className="super-admin-card" key={card.label}>
                 <h2>{card.label}</h2>
-                <p>{typeof card.value === "number" ? card.value.toLocaleString() : card.value}</p>
+                <p>{card.label === "Overall audit status"
+                  ? statusBadge(data?.lastAudit?.resultStatus ?? "NOT_CHECKED")
+                  : typeof card.value === "number" ? card.value.toLocaleString() : card.value}</p>
                 {"note" in card && <small>{card.note}</small>}
               </article>
             ))}
@@ -207,7 +220,7 @@ export default function SeoManagementDashboard({ email }: { email: string }) {
               <p>{data?.lastAudit
                 ? data.lastAudit.robots.valid ? "Valid" : "Needs attention"
                 : data ? "Not yet audited" : "Not checked"}</p>
-              <small>Generated rules disallow API, admin and dashboard paths. <a href="/robots.txt">View robots.txt</a>. {data?.lastAudit ? `Last HTTP status: ${data.lastAudit.robots.status ?? "unavailable"}.` : ""}</small>
+              <small>Generated rules block API, admin, dashboard and private Super Admin paths from crawlers; this is not an authorization control. <a href="/robots.txt">View robots.txt</a>. {data?.lastAudit ? `${data.lastAudit.robots.unblockedPrivatePaths?.length ?? 0} required private path(s) were not blocked; HTTP ${data.lastAudit.robots.status ?? "unavailable"}.` : ""}</small>
             </article>
             <article className="super-admin-card">
               <h2>Structured data</h2>
@@ -243,9 +256,11 @@ export default function SeoManagementDashboard({ email }: { email: string }) {
               {draft && <>
                 <label>Page title (up to 70 characters)
                   <input maxLength={70} onChange={(event) => setDraft({ ...draft, title: event.target.value })} required value={draft.title} />
+                  <small className="seo-character-count">{draft.title.length}/70 characters</small>
                 </label>
                 <label>Meta description (up to 160 characters)
                   <textarea maxLength={160} onChange={(event) => setDraft({ ...draft, description: event.target.value })} required value={draft.description} />
+                  <small className="seo-character-count">{draft.description.length}/160 characters</small>
                 </label>
                 <label>Canonical route
                   <select onChange={(event) => setDraft({ ...draft, canonicalPath: event.target.value as SeoPageSettings["canonicalPath"] })} value={draft.canonicalPath}>
@@ -258,9 +273,11 @@ export default function SeoManagementDashboard({ email }: { email: string }) {
                 </div>
                 <label>Open Graph title
                   <input maxLength={70} onChange={(event) => setDraft({ ...draft, openGraph: { ...draft.openGraph, title: event.target.value } })} required value={draft.openGraph.title} />
+                  <small className="seo-character-count">{draft.openGraph.title.length}/70 characters</small>
                 </label>
                 <label>Open Graph description
                   <textarea maxLength={160} onChange={(event) => setDraft({ ...draft, openGraph: { ...draft.openGraph, description: event.target.value } })} required value={draft.openGraph.description} />
+                  <small className="seo-character-count">{draft.openGraph.description.length}/160 characters</small>
                 </label>
                 <button disabled={saving} type="submit">{saving ? "Saving…" : "Save metadata"}</button>
               </>}
@@ -269,23 +286,31 @@ export default function SeoManagementDashboard({ email }: { email: string }) {
 
           <section aria-labelledby="seo-audit-history">
             <h2 className="seo-section-title" id="seo-audit-history">SEO audit history</h2>
+            {data?.lastAudit && <div className="seo-audit-filter">
+              <label>Filter latest audit results
+                <input onChange={(event) => setAuditFilter(event.target.value)} placeholder="Search route or status" value={auditFilter} />
+              </label>
+              <span>{data.lastAudit.pages.length} page result(s) · {data.lastAudit.pagesOmitted ?? 0} omitted by audit limit</span>
+            </div>}
             {data?.lastAudit && <div className="super-admin-table-wrap">
               <table className="super-admin-user-table seo-page-results">
-                <caption>Results from the latest technical audit</caption>
-                <thead><tr><th scope="col">Page</th><th scope="col">HTTP status</th><th scope="col">Title length</th><th scope="col">Description length</th><th scope="col">Canonical</th><th scope="col">Robots</th><th scope="col">Images missing alt</th><th scope="col">Heading levels</th><th scope="col">Internal links checked</th><th scope="col">JSON-LD syntax</th><th scope="col">Internal heuristic</th></tr></thead>
-                <tbody>{data.lastAudit.pages.map((page) => <tr key={page.path}>
+                <caption>Latest measured results · overall {data.lastAudit.resultStatus ?? "NOT CHECKED"} · heuristic only, not a Google ranking or indexing report</caption>
+                <thead><tr><th scope="col">Page</th><th scope="col">Result</th><th scope="col">HTTP</th><th scope="col">Title</th><th scope="col">Description</th><th scope="col">Canonical</th><th scope="col">Robots</th><th scope="col">Open Graph</th><th scope="col">H1</th><th scope="col">Image alt</th><th scope="col">Internal links</th><th scope="col">JSON-LD</th><th scope="col">Sitemap</th></tr></thead>
+                <tbody>{filteredAuditPages.length ? filteredAuditPages.map((page) => <tr key={page.path}>
                   <td>{page.path}</td>
-                  <td>{page.status ?? "Unavailable"}</td>
-                  <td>{page.status === 200 ? `${page.titleLength ?? 0} chars${page.titlePresent ? "" : " · missing"}` : "Unavailable"}</td>
-                  <td>{page.status === 200 ? `${page.descriptionLength ?? 0} chars${page.descriptionPresent ? "" : " · missing"}` : "Unavailable"}</td>
-                  <td>{page.status === 200 ? page.canonicalPresent ? "Present" : "Missing" : "Unavailable"}</td>
-                  <td>{page.status === 200 ? `${page.robotsIndex ? "index" : "noindex"}, ${page.robotsFollow ? "follow" : "nofollow"}` : "Unavailable"}</td>
-                  <td>{page.imagesMissingAlt ?? "Unavailable"}</td>
-                  <td>{page.headingLevels?.join(" → ") || "None"}</td>
-                  <td>{page.internalLinkCount ?? "Unavailable"} ({page.brokenInternalLinks ?? "?"} broken)</td>
-                  <td>{page.validJsonLdBlocks ?? 0} JSON-valid / {page.invalidJsonLdBlocks ?? 0} invalid</td>
-                  <td>{page.issues?.some((issue) => issue.severity === "high") ? "Needs attention" : page.issues?.length ? "Review suggested" : "Basic signals present"}</td>
-                </tr>)}</tbody>
+                  <td>{statusBadge(page.resultStatus ?? "NOT_CHECKED")}</td>
+                  <td>{statusBadge(page.checks?.http.status ?? "NOT_CHECKED")}<small>{page.status ?? "—"}</small></td>
+                  <td>{statusBadge(page.checks?.title.status ?? "NOT_CHECKED")}<small>{page.titlePresent ? `${page.titleLength ?? 0} chars` : "Missing"}</small></td>
+                  <td>{statusBadge(page.checks?.description.status ?? "NOT_CHECKED")}<small>{page.descriptionPresent ? `${page.descriptionLength ?? 0} chars` : "Missing"}</small></td>
+                  <td>{statusBadge(page.checks?.canonical.status ?? "NOT_CHECKED")}<small>{page.canonicalPresent ? "Expected URL matches" : "Missing or differs"}</small></td>
+                  <td>{statusBadge(page.checks?.robots.status ?? "NOT_CHECKED")}<small>{page.robotsIndex ? "index" : "noindex"}, {page.robotsFollow ? "follow" : "nofollow"}</small></td>
+                  <td>{statusBadge(page.checks?.openGraph.status ?? "NOT_CHECKED")}</td>
+                  <td>{statusBadge(page.checks?.h1.status ?? "NOT_CHECKED")}<small>{page.h1Count ?? "—"} H1</small></td>
+                  <td>{statusBadge(page.checks?.imageAlt.status ?? "NOT_CHECKED")}<small>{page.imagesMissingAlt ?? "—"} missing</small></td>
+                  <td>{statusBadge(page.checks?.internalLinks.status ?? "NOT_CHECKED")}<small>{page.internalLinkCount ?? "—"} found · {page.brokenInternalLinks ?? 0} broken</small></td>
+                  <td>{statusBadge(page.checks?.jsonLd.status ?? "NOT_CHECKED")}<small>{page.validJsonLdBlocks ?? 0} valid · {page.invalidJsonLdBlocks ?? 0} invalid</small></td>
+                  <td>{statusBadge(page.checks?.sitemap.status ?? "NOT_CHECKED")}</td>
+                </tr>) : <tr><td colSpan={13}>No audited pages match this filter.</td></tr>}</tbody>
               </table>
             </div>}
             {data?.lastAudit && <div className="seo-issue-list">
@@ -298,12 +323,23 @@ export default function SeoManagementDashboard({ email }: { email: string }) {
             </div>}
             {!data?.audits.length
               ? <p className="super-admin-unavailable">No audit has been run yet. Audit history is stored in the application PostgreSQL database.</p>
-              : <ul className="seo-history">{data.audits.map((audit) => (
-                <li key={audit.id}>
-                  <span><time dateTime={audit.completedAt}>{new Date(audit.completedAt).toLocaleString()}</time> · {audit.pagesAudited} pages</span>
-                  <span>{audit.metrics.missingTitles} missing titles · {audit.metrics.missingDescriptions} missing descriptions · {audit.metrics.brokenInternalLinks} broken internal links</span>
-                </li>
-              ))}</ul>}
+              : <div className="super-admin-table-wrap">
+                <table className="super-admin-audit-table">
+                  <caption>Persisted PostgreSQL audit history. These checks do not report Google indexing.</caption>
+                  <thead><tr><th scope="col">Completed</th><th scope="col">Overall</th><th scope="col">Pages audited</th><th scope="col">Pages omitted</th><th scope="col">Missing titles</th><th scope="col">Missing descriptions</th><th scope="col">Broken links</th><th scope="col">Sitemap</th><th scope="col">robots.txt</th></tr></thead>
+                  <tbody>{data.audits.map((audit) => <tr key={audit.id}>
+                    <td><time dateTime={audit.completedAt}>{new Date(audit.completedAt).toLocaleString()}</time></td>
+                    <td>{statusBadge(audit.resultStatus ?? "NOT_CHECKED")}</td>
+                    <td>{audit.pagesAudited}</td>
+                    <td>{audit.pagesOmitted ?? "—"}</td>
+                    <td>{audit.metrics.missingTitles}</td>
+                    <td>{audit.metrics.missingDescriptions}</td>
+                    <td>{audit.metrics.brokenInternalLinks}</td>
+                    <td>{statusBadge(audit.sitemap.check?.status ?? (audit.sitemap.valid ? "PASS" : "NOT_CHECKED"))}</td>
+                    <td>{statusBadge(audit.robots.check?.status ?? (audit.robots.valid ? "PASS" : "NOT_CHECKED"))}</td>
+                  </tr>)}</tbody>
+                </table>
+              </div>}
           </section>
         </div>
       </section>

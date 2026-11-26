@@ -57,9 +57,30 @@ export type SeoPageSettings = {
   openGraph: { title: string; description: string };
 };
 
+export type SeoCheckStatus = "PASS" | "WARNING" | "FAILED" | "NOT_CHECKED";
+export type SeoAuditCheck = {
+  status: SeoCheckStatus;
+  actual: string;
+  expected?: string;
+};
+
 export type SeoPageAudit = {
   path: SeoPagePath;
   status: number | null;
+  resultStatus?: SeoCheckStatus;
+  checks?: {
+    http: SeoAuditCheck;
+    title: SeoAuditCheck;
+    description: SeoAuditCheck;
+    canonical: SeoAuditCheck;
+    robots: SeoAuditCheck;
+    openGraph: SeoAuditCheck;
+    h1: SeoAuditCheck;
+    imageAlt: SeoAuditCheck;
+    internalLinks: SeoAuditCheck;
+    jsonLd: SeoAuditCheck;
+    sitemap: SeoAuditCheck;
+  };
   titlePresent: boolean;
   titleLength?: number | null;
   descriptionPresent: boolean;
@@ -75,6 +96,7 @@ export type SeoPageAudit = {
   headingLevels?: number[] | null;
   internalLinkCount: number | null;
   brokenInternalLinks: number | null;
+  internalLinksNotChecked?: number | null;
   sitemapIncluded?: boolean | null;
   validJsonLdBlocks: number | null;
   invalidJsonLdBlocks: number | null;
@@ -85,6 +107,8 @@ export type SeoAuditRecord = {
   id: string;
   completedAt: string;
   pagesAudited: number;
+  pagesOmitted?: number;
+  resultStatus?: SeoCheckStatus;
   metrics: {
     missingTitles: number;
     missingDescriptions: number;
@@ -100,8 +124,14 @@ export type SeoAuditRecord = {
     validJsonLdBlocks: number;
     invalidJsonLdBlocks: number;
   };
-  sitemap: { status: number | null; valid: boolean; listedPages: number };
-  robots: { status: number | null; valid: boolean; blockedPublicPaths: string[] };
+  sitemap: { status: number | null; valid: boolean; listedPages: number; check?: SeoAuditCheck };
+  robots: {
+    status: number | null;
+    valid: boolean;
+    blockedPublicPaths: string[];
+    unblockedPrivatePaths?: string[];
+    check?: SeoAuditCheck;
+  };
   pages: SeoPageAudit[];
   readinessLabel?: "internal_heuristic_not_google_ranking";
 };
@@ -112,8 +142,10 @@ type SeoStore = {
   audits: SeoAuditRecord[];
 };
 
-type SeoRepository = Pick<PrismaClient, "$transaction" | "seoPageSetting" | "seoAuditHistory">;
+type SeoRepository = Pick<PrismaClient, "$transaction" | "seoPageSetting" | "seoAuditHistory">
+  & Partial<Pick<PrismaClient, "blogPost">>;
 const MAX_AUDIT_HISTORY = 20;
+const MAX_AUDIT_PAGES = 200;
 let storeWriteQueue = Promise.resolve();
 
 const emptyStore = (): SeoStore => ({ version: 1, settings: {}, audits: [] });
@@ -150,10 +182,25 @@ function isHttpStatus(value: unknown): value is number | null {
   return value === null || (typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599);
 }
 
+function validAuditCheck(value: unknown): value is SeoAuditCheck {
+  return isObject(value)
+    && ["PASS", "WARNING", "FAILED", "NOT_CHECKED"].includes(value.status as string)
+    && typeof value.actual === "string"
+    && (value.expected === undefined || typeof value.expected === "string");
+}
+
+function validCheckCollection(value: unknown): value is NonNullable<SeoPageAudit["checks"]> {
+  return isObject(value)
+    && ["http", "title", "description", "canonical", "robots", "openGraph", "h1", "imageAlt", "internalLinks", "jsonLd", "sitemap"]
+      .every((name) => validAuditCheck(value[name]));
+}
+
 function validateSeoAuditRecord(value: unknown): SeoAuditRecord | null {
   if (!isObject(value) || typeof value.id !== "string" || !value.id || value.id.length > 100) return null;
   if (typeof value.completedAt !== "string" || !Number.isFinite(Date.parse(value.completedAt))) return null;
-  if (!isCount(value.pagesAudited) || value.pagesAudited > SEO_PAGE_DEFINITIONS.length || !Array.isArray(value.pages) || value.pages.length !== value.pagesAudited) return null;
+  if (!isCount(value.pagesAudited) || value.pagesAudited > MAX_AUDIT_PAGES || !Array.isArray(value.pages) || value.pages.length !== value.pagesAudited) return null;
+  if (value.pagesOmitted !== undefined && !isCount(value.pagesOmitted)) return null;
+  if (value.resultStatus !== undefined && !["PASS", "WARNING", "FAILED", "NOT_CHECKED"].includes(value.resultStatus as string)) return null;
   if (!isObject(value.metrics) || !isObject(value.sitemap) || !isObject(value.robots)) return null;
   const metrics = value.metrics;
 
@@ -176,18 +223,25 @@ function validateSeoAuditRecord(value: unknown): SeoAuditRecord | null {
 
   const sitemap = value.sitemap;
   if (!isHttpStatus(sitemap.status) || typeof sitemap.valid !== "boolean" || !isCount(sitemap.listedPages)) return null;
+  if (sitemap.check !== undefined && !validAuditCheck(sitemap.check)) return null;
   const robots = value.robots;
   if (!isHttpStatus(robots.status) || typeof robots.valid !== "boolean" || !Array.isArray(robots.blockedPublicPaths)) return null;
+  if (robots.unblockedPrivatePaths !== undefined && !Array.isArray(robots.unblockedPrivatePaths)) return null;
+  if (robots.check !== undefined && !validAuditCheck(robots.check)) return null;
   if (!robots.blockedPublicPaths.every((route) => isAuditablePath(route))) return null;
+  if (robots.unblockedPrivatePaths !== undefined && !robots.unblockedPrivatePaths.every((route) => typeof route === "string" && route.startsWith("/"))) return null;
 
   const seenPaths = new Set<string>();
   const pages: SeoPageAudit[] = [];
   for (const page of value.pages) {
     if (!isObject(page) || !isAuditablePath(page.path) || seenPaths.has(page.path as string)) return null;
     if (!isHttpStatus(page.status)) return null;
+    if (page.resultStatus !== undefined && !["PASS", "WARNING", "FAILED", "NOT_CHECKED"].includes(page.resultStatus as string)) return null;
+    if (page.checks !== undefined && !validCheckCollection(page.checks)) return null;
     if (!["titlePresent", "descriptionPresent", "canonicalPresent"].every((key) => typeof page[key] === "boolean")) return null;
     if (![page.h1Count, page.internalLinkCount, page.brokenInternalLinks, page.validJsonLdBlocks, page.invalidJsonLdBlocks]
       .every((count) => count === null || isCount(count))) return null;
+    if (page.internalLinksNotChecked !== undefined && page.internalLinksNotChecked !== null && !isCount(page.internalLinksNotChecked)) return null;
     if (["titleLength", "descriptionLength", "imageCount", "imagesMissingAlt"].some((key) => page[key] !== undefined && page[key] !== null && !isCount(page[key]))) return null;
     if (["robotsIndex", "robotsFollow", "openGraphTitlePresent", "openGraphDescriptionPresent", "sitemapIncluded"]
       .some((key) => page[key] !== undefined && page[key] !== null && typeof page[key] !== "boolean")) return null;
@@ -203,6 +257,8 @@ function validateSeoAuditRecord(value: unknown): SeoAuditRecord | null {
     pages.push({
       path: page.path as SeoPagePath,
       status: page.status,
+      ...(page.resultStatus ? { resultStatus: page.resultStatus as SeoCheckStatus } : {}),
+      ...(validCheckCollection(page.checks) ? { checks: page.checks } : {}),
       titlePresent: page.titlePresent as boolean,
       titleLength: page.titleLength === undefined ? null : page.titleLength as number | null,
       descriptionPresent: page.descriptionPresent as boolean,
@@ -218,6 +274,7 @@ function validateSeoAuditRecord(value: unknown): SeoAuditRecord | null {
       headingLevels: Array.isArray(page.headingLevels) ? page.headingLevels as number[] : null,
       internalLinkCount: page.internalLinkCount as number | null,
       brokenInternalLinks: page.brokenInternalLinks as number | null,
+      internalLinksNotChecked: page.internalLinksNotChecked === undefined ? null : page.internalLinksNotChecked as number | null,
       sitemapIncluded: page.sitemapIncluded === undefined ? null : page.sitemapIncluded as boolean | null,
       validJsonLdBlocks: page.validJsonLdBlocks as number | null,
       invalidJsonLdBlocks: page.invalidJsonLdBlocks as number | null,
@@ -229,9 +286,17 @@ function validateSeoAuditRecord(value: unknown): SeoAuditRecord | null {
     id: value.id,
     completedAt: value.completedAt,
     pagesAudited: value.pagesAudited,
+    ...(value.pagesOmitted === undefined ? {} : { pagesOmitted: value.pagesOmitted as number }),
+    ...(value.resultStatus ? { resultStatus: value.resultStatus as SeoCheckStatus } : {}),
     metrics: Object.fromEntries(metricNames.map((name) => [name, metrics[name] ?? 0])) as SeoAuditRecord["metrics"],
-    sitemap: { status: sitemap.status, valid: sitemap.valid, listedPages: sitemap.listedPages },
-    robots: { status: robots.status, valid: robots.valid, blockedPublicPaths: [...robots.blockedPublicPaths] as string[] },
+    sitemap: { status: sitemap.status, valid: sitemap.valid, listedPages: sitemap.listedPages, ...(validAuditCheck(sitemap.check) ? { check: sitemap.check } : {}) },
+    robots: {
+      status: robots.status,
+      valid: robots.valid,
+      blockedPublicPaths: [...robots.blockedPublicPaths] as string[],
+      ...(Array.isArray(robots.unblockedPrivatePaths) ? { unblockedPrivatePaths: [...robots.unblockedPrivatePaths] as string[] } : {}),
+      ...(validAuditCheck(robots.check) ? { check: robots.check } : {}),
+    },
     pages,
     ...(value.readinessLabel === "internal_heuristic_not_google_ranking" ? { readinessLabel: value.readinessLabel } : {}),
   };
@@ -383,8 +448,14 @@ export async function saveSeoPageSettings(
 }
 
 export async function getSeoDashboardData(storePath?: string, repository?: SeoRepository) {
-  const store = await readSeoStore(storePath, repository);
+  const database = storePath ? undefined : repository ?? await defaultSeoRepository();
+  const store = await readSeoStore(storePath, database);
   const pages = SEO_PAGE_DEFINITIONS.map(({ path: pagePath }) => store.settings[pagePath] ?? defaultSeoSettings(pagePath));
+  const publishedIndexableBlogs = database?.blogPost
+    ? await database.blogPost.count({
+        where: { status: "PUBLISHED", robotsIndex: true, publishedAt: { lte: new Date() } },
+      })
+    : 0;
   return {
     pages,
     audits: store.audits,
@@ -405,17 +476,17 @@ export async function getSeoDashboardData(storePath?: string, repository?: SeoRe
     searchConsole: { configured: false, status: "not_configured" as const },
     sitemap: {
       status: getPublicSiteOrigin() ? "configured" as const : "base_url_missing" as const,
-      pageCount: pages.filter((page) => page.robots.index && page.canonicalPath === page.path).length,
+      pageCount: pages.filter((page) => page.robots.index && page.canonicalPath === page.path).length + publishedIndexableBlogs,
     },
     robots: { status: "generated_from_safe_defaults" as const },
   };
 }
 
 export function getPublicSiteOrigin(environment: NodeJS.ProcessEnv = process.env) {
+  const railwayDomain = environment.RAILWAY_PUBLIC_DOMAIN?.trim();
   const configured = environment.LIFE_PUBLIC_APP_URL?.trim()
-    || (environment.RAILWAY_PUBLIC_DOMAIN?.trim()
-      ? `https://${environment.RAILWAY_PUBLIC_DOMAIN.trim().replace(/^https?:\/\//i, "")}`
-      : "");
+    || (railwayDomain ? `https://${railwayDomain.replace(/^https?:\/\//i, "")}` : "")
+    || (environment.NODE_ENV === "production" ? "https://life-production-66edc885.up.railway.app" : "");
   if (!configured) return null;
   try {
     const url = new URL(configured);
@@ -476,7 +547,11 @@ export function createSitemapEntries(origin: string | null, settings: SeoPageSet
 export function createRobotsMetadata(origin: string | null) {
   return {
     rules: [
-      { userAgent: "*", allow: "/", disallow: ["/api/", "/admin/", "/dashboard/", "/super-admin/"] },
+      {
+        userAgent: "*",
+        allow: "/",
+        disallow: ["/api", "/admin", "/dashboard", "/super-admin", "/super-login", "/developer/dashboard"],
+      },
     ],
     ...(origin ? { sitemap: new URL("/sitemap.xml", origin).toString() } : {}),
   };
@@ -558,6 +633,25 @@ function validateRobotsBody(body: string, publicPaths: string[]) {
   return publicPaths.filter((publicPath) => disallowed.some((rule) => robotsRuleMatches(publicPath, rule)));
 }
 
+function auditCheck(status: SeoCheckStatus, actual: string, expected?: string): SeoAuditCheck {
+  return { status, actual, ...(expected === undefined ? {} : { expected }) };
+}
+
+function absoluteUrl(value: string) {
+  try {
+    return new URL(value).toString();
+  } catch {
+    return null;
+  }
+}
+
+function overallAuditStatus(checks: SeoAuditCheck[]): SeoCheckStatus {
+  if (checks.some((check) => check.status === "FAILED")) return "FAILED";
+  if (checks.some((check) => check.status === "WARNING")) return "WARNING";
+  if (checks.every((check) => check.status === "NOT_CHECKED")) return "NOT_CHECKED";
+  return "PASS";
+}
+
 export async function runSeoAudit(options: {
   storePath?: string;
   actorUserId?: string;
@@ -574,9 +668,39 @@ export async function runSeoAudit(options: {
     throw new Error("SEO audit origin must be the local application loopback address.");
   }
 
-  const store = await readSeoStore(storePath, options.repository);
+  const repository = options.repository ?? (!storePath ? await defaultSeoRepository() : undefined);
+  const store = await readSeoStore(storePath, repository);
   const staticSettings = SEO_PAGE_DEFINITIONS.map(({ path: pagePath }) => store.settings[pagePath] ?? defaultSeoSettings(pagePath));
-  const additionalSettings = (options.additionalPages ?? []).filter((page) =>
+  let additionalPages = options.additionalPages;
+  let blogCanonicalUrls = new Map<string, string>();
+  let eligibleBlogPageCount = additionalPages?.length ?? 0;
+  if (!additionalPages && repository?.blogPost) {
+    eligibleBlogPageCount = await repository.blogPost.count({
+      where: { status: "PUBLISHED", publishedAt: { lte: new Date() } },
+    });
+    const blogPosts = await repository.blogPost.findMany({
+      where: { status: "PUBLISHED", publishedAt: { lte: new Date() } },
+      orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+      take: MAX_AUDIT_PAGES - staticSettings.length,
+      select: {
+        slug: true, title: true, excerpt: true, seoTitle: true, seoDescription: true,
+        canonicalUrl: true, robotsIndex: true,
+      },
+    });
+    additionalPages = blogPosts.map((post) => {
+      const path = `/blogs/${post.slug}`;
+      if (post.canonicalUrl) blogCanonicalUrls.set(path, post.canonicalUrl);
+      return {
+        path,
+        title: post.seoTitle || post.title,
+        description: post.seoDescription || post.excerpt,
+        canonicalPath: path,
+        robots: { index: post.robotsIndex, follow: true },
+        openGraph: { title: post.seoTitle || post.title, description: post.seoDescription || post.excerpt },
+      };
+    });
+  }
+  const validatedAdditionalSettings = (additionalPages ?? []).filter((page) =>
     isAuditablePath(page.path)
     && page.path.startsWith("/blogs/")
     && isAuditablePath(page.canonicalPath)
@@ -584,7 +708,20 @@ export async function runSeoAudit(options: {
     && page.description.trim().length > 0
     && typeof page.robots.index === "boolean"
     && typeof page.robots.follow === "boolean");
-  const settings = [...staticSettings, ...additionalSettings].filter((page) => page.robots.index);
+  const additionalSettings = validatedAdditionalSettings.slice(0, MAX_AUDIT_PAGES - staticSettings.length);
+  const pagesOmitted = Math.max(0, eligibleBlogPageCount - additionalSettings.length);
+  const settings = [...staticSettings, ...additionalSettings];
+  const publicOrigin = getPublicSiteOrigin() ?? parsedOrigin.origin;
+  const canonicalExpectedByPath = new Map(settings.map((page) => [
+    page.path,
+    blogCanonicalUrls.get(page.path) ?? new URL(page.canonicalPath, publicOrigin).toString(),
+  ]));
+  const expectedSitemapUrls = new Set(settings
+    .filter((page) => page.robots.index && (page.path.startsWith("/blogs/") || page.canonicalPath === page.path))
+    .flatMap((page) => {
+      const expected = absoluteUrl(canonicalExpectedByPath.get(page.path) ?? "");
+      return expected && new URL(expected).origin === publicOrigin ? [expected] : [];
+    }));
   const auditedPaths = new Set(settings.map((page) => page.path));
   const fetched = new Map<string, { status: number; html: string }>();
   const pageResults: SeoPageAudit[] = [];
@@ -597,22 +734,34 @@ export async function runSeoAudit(options: {
     const description = htmlMeta(html, (attributes) => attributes.name?.toLowerCase() === "description");
     const ogTitle = htmlMeta(html, (attributes) => attributes.property?.toLowerCase() === "og:title");
     const ogDescription = htmlMeta(html, (attributes) => attributes.property?.toLowerCase() === "og:description");
-    const robots = htmlMeta(html, (attributes) => attributes.name?.toLowerCase() === "robots").toLowerCase().split(/[\s,]+/);
+    const robotsContent = htmlMeta(html, (attributes) => attributes.name?.toLowerCase() === "robots").toLowerCase();
+    const robots = robotsContent.split(/[\s,]+/);
+    const robotsIndex = !robots.includes("noindex");
+    const robotsFollow = !robots.includes("nofollow");
     const imageTags = [...html.matchAll(/<img\b[^>]*>/gi)];
     const imagesMissingAlt = imageTags.filter((match) => !("alt" in parseAttributes(match[0]))).length;
     const headingLevels = [...html.matchAll(/<h([1-6])\b/gi)].map((match) => Number(match[1]));
     const head = html.match(/<head\b[^>]*>([\s\S]*?)<\/head>/i)?.[1] ?? "";
-    const canonicalPresent = [...head.matchAll(/<link\b[^>]*>/gi)].some((match) => {
+    let canonicalActual = "";
+    for (const match of head.matchAll(/<link\b[^>]*>/gi)) {
       const attributes = parseAttributes(match[0]);
-      if (!attributes.rel?.toLowerCase().split(/\s+/).includes("canonical") || !attributes.href) return false;
+      if (!attributes.rel?.toLowerCase().split(/\s+/).includes("canonical") || !attributes.href) continue;
       try {
         const canonical = new URL(attributes.href, url);
-        const publicOrigin = getPublicSiteOrigin();
-        return canonical.origin === parsedOrigin.origin || Boolean(publicOrigin && canonical.origin === publicOrigin);
+        canonicalActual = canonical.toString();
+        break;
       } catch {
-        return false;
+        continue;
       }
-    });
+    }
+    const canonicalExpected = canonicalExpectedByPath.get(settingsForPage.path) ?? "";
+    const normalizedCanonicalExpected = absoluteUrl(canonicalExpected);
+    const canonicalPresent = Boolean(
+      canonicalActual
+      && normalizedCanonicalExpected
+      && new URL(normalizedCanonicalExpected).origin === publicOrigin
+      && canonicalActual === normalizedCanonicalExpected,
+    );
     const jsonLd = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
       .filter((match) => parseAttributes(match[0].slice(0, match[0].indexOf(">") + 1)).type?.toLowerCase() === "application/ld+json");
     let validJsonLdBlocks = 0;
@@ -626,27 +775,84 @@ export async function runSeoAudit(options: {
       }
     }
     const anchors = [...html.matchAll(/<a\b[^>]*>/gi)];
-    const internalLinks = anchors.filter((anchor) => {
+    const internalLinks = anchors.flatMap((anchor) => {
       const href = parseAttributes(anchor[0]).href;
-      if (!href) return false;
+      if (!href) return [];
       try {
         const target = new URL(href, url);
-        return target.origin === parsedOrigin.origin && auditedPaths.has(target.pathname as SeoPagePath);
+        return target.origin === parsedOrigin.origin ? [{ path: target.pathname }] : [];
       } catch {
-        return false;
+        return [];
       }
     });
+    const checkedInternalLinks = internalLinks.filter((link) => auditedPaths.has(link.path));
+    const internalLinksNotChecked = internalLinks.length - checkedInternalLinks.length;
     const h1Count = [...html.matchAll(/<h1\b/gi)].length;
+    const successfulResponse = response.status === 200;
+    const pageChecks = {
+      http: auditCheck(successfulResponse ? "PASS" : "FAILED", `HTTP ${response.status}`, "HTTP 200"),
+      title: auditCheck(
+        !successfulResponse ? "NOT_CHECKED" : !title ? "FAILED" : title.length < 30 || title.length > 70 ? "WARNING" : "PASS",
+        title ? `${title.length} characters` : "Missing",
+        "Present; 30–70 characters is a review heuristic",
+      ),
+      description: auditCheck(
+        !successfulResponse ? "NOT_CHECKED" : !description ? "FAILED" : description.length < 70 || description.length > 160 ? "WARNING" : "PASS",
+        description ? `${description.length} characters` : "Missing",
+        "Present; 70–160 characters is a review heuristic",
+      ),
+      canonical: auditCheck(
+        !successfulResponse ? "NOT_CHECKED" : canonicalPresent ? "PASS" : "FAILED",
+        canonicalActual || "Missing",
+        canonicalExpected || "A same-site canonical URL",
+      ),
+      robots: auditCheck(
+        !successfulResponse ? "NOT_CHECKED"
+          : robotsIndex === settingsForPage.robots.index && robotsFollow === settingsForPage.robots.follow ? "PASS" : "FAILED",
+        robotsContent || "No explicit robots directive; defaults apply",
+        `${settingsForPage.robots.index ? "index" : "noindex"}, ${settingsForPage.robots.follow ? "follow" : "nofollow"}`,
+      ),
+      openGraph: auditCheck(
+        !successfulResponse ? "NOT_CHECKED" : ogTitle && ogDescription ? "PASS" : "WARNING",
+        `${ogTitle ? "title present" : "title missing"}; ${ogDescription ? "description present" : "description missing"}`,
+        "Open Graph title and description",
+      ),
+      h1: auditCheck(
+        !successfulResponse ? "NOT_CHECKED" : h1Count === 1 ? "PASS" : "WARNING",
+        `${h1Count} H1 heading(s)`,
+        "Exactly one H1 heading",
+      ),
+      imageAlt: auditCheck(
+        !successfulResponse ? "NOT_CHECKED" : imagesMissingAlt ? "WARNING" : "PASS",
+        `${imagesMissingAlt} image(s) missing an alt attribute`,
+        "0 images missing an alt attribute",
+      ),
+      internalLinks: auditCheck(
+        !successfulResponse || internalLinks.length === 0 ? "NOT_CHECKED"
+          : internalLinksNotChecked > 0 ? "WARNING" : "PASS",
+        `${checkedInternalLinks.length} checked; ${internalLinksNotChecked} outside the audited route set`,
+        "All same-site links resolve to audited public routes",
+      ),
+      jsonLd: auditCheck(
+        !successfulResponse || validJsonLdBlocks + invalidJsonLdBlocks === 0 ? "NOT_CHECKED"
+          : invalidJsonLdBlocks ? "FAILED" : "PASS",
+        `${validJsonLdBlocks} valid; ${invalidJsonLdBlocks} invalid block(s)`,
+        "Every present JSON-LD block parses as JSON",
+      ),
+      sitemap: auditCheck("NOT_CHECKED", "Sitemap not yet checked"),
+    };
     pageResults.push({
       path: settingsForPage.path,
       status: response.status,
+      resultStatus: overallAuditStatus(Object.values(pageChecks)),
+      checks: pageChecks,
       titlePresent: Boolean(title),
       titleLength: title.length,
       descriptionPresent: Boolean(description),
       descriptionLength: description.length,
       canonicalPresent,
-      robotsIndex: !robots.includes("noindex"),
-      robotsFollow: !robots.includes("nofollow"),
+      robotsIndex,
+      robotsFollow,
       openGraphTitlePresent: Boolean(ogTitle),
       openGraphDescriptionPresent: Boolean(ogDescription),
       imageCount: imageTags.length,
@@ -655,6 +861,7 @@ export async function runSeoAudit(options: {
       headingLevels,
       internalLinkCount: internalLinks.length,
       brokenInternalLinks: 0,
+      internalLinksNotChecked,
       sitemapIncluded: null,
       validJsonLdBlocks,
       invalidJsonLdBlocks,
@@ -681,6 +888,16 @@ export async function runSeoAudit(options: {
       if (targetResult && targetResult.status >= 400) brokenInternalLinks += 1;
     }
     page.brokenInternalLinks = brokenInternalLinks;
+    if (page.checks) {
+      page.checks.internalLinks = auditCheck(
+        brokenInternalLinks > 0 ? "FAILED"
+          : (page.internalLinksNotChecked ?? 0) > 0 ? "WARNING"
+          : (page.internalLinkCount ?? 0) > 0 ? "PASS" : "NOT_CHECKED",
+        `${(page.internalLinkCount ?? 0) - (page.internalLinksNotChecked ?? 0)} checked; ${page.internalLinksNotChecked ?? 0} outside the audited route set; ${brokenInternalLinks} broken`,
+        "All same-site links resolve to audited public routes",
+      );
+      page.resultStatus = overallAuditStatus(Object.values(page.checks));
+    }
   }
 
   const robotsResponse = await fetcher(new URL("/robots.txt", parsedOrigin), {
@@ -689,8 +906,18 @@ export async function runSeoAudit(options: {
     signal: AbortSignal.timeout(8_000),
   });
   const robotsBody = robotsResponse.ok ? await readBoundedBody(robotsResponse) : "";
-  const blockedPublicPaths = validateRobotsBody(robotsBody, settings.map((page) => page.path));
-  const robotsValid = robotsResponse.ok && /^User-Agent:/im.test(robotsBody) && blockedPublicPaths.length === 0;
+  const indexablePaths = settings.filter((page) => page.robots.index).map((page) => page.path);
+  const blockedPublicPaths = validateRobotsBody(robotsBody, indexablePaths);
+  const privatePaths = ["/api/health", "/admin/scripts", "/dashboard", "/super-admin", "/super-login", "/developer/dashboard"];
+  const blockedPrivatePaths = validateRobotsBody(robotsBody, privatePaths);
+  const unblockedPrivatePaths = privatePaths.filter((pagePath) => !blockedPrivatePaths.includes(pagePath));
+  const expectedRobotsSitemap = new URL("/sitemap.xml", publicOrigin).toString();
+  const robotsSitemap = [...robotsBody.matchAll(/^\s*Sitemap:\s*(\S+)\s*$/gim)].map((match) => match[1]);
+  const robotsValid = robotsResponse.ok
+    && /^User-Agent:/im.test(robotsBody)
+    && blockedPublicPaths.length === 0
+    && unblockedPrivatePaths.length === 0
+    && robotsSitemap.includes(expectedRobotsSitemap);
 
   const sitemapResponse = await fetcher(new URL("/sitemap.xml", parsedOrigin), {
     redirect: "manual",
@@ -698,29 +925,43 @@ export async function runSeoAudit(options: {
     signal: AbortSignal.timeout(8_000),
   });
   const sitemapBody = sitemapResponse.ok ? await readBoundedBody(sitemapResponse) : "";
-  const sitemapOrigin = getPublicSiteOrigin() ?? parsedOrigin.origin;
-  const expectedSitemapPaths = new Set(settings.filter((page) => page.canonicalPath === page.path).map((page) => page.path));
   const sitemapLocations = [...sitemapBody.matchAll(/<loc>([\s\S]*?)<\/loc>/gi)].map((match) => match[1].trim());
-  const listedPaths = sitemapLocations
-    .map((location) => {
-      try {
-        const url = new URL(location);
-        return url.origin === sitemapOrigin && !url.search && !url.hash && expectedSitemapPaths.has(url.pathname)
-          ? url.pathname
-          : null;
-      } catch {
-        return null;
-      }
-    });
-  const listedUniquePaths = new Set(listedPaths.filter((pagePath): pagePath is string => pagePath !== null));
-  const listedPages = listedUniquePaths.size;
+  const normalizedSitemapLocations = sitemapLocations.flatMap((location) => {
+    try {
+      const url = new URL(location);
+      return !url.search && !url.hash ? [url.toString()] : [];
+    } catch {
+      return [];
+    }
+  });
+  const listedExpectedUrls = new Set(normalizedSitemapLocations.filter((location) => expectedSitemapUrls.has(location)));
+  const listedPages = listedExpectedUrls.size;
+  const indexableRoutesAvailable = settings
+    .filter((page) => page.robots.index
+      && (page.path.startsWith("/blogs/") || page.canonicalPath === page.path)
+      && expectedSitemapUrls.has(absoluteUrl(canonicalExpectedByPath.get(page.path) ?? "") ?? ""))
+    .every((page) => fetched.get(page.path)?.status === 200);
   const sitemapValid = sitemapResponse.ok
     && /<urlset\b/i.test(sitemapBody)
-    && sitemapLocations.length === expectedSitemapPaths.size
-    && listedPages === expectedSitemapPaths.size;
-  const sitemapPaths = new Set(listedPaths.filter((pagePath): pagePath is string => pagePath !== null));
+    && normalizedSitemapLocations.length === expectedSitemapUrls.size
+    && listedPages === expectedSitemapUrls.size
+    && indexableRoutesAvailable;
   for (const page of pageResults) {
-    page.sitemapIncluded = sitemapPaths.has(page.path);
+    if (!page.robotsIndex) {
+      page.sitemapIncluded = null;
+      if (page.checks) page.checks.sitemap = auditCheck("NOT_CHECKED", "Page is configured as noindex");
+    } else {
+      const expectedUrl = canonicalExpectedByPath.get(page.path);
+      const normalizedExpectedUrl = expectedUrl ? absoluteUrl(expectedUrl) : null;
+      const included = Boolean(normalizedExpectedUrl && listedExpectedUrls.has(normalizedExpectedUrl));
+      page.sitemapIncluded = included;
+      if (page.checks) {
+        const status = included && page.status === 200 ? "PASS" : "FAILED";
+        const actual = included ? `Included; page returned HTTP ${page.status}` : "Missing from sitemap";
+        page.checks.sitemap = auditCheck(status, actual, expectedUrl);
+      }
+    }
+    if (page.checks) page.resultStatus = overallAuditStatus(Object.values(page.checks));
   }
 
   const titleByPath = new Map<string, string>();
@@ -757,21 +998,40 @@ export async function runSeoAudit(options: {
     if (!page.descriptionPresent) page.issues?.push({ severity: "medium", code: "DESCRIPTION_MISSING", message: "Meta description is missing.", suggestion: "Add a unique summary that accurately reflects the visible page." });
     else if ((page.descriptionLength ?? 0) < 70 || (page.descriptionLength ?? 0) > 160) page.issues?.push({ severity: "low", code: "DESCRIPTION_LENGTH", message: `Meta description is ${page.descriptionLength} characters.`, suggestion: "Review for concise, useful wording; length is a heuristic." });
     if (!page.canonicalPresent) page.issues?.push({ severity: "medium", code: "CANONICAL_MISSING", message: "A valid same-site canonical link was not found.", suggestion: "Set the canonical URL to the intended public version of this page." });
-    if (page.robotsIndex === false) page.issues?.push({ severity: "high", code: "ROBOTS_NOINDEX", message: "Rendered robots metadata blocks indexing.", suggestion: "Remove noindex only if this public page should be discoverable." });
+    const expectedSettings = settings.find((entry) => entry.path === page.path);
+    if (page.robotsIndex === false && expectedSettings?.robots.index !== false) page.issues?.push({ severity: "high", code: "ROBOTS_NOINDEX", message: "Rendered robots metadata blocks indexing.", suggestion: "Remove noindex only if this public page should be discoverable." });
     if (!page.openGraphTitlePresent || !page.openGraphDescriptionPresent) page.issues?.push({ severity: "low", code: "OPEN_GRAPH_INCOMPLETE", message: "Open Graph title or description is missing.", suggestion: "Provide social-sharing metadata consistent with visible page content." });
     if ((page.imagesMissingAlt ?? 0) > 0) page.issues?.push({ severity: "medium", code: "IMAGE_ALT_MISSING", message: `${page.imagesMissingAlt} image(s) have no non-empty alt text.`, suggestion: "Add concise alt text for informative images; use empty alt text only for decorative images." });
     if (page.h1Count === 0 || page.h1Count !== 1) page.issues?.push({ severity: "low", code: "H1_STRUCTURE", message: `Page has ${page.h1Count} H1 headings.`, suggestion: "Review the page heading hierarchy and use a clear primary heading." });
     if (page.headingLevels?.some((level, index, levels) => index > 0 && level > levels[index - 1] + 1)) page.issues?.push({ severity: "low", code: "HEADING_HIERARCHY", message: "Heading levels skip one or more ranks.", suggestion: "Use headings in a logical hierarchy without skipping levels." });
     if (page.brokenInternalLinks && page.brokenInternalLinks > 0) page.issues?.push({ severity: "high", code: "BROKEN_INTERNAL_LINK", message: `${page.brokenInternalLinks} links to audited LIFE routes failed.`, suggestion: "Update internal links to working public routes." });
-    if (page.sitemapIncluded === false) page.issues?.push({ severity: "low", code: "SITEMAP_OMISSION", message: "Page is not listed in the current sitemap.", suggestion: "Include it only if its canonical route is public and indexable." });
+    if (expectedSettings?.robots.index && page.sitemapIncluded === false) page.issues?.push({ severity: "low", code: "SITEMAP_OMISSION", message: "Page is not listed in the current sitemap.", suggestion: "Include it only if its canonical route is public and indexable." });
   }
+  const robotsCheck = auditCheck(
+    robotsValid ? "PASS" : "FAILED",
+    `HTTP ${robotsResponse.status}; ${blockedPublicPaths.length} eligible public page(s) blocked; ${unblockedPrivatePaths.length} private route(s) not blocked; sitemap ${robotsSitemap.includes(expectedRobotsSitemap) ? "declared" : "not declared"}`,
+    "HTTP 200, eligible public routes allowed, private routes blocked, and the configured sitemap declared",
+  );
+  const sitemapCheck = auditCheck(
+    sitemapValid ? "PASS" : "FAILED",
+    `HTTP ${sitemapResponse.status}; ${listedPages} expected URL(s) of ${expectedSitemapUrls.size} listed; all included routes return HTTP 200: ${indexableRoutesAvailable}`,
+    `${expectedSitemapUrls.size} unique, same-origin canonical URL(s), each resolving HTTP 200`,
+  );
+  const overallChecks = [
+    robotsCheck,
+    sitemapCheck,
+    ...pageResults.flatMap((page) => page.checks ? Object.values(page.checks) : []),
+    ...(pagesOmitted > 0 ? [auditCheck("WARNING", `${pagesOmitted} published blog page(s) omitted by the audit page limit`)] : []),
+  ];
   const audit: SeoAuditRecord = {
     id: randomUUID(),
     completedAt: new Date().toISOString(),
     pagesAudited: pageResults.length,
+    pagesOmitted,
+    resultStatus: overallAuditStatus(overallChecks),
     metrics,
-    sitemap: { status: sitemapResponse.status, valid: sitemapValid, listedPages },
-    robots: { status: robotsResponse.status, valid: robotsValid, blockedPublicPaths },
+    sitemap: { status: sitemapResponse.status, valid: sitemapValid, listedPages, check: sitemapCheck },
+    robots: { status: robotsResponse.status, valid: robotsValid, blockedPublicPaths, unblockedPrivatePaths, check: robotsCheck },
     pages: pageResults,
     readinessLabel: "internal_heuristic_not_google_ranking",
   };
@@ -823,6 +1083,11 @@ export function auditHistoryCsv(audits: SeoAuditRecord[]) {
     "invalidJsonLdBlocks",
     "sitemapValid",
     "robotsValid",
+    "overallStatus",
+    "pagesOmitted",
+    "sitemapCheckStatus",
+    "robotsCheckStatus",
+    "unblockedPrivatePaths",
   ] as const;
   const escape = (value: unknown) => {
     let text = String(value ?? "");
@@ -845,6 +1110,11 @@ export function auditHistoryCsv(audits: SeoAuditRecord[]) {
       audit.metrics.invalidJsonLdBlocks,
       audit.sitemap.valid,
       audit.robots.valid,
+      audit.resultStatus ?? "NOT_CHECKED",
+      audit.pagesOmitted ?? 0,
+      audit.sitemap.check?.status ?? "NOT_CHECKED",
+      audit.robots.check?.status ?? "NOT_CHECKED",
+      audit.robots.unblockedPrivatePaths?.length ?? 0,
     ].map(escape).join(",")),
   ].join("\r\n");
 }
