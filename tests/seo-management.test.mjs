@@ -33,6 +33,39 @@ async function withTempStore(run) {
   }
 }
 
+function inMemorySeoRepository() {
+  const settings = new Map();
+  const audits = [];
+  const repository = {
+    seoPageSetting: {
+      findMany: async () => [...settings.values()],
+      upsert: async ({ where, create, update }) => {
+        const current = settings.get(where.path);
+        settings.set(where.path, {
+          path: where.path,
+          settings: current ? update.settings : create.settings,
+        });
+      },
+    },
+    seoAuditHistory: {
+      findMany: async ({ take }) => [...audits]
+        .sort((first, second) => second.completedAt.getTime() - first.completedAt.getTime())
+        .slice(0, take),
+      create: async ({ data }) => { audits.push(data); },
+      deleteMany: async ({ where }) => {
+        const retainedIds = new Set(where.id.notIn);
+        const before = audits.length;
+        for (let index = audits.length - 1; index >= 0; index -= 1) {
+          if (!retainedIds.has(audits[index].id)) audits.splice(index, 1);
+        }
+        return { count: before - audits.length };
+      },
+    },
+    $transaction: async (operation) => operation(repository),
+  };
+  return repository;
+}
+
 function adminDependencies(overrides = {}) {
   return {
     authorize: async (_request, allowedRoles) => {
@@ -77,6 +110,44 @@ test("metadata generation uses stored settings and does not invent a public orig
     assert.equal(data.searchConsole.configured, false);
     assert.equal(data.persistence.durableInProduction, false);
   });
+});
+
+test("production SEO settings and audit history use the PostgreSQL repository", async () => {
+  const repository = inMemorySeoRepository();
+  const settings = { ...defaultSeoSettings("/"), title: "Persistent LIFE title" };
+  await saveSeoPageSettings(settings, undefined, "seo-test-admin", repository);
+  assert.equal((await metadataForManagedPage("/", undefined, repository)).title, settings.title);
+
+  const localOrigin = "http://127.0.0.1:43129";
+  const previousPublicUrl = process.env.LIFE_PUBLIC_APP_URL;
+  process.env.LIFE_PUBLIC_APP_URL = localOrigin;
+  const fetcher = async (input) => {
+    const url = new URL(input);
+    if (url.pathname === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /api/\n", { status: 200 });
+    if (url.pathname === "/sitemap.xml") {
+      const entries = SEO_PAGE_DEFINITIONS.map(({ path: pagePath }) => `<url><loc>${localOrigin}${pagePath}</loc></url>`).join("");
+      return new Response(`<urlset>${entries}</urlset>`, { status: 200 });
+    }
+    return new Response(
+      `<html><head><title>${url.pathname}</title><meta name="description" content="Description"><link rel="canonical" href="${url.pathname}"><meta property="og:title" content="Title"><meta property="og:description" content="Description"></head><body><h1>Page</h1></body></html>`,
+      { status: 200 },
+    );
+  };
+  try {
+    const audit = await runSeoAudit({
+      actorUserId: "seo-test-admin",
+      repository,
+      fetcher,
+      localOrigin,
+    });
+    const dashboard = await getSeoDashboardData(undefined, repository);
+    assert.equal(dashboard.persistence.type, "postgresql");
+    assert.equal(dashboard.persistence.durableInProduction, true);
+    assert.equal(dashboard.lastAudit.id, audit.id);
+  } finally {
+    if (previousPublicUrl === undefined) delete process.env.LIFE_PUBLIC_APP_URL;
+    else process.env.LIFE_PUBLIC_APP_URL = previousPublicUrl;
+  }
 });
 
 test("sitemap and robots helpers include only canonical indexable LIFE routes", () => {

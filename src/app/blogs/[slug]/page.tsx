@@ -11,7 +11,8 @@ type BlogPageProps = { params: Promise<{ slug: string }> };
 async function getPost(slug: string) {
   try {
     return { kind: "ready" as const, post: await findPublishedBlogPost(getPrisma(), slug) };
-  } catch {
+  } catch (error) {
+    console.error("Published blog post could not be loaded.", { errorType: error instanceof Error ? error.name : "UnknownError" });
     return { kind: "unavailable" as const };
   }
 }
@@ -41,7 +42,7 @@ export async function generateMetadata({ params }: BlogPageProps): Promise<Metad
 export default async function BlogPostPage({ params }: BlogPageProps) {
   const { slug } = await params;
   const result = await getPost(slug);
-  if (result.kind === "unavailable") return <><PublicPageHeader /><main className="public-blog"><h1>Blog storage is not ready</h1><p>Review and approve the pending Blog CMS database migration before using published articles.</p></main></>;
+  if (result.kind === "unavailable") return <><PublicPageHeader /><main className="public-blog"><h1>Article temporarily unavailable</h1><p>Blog articles are temporarily unavailable. Please try again later.</p></main></>;
   const post = result.post;
   if (!post) notFound();
   const paragraphs = post.body.split(/\n{2,}/).filter(Boolean);

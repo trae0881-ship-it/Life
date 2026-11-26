@@ -13,8 +13,9 @@ export default async function BlogListingPage() {
   let posts;
   try {
     posts = await listPublishedBlogPosts(getPrisma(), 1);
-  } catch {
-    return <><PublicPageHeader /><main className="public-blog"><h1>Journal temporarily unavailable</h1><p>Blog storage is not ready. The local Blog CMS database migration must be reviewed and approved before publishing.</p></main></>;
+  } catch (error) {
+    console.error("Published blog posts could not be loaded.", { errorType: error instanceof Error ? error.name : "UnknownError" });
+    return <><PublicPageHeader /><main className="public-blog"><h1>Journal temporarily unavailable</h1><p>Blog articles are temporarily unavailable. Please try again later.</p></main></>;
   }
 
   return <>

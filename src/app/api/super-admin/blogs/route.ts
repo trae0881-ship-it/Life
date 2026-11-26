@@ -20,8 +20,9 @@ export async function GET(request: NextRequest) {
   }
   try {
     return NextResponse.json(await listBlogPosts(getPrisma(), { page, query, ...(status ? { status: status as typeof BLOG_STATUSES[number] } : {}) }), { headers: { "Cache-Control": "no-store" } });
-  } catch {
-    return jsonError("Blog storage is unavailable. The approved Blog CMS migration may not yet be applied.", 503, "BLOG_STORAGE_UNAVAILABLE");
+  } catch (error) {
+    console.error("Blog posts could not be loaded.", { errorType: error instanceof Error ? error.name : "UnknownError" });
+    return jsonError("Blog storage is unavailable. Verify database connectivity and that all required migrations have been applied.", 503, "BLOG_STORAGE_UNAVAILABLE");
   }
 }
 
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof RequestBodyError) return jsonError(error.message, error.status, error.status === 400 ? "INVALID_JSON" : "PAYLOAD_TOO_LARGE");
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") return jsonError("That blog slug is already in use.", 409, "SLUG_ALREADY_EXISTS");
-    return jsonError("Blog storage is unavailable. The approved Blog CMS migration may not yet be applied.", 503, "BLOG_STORAGE_UNAVAILABLE");
+    console.error("Blog post could not be created.", { errorType: error instanceof Error ? error.name : "UnknownError" });
+    return jsonError("Blog storage is unavailable. Verify database connectivity and that all required migrations have been applied.", 503, "BLOG_STORAGE_UNAVAILABLE");
   }
 }

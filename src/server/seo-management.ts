@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Metadata } from "next";
+import type { Prisma, PrismaClient } from "../../generated/prisma/client";
 
 export const SEO_PAGE_DEFINITIONS = [
   {
@@ -111,11 +112,16 @@ type SeoStore = {
   audits: SeoAuditRecord[];
 };
 
-const DEFAULT_STORE_PATH = path.join(process.cwd(), "data", "seo-management.json");
+type SeoRepository = Pick<PrismaClient, "$transaction" | "seoPageSetting" | "seoAuditHistory">;
 const MAX_AUDIT_HISTORY = 20;
 let storeWriteQueue = Promise.resolve();
 
 const emptyStore = (): SeoStore => ({ version: 1, settings: {}, audits: [] });
+
+async function defaultSeoRepository(): Promise<SeoRepository> {
+  const { getPrisma } = await import("./db.ts");
+  return getPrisma();
+}
 
 function withSeoStoreWriteLock<T>(operation: () => Promise<T>): Promise<T> {
   const result = storeWriteQueue.then(operation, operation);
@@ -279,7 +285,35 @@ export function validateSeoPageSettings(value: unknown): SeoPageSettings | null 
   };
 }
 
-export async function readSeoStore(storePath = DEFAULT_STORE_PATH): Promise<SeoStore> {
+async function readDatabaseSeoStore(repository: SeoRepository): Promise<SeoStore> {
+  const [settingsRows, auditRows] = await Promise.all([
+    repository.seoPageSetting.findMany({ select: { path: true, settings: true } }),
+    repository.seoAuditHistory.findMany({
+      orderBy: [{ completedAt: "desc" }, { id: "desc" }],
+      take: MAX_AUDIT_HISTORY,
+      select: { id: true, record: true },
+    }),
+  ]);
+  const settings: SeoStore["settings"] = {};
+  for (const row of settingsRows) {
+    const validated = validateSeoPageSettings(row.settings);
+    if (!validated || validated.path !== row.path) {
+      throw new Error("SEO management database contains invalid page metadata.");
+    }
+    settings[row.path] = validated;
+  }
+  const audits = auditRows.map((row) => {
+    const validated = validateSeoAuditRecord(row.record);
+    if (!validated || validated.id !== row.id) {
+      throw new Error("SEO management database contains invalid audit history.");
+    }
+    return validated;
+  });
+  return { version: 1, settings, audits };
+}
+
+export async function readSeoStore(storePath?: string, repository?: SeoRepository): Promise<SeoStore> {
+  if (!storePath) return readDatabaseSeoStore(repository ?? await defaultSeoRepository());
   try {
     const contents = await readFile(/*turbopackIgnore: true*/ storePath, "utf8");
     const parsed: unknown = JSON.parse(contents);
@@ -315,9 +349,31 @@ async function writeSeoStore(store: SeoStore, storePath: string) {
   }
 }
 
-export async function saveSeoPageSettings(value: unknown, storePath = DEFAULT_STORE_PATH) {
+export async function saveSeoPageSettings(
+  value: unknown,
+  storePath?: string,
+  actorUserId?: string,
+  repository?: SeoRepository,
+) {
   const settings = validateSeoPageSettings(value);
   if (!settings) return null;
+  if (!storePath) {
+    if (!actorUserId) throw new Error("An authenticated Super Admin is required to save SEO metadata.");
+    const database = repository ?? await defaultSeoRepository();
+    await database.seoPageSetting.upsert({
+      where: { path: settings.path },
+      create: {
+        path: settings.path,
+        settings: settings as Prisma.InputJsonValue,
+        updatedByUserId: actorUserId,
+      },
+      update: {
+        settings: settings as Prisma.InputJsonValue,
+        updatedByUserId: actorUserId,
+      },
+    });
+    return settings;
+  }
   return withSeoStoreWriteLock(async () => {
     const store = await readSeoStore(storePath);
     store.settings[settings.path] = settings;
@@ -326,18 +382,24 @@ export async function saveSeoPageSettings(value: unknown, storePath = DEFAULT_ST
   });
 }
 
-export async function getSeoDashboardData(storePath = DEFAULT_STORE_PATH) {
-  const store = await readSeoStore(storePath);
+export async function getSeoDashboardData(storePath?: string, repository?: SeoRepository) {
+  const store = await readSeoStore(storePath, repository);
   const pages = SEO_PAGE_DEFINITIONS.map(({ path: pagePath }) => store.settings[pagePath] ?? defaultSeoSettings(pagePath));
   return {
     pages,
     audits: store.audits,
     lastAudit: store.audits[0] ?? null,
-    persistence: {
-      type: "local_json_file" as const,
-      durableInProduction: false as const,
-      note: "Local JSON storage is intended for development only; deployment persistence is not configured.",
-    },
+    persistence: storePath
+      ? {
+          type: "test_file" as const,
+          durableInProduction: false,
+          note: "The file-backed adapter is enabled only when an explicit store path is provided for tests.",
+        }
+      : {
+          type: "postgresql" as const,
+          durableInProduction: true,
+          note: "SEO metadata and audit history are stored in the application PostgreSQL database.",
+        },
     indexedPages: null,
     indexedPagesSource: "unavailable",
     searchConsole: { configured: false, status: "not_configured" as const },
@@ -350,7 +412,10 @@ export async function getSeoDashboardData(storePath = DEFAULT_STORE_PATH) {
 }
 
 export function getPublicSiteOrigin(environment: NodeJS.ProcessEnv = process.env) {
-  const configured = environment.LIFE_PUBLIC_APP_URL?.trim();
+  const configured = environment.LIFE_PUBLIC_APP_URL?.trim()
+    || (environment.RAILWAY_PUBLIC_DOMAIN?.trim()
+      ? `https://${environment.RAILWAY_PUBLIC_DOMAIN.trim().replace(/^https?:\/\//i, "")}`
+      : "");
   if (!configured) return null;
   try {
     const url = new URL(configured);
@@ -371,10 +436,14 @@ export function getPublicSiteOrigin(environment: NodeJS.ProcessEnv = process.env
   }
 }
 
-export async function metadataForManagedPage(pagePath: SeoPagePath, storePath = DEFAULT_STORE_PATH): Promise<Metadata> {
+export async function metadataForManagedPage(
+  pagePath: SeoPagePath,
+  storePath?: string,
+  repository?: SeoRepository,
+): Promise<Metadata> {
   const definition = pageDefinition(pagePath);
   if (!definition) throw new Error("Unknown managed SEO route.");
-  const store = await readSeoStore(storePath);
+  const store = await readSeoStore(storePath, repository);
   const settings = store.settings[pagePath] ?? defaultSeoSettings(pagePath);
   const origin = getPublicSiteOrigin();
   return {
@@ -491,11 +560,13 @@ function validateRobotsBody(body: string, publicPaths: string[]) {
 
 export async function runSeoAudit(options: {
   storePath?: string;
+  actorUserId?: string;
+  repository?: SeoRepository;
   fetcher?: typeof fetch;
   localOrigin?: string;
   additionalPages?: SeoPageSettings[];
 } = {}) {
-  const storePath = options.storePath ?? DEFAULT_STORE_PATH;
+  const storePath = options.storePath;
   const fetcher = options.fetcher ?? fetch;
   const origin = options.localOrigin ?? localApplicationOrigin();
   const parsedOrigin = new URL(origin);
@@ -503,7 +574,7 @@ export async function runSeoAudit(options: {
     throw new Error("SEO audit origin must be the local application loopback address.");
   }
 
-  const store = await readSeoStore(storePath);
+  const store = await readSeoStore(storePath, options.repository);
   const staticSettings = SEO_PAGE_DEFINITIONS.map(({ path: pagePath }) => store.settings[pagePath] ?? defaultSeoSettings(pagePath));
   const additionalSettings = (options.additionalPages ?? []).filter((page) =>
     isAuditablePath(page.path)
@@ -704,11 +775,36 @@ export async function runSeoAudit(options: {
     pages: pageResults,
     readinessLabel: "internal_heuristic_not_google_ranking",
   };
-  await withSeoStoreWriteLock(async () => {
-    const latestStore = await readSeoStore(storePath);
-    latestStore.audits = [audit, ...latestStore.audits].slice(0, MAX_AUDIT_HISTORY);
-    await writeSeoStore(latestStore, storePath);
-  });
+  if (storePath) {
+    await withSeoStoreWriteLock(async () => {
+      const latestStore = await readSeoStore(storePath);
+      latestStore.audits = [audit, ...latestStore.audits].slice(0, MAX_AUDIT_HISTORY);
+      await writeSeoStore(latestStore, storePath);
+    });
+  } else {
+    const actorUserId = options.actorUserId;
+    if (!actorUserId) throw new Error("An authenticated Super Admin is required to save SEO audit history.");
+    const repository = options.repository ?? await defaultSeoRepository();
+    await repository.$transaction(async (transaction) => {
+      await transaction.seoAuditHistory.create({
+        data: {
+          id: audit.id,
+          completedAt: new Date(audit.completedAt),
+          pagesAudited: audit.pagesAudited,
+          record: audit as Prisma.InputJsonValue,
+          actorUserId,
+        },
+      });
+      const retained = await transaction.seoAuditHistory.findMany({
+        orderBy: [{ completedAt: "desc" }, { id: "desc" }],
+        take: MAX_AUDIT_HISTORY,
+        select: { id: true },
+      });
+      await transaction.seoAuditHistory.deleteMany({
+        where: { id: { notIn: retained.map((row) => row.id) } },
+      });
+    });
+  }
   return audit;
 }
 

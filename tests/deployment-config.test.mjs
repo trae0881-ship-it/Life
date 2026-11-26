@@ -47,6 +47,8 @@ test("Git ignore excludes local database files and secret env files but preserve
 
 test("production public origins and password-reset links reject localhost and require HTTPS", () => {
   assert.equal(getPublicSiteOrigin({ LIFE_PUBLIC_APP_URL: "https://life.example", NODE_ENV: "production" }), "https://life.example");
+  assert.equal(getPublicSiteOrigin({ RAILWAY_PUBLIC_DOMAIN: "life-production.up.railway.app", NODE_ENV: "production" }), "https://life-production.up.railway.app");
+  assert.equal(getPublicSiteOrigin({ RAILWAY_PUBLIC_DOMAIN: "https://life-production.up.railway.app", NODE_ENV: "production" }), "https://life-production.up.railway.app");
   assert.equal(getPublicSiteOrigin({ LIFE_PUBLIC_APP_URL: "http://life.example", NODE_ENV: "production" }), null);
   assert.equal(getPublicSiteOrigin({ LIFE_PUBLIC_APP_URL: "http://localhost:3000", NODE_ENV: "production" }), null);
   assert.equal(getPublicSiteOrigin({ LIFE_PUBLIC_APP_URL: "http://localhost:3000", NODE_ENV: "development" }), "http://localhost:3000");

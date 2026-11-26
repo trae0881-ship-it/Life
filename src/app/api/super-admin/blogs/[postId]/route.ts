@@ -25,8 +25,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
     });
     if (!post) return jsonError("Blog post was not found.", 404, "BLOG_POST_NOT_FOUND");
     return NextResponse.json({ post }, { headers: { "Cache-Control": "no-store" } });
-  } catch {
-    return jsonError("Blog storage is unavailable. The approved Blog CMS migration may not yet be applied.", 503, "BLOG_STORAGE_UNAVAILABLE");
+  } catch (error) {
+    console.error("Blog post could not be loaded.", { errorType: error instanceof Error ? error.name : "UnknownError" });
+    return jsonError("Blog storage is unavailable. Verify database connectivity and that all required migrations have been applied.", 503, "BLOG_STORAGE_UNAVAILABLE");
   }
 }
 
@@ -46,6 +47,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   } catch (error) {
     if (error instanceof RequestBodyError) return jsonError(error.message, error.status, error.status === 400 ? "INVALID_JSON" : "PAYLOAD_TOO_LARGE");
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") return jsonError("That blog slug is already in use.", 409, "SLUG_ALREADY_EXISTS");
-    return jsonError("Blog storage is unavailable. The approved Blog CMS migration may not yet be applied.", 503, "BLOG_STORAGE_UNAVAILABLE");
+    console.error("Blog post could not be updated.", { errorType: error instanceof Error ? error.name : "UnknownError" });
+    return jsonError("Blog storage is unavailable. Verify database connectivity and that all required migrations have been applied.", 503, "BLOG_STORAGE_UNAVAILABLE");
   }
 }

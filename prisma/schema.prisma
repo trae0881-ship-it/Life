@@ -78,6 +78,8 @@ model User {
   palmistryRecord     PalmistryRecord?
   palmistryHandImages PalmistryHandImage[]
   palmistryReadings   PalmistryReading[]
+  seoPageSettings SeoPageSetting[]
+  seoAuditHistory SeoAuditHistory[] @relation("SeoAuditActor")
 
 
 }
@@ -288,6 +290,28 @@ model BlogPost {
   @@index([status, publishedAt])
   @@index([category, status, publishedAt])
   @@index([updatedAt])
+}
+
+model SeoPageSetting {
+  path            String   @id @db.VarChar(180)
+  settings        Json
+  updatedByUserId String
+  updatedAt       DateTime @updatedAt
+  updatedBy       User     @relation(fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([updatedAt])
+}
+
+model SeoAuditHistory {
+  id           String   @id @db.VarChar(100)
+  completedAt  DateTime
+  pagesAudited Int
+  record       Json
+  actorUserId  String
+  actor        User     @relation("SeoAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([completedAt, id])
+  @@index([actorUserId, completedAt])
 }
 
 model PasswordResetToken {

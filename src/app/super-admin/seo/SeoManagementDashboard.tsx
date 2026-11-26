@@ -12,7 +12,11 @@ type DashboardData = {
   searchConsole: { configured: false; status: "not_configured" };
   sitemap: { status: "configured" | "base_url_missing"; pageCount: number };
   robots: { status: "generated_from_safe_defaults" };
-  persistence: { type: "local_json_file"; durableInProduction: false; note: string };
+  persistence: {
+    type: "postgresql" | "test_file";
+    durableInProduction: boolean;
+    note: string;
+  };
 };
 
 const emptyState = "Not yet audited";
@@ -220,7 +224,7 @@ export default function SeoManagementDashboard({ email }: { email: string }) {
           <section className="seo-editor">
             <div className="seo-editor-panel">
               <h2>Metadata Manager</h2>
-              <p className="seo-note">Settings and audit history use atomic local JSON storage. This is development-only and is not durable production storage; deployment persistence is not configured. No database schema or database writes are used.</p>
+              <p className="seo-note">{data?.persistence.note ?? "SEO metadata is stored in the application database."}</p>
               <div className="seo-page-list" aria-label="Managed public pages">
                 {data?.pages.map((page) => (
                   <button
@@ -293,7 +297,7 @@ export default function SeoManagementDashboard({ email }: { email: string }) {
                 : <p>No issues were detected by the available checks.</p>}
             </div>}
             {!data?.audits.length
-              ? <p className="super-admin-unavailable">No audit has been run yet. Audit history is stored locally with the application data file.</p>
+              ? <p className="super-admin-unavailable">No audit has been run yet. Audit history is stored in the application PostgreSQL database.</p>
               : <ul className="seo-history">{data.audits.map((audit) => (
                 <li key={audit.id}>
                   <span><time dateTime={audit.completedAt}>{new Date(audit.completedAt).toLocaleString()}</time> · {audit.pagesAudited} pages</span>

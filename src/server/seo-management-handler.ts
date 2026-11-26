@@ -20,6 +20,8 @@ type Dependencies = {
   runAudit?: () => ReturnType<typeof runSeoAudit>;
 };
 
+type Authorized = { status: 200; user: { id: string } };
+
 function denied(status: 401 | 403) {
   return Response.json(
     {
@@ -30,23 +32,27 @@ function denied(status: 401 | 403) {
   );
 }
 
-async function authorize(request: Request, dependencies: Dependencies) {
+async function authorize(request: Request, dependencies: Dependencies): Promise<Authorized | Response> {
   const result = await dependencies.authorize(request, ["SUPER_ADMIN"]);
   if (result.status !== 200 || !result.user) return denied(result.status === 401 ? 401 : 403);
-  return null;
+  return { status: 200, user: result.user };
 }
 
 export async function handleSeoManagement(request: Request, dependencies: Dependencies) {
-  const deniedResponse = await authorize(request, dependencies);
-  if (deniedResponse) return deniedResponse;
+  const authorization = await authorize(request, dependencies);
+  if (authorization instanceof Response) return authorization;
 
   if (request.method === "GET") {
     try {
       return Response.json(await getSeoDashboardData(dependencies.storePath), {
         headers: { "Cache-Control": "no-store" },
       });
-    } catch {
-      return Response.json({ error: "SEO settings could not be loaded.", code: "SEO_STORAGE_UNAVAILABLE" }, { status: 503 });
+    } catch (error) {
+      console.error("SEO settings could not be loaded.", { errorType: error instanceof Error ? error.name : "UnknownError" });
+      return Response.json({
+        error: "SEO storage is unavailable. Verify database connectivity and that required migrations have been applied.",
+        code: "SEO_STORAGE_UNAVAILABLE",
+      }, { status: 503 });
     }
   }
 
@@ -62,7 +68,7 @@ export async function handleSeoManagement(request: Request, dependencies: Depend
     if (!body || !("page" in body)) {
       return Response.json({ error: "SEO page metadata is required.", code: "INVALID_INPUT" }, { status: 422 });
     }
-    const settings = await saveSeoPageSettings(body.page, dependencies.storePath);
+    const settings = await saveSeoPageSettings(body.page, dependencies.storePath, authorization.user.id);
     if (!settings) {
       return Response.json({ error: "SEO metadata is invalid or the route is not managed.", code: "INVALID_INPUT" }, { status: 422 });
     }
@@ -74,7 +80,11 @@ export async function handleSeoManagement(request: Request, dependencies: Depend
         { status: error.status },
       );
     }
-    return Response.json({ error: "SEO settings could not be saved.", code: "SEO_STORAGE_UNAVAILABLE" }, { status: 503 });
+    console.error("SEO settings could not be saved.", { errorType: error instanceof Error ? error.name : "UnknownError" });
+    return Response.json({
+      error: "SEO settings could not be saved. Verify database connectivity and that required migrations have been applied.",
+      code: "SEO_STORAGE_UNAVAILABLE",
+    }, { status: 503 });
   }
 }
 
@@ -100,19 +110,20 @@ export async function handleSeoAudit(request: Request, dependencies: Dependencie
   try {
     const audit = dependencies.runAudit
       ? await dependencies.runAudit()
-      : await runSeoAudit({ storePath: dependencies.storePath });
+      : await runSeoAudit({ storePath: dependencies.storePath, actorUserId: authorization.user.id });
     return Response.json({ audit }, { headers: { "Cache-Control": "no-store" } });
-  } catch {
+  } catch (error) {
+    console.error("SEO technical audit could not be saved or completed.", { errorType: error instanceof Error ? error.name : "UnknownError" });
     return Response.json(
-      { error: "The local technical SEO audit could not complete.", code: "SEO_AUDIT_FAILED" },
+      { error: "The technical SEO audit could not complete. Check local route availability and PostgreSQL migration status.", code: "SEO_AUDIT_FAILED" },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
 }
 
 export async function handleSeoExport(request: Request, dependencies: Dependencies) {
-  const deniedResponse = await authorize(request, dependencies);
-  if (deniedResponse) return deniedResponse;
+  const authorization = await authorize(request, dependencies);
+  if (authorization instanceof Response) return authorization;
   if (request.method !== "GET") {
     return Response.json({ error: "Method not allowed.", code: "METHOD_NOT_ALLOWED" }, { status: 405 });
   }
@@ -126,7 +137,8 @@ export async function handleSeoExport(request: Request, dependencies: Dependenci
         "Content-Disposition": 'attachment; filename="life-seo-audit-history.csv"',
       },
     });
-  } catch {
+  } catch (error) {
+    console.error("SEO audit history could not be exported.", { errorType: error instanceof Error ? error.name : "UnknownError" });
     return Response.json({ error: "SEO audit history could not be exported.", code: "SEO_STORAGE_UNAVAILABLE" }, { status: 503 });
   }
 }

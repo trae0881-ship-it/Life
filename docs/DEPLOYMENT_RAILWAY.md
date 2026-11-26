@@ -17,7 +17,7 @@ Dockerfile, `railway.json`, standalone start script, health endpoint, Prisma sch
 
 ## Reconciling Supabase migration history
 
-The repository contains six Prisma migration directories, but the read-only catalog check did not find a Prisma `_prisma_migrations` ledger. This makes historical migration status **UNKNOWN**; matching current table/column/index/constraint metadata does not prove which migration commands were used or when. Do not treat every migration as pending, fabricate the ledger, or run `prisma migrate resolve` based only on current schema shape.
+The read-only catalog check did not find a Prisma `_prisma_migrations` ledger. This makes historical migration status **UNKNOWN**; matching current table/column/index/constraint metadata does not prove which migration commands were used or when. Do not treat every migration as pending, fabricate the ledger, or run `prisma migrate resolve` based only on current schema shape.
 
 An authorized database operator should:
 
@@ -60,6 +60,7 @@ Set values in the hosting provider's secret/environment manager; do not commit c
 |---|---|
 | `DATABASE_URL` | Required for database-backed application features. Use the provider's PostgreSQL connection reference, TLS settings, and production database only in the production environment. |
 | `LIFE_PUBLIC_APP_URL` | Set to the deployed HTTPS origin (scheme and host only). Used for password-reset links and canonical site metadata; do not leave the localhost example value in production. |
+| `RAILWAY_PUBLIC_DOMAIN` | Railway-provided public hostname can be used as the canonical-origin fallback when `LIFE_PUBLIC_APP_URL` is unset. Set `LIFE_PUBLIC_APP_URL` explicitly when a custom domain is preferred. |
 | `API_KEY_PEPPER` | Required for API-key creation and verification. Supply a high-entropy secret of at least 32 bytes through the provider's secret manager. Rotation requires a planned key migration because existing key digests depend on it. |
 | `RESEND_API_KEY` | Optional integration credential; required for password-reset email delivery. |
 | `LIFE_EMAIL_FROM` | Required with `RESEND_API_KEY` and `LIFE_PUBLIC_APP_URL` to send password-reset emails; use a verified sender identity. |
@@ -69,7 +70,9 @@ Set values in the hosting provider's secret/environment manager; do not commit c
 | `LIFE_DATABASE_STORAGE_WARNING_THRESHOLDS` | Optional storage-warning configuration. |
 | `LIFE_DATABASE_TRANSFER_IMPORT_ENABLED` | Keep disabled unless an authorized operator has reviewed and explicitly enabled the protected import workflow. |
 
-`NODE_ENV` is set to `production` by the container. Authentication does not require a separate session-signing secret: sessions use random opaque tokens, database-backed hashes, and the production `__Host-` Secure/HttpOnly/SameSite=Lax cookie. OAuth callback URLs are not used; password-reset links are derived from `LIFE_PUBLIC_APP_URL`, and canonical public origins are unavailable when that HTTPS origin is missing or invalid. The SEO management audit intentionally makes a loopback-only self-request to `127.0.0.1:$PORT`; that internal local audit target is not used for public links, callback URLs, or external redirects.
+`NODE_ENV` is set to `production` by the container. Authentication does not require a separate session-signing secret: sessions use random opaque tokens, database-backed hashes, and the production `__Host-` Secure/HttpOnly/SameSite=Lax cookie. OAuth callback URLs are not used; password-reset links are derived from `LIFE_PUBLIC_APP_URL`. Canonical public origins use the explicit HTTPS `LIFE_PUBLIC_APP_URL`, or Railway's `RAILWAY_PUBLIC_DOMAIN` when the explicit value is absent. The SEO management audit intentionally makes a loopback-only self-request to `127.0.0.1:$PORT`; that internal local audit target is not used for public links, callback URLs, or external redirects.
+
+SEO page settings and the bounded audit history use the PostgreSQL-backed `SeoPageSetting` and `SeoAuditHistory` tables. The Blog CMS uses the `BlogPost` table. Their migrations are additive and are never applied automatically at startup; review and apply them only through the authorized, environment-specific `db:deploy` process. The new SEO migration is `20261126160000_seo_management`; verify the Blog CMS migration `20261026150000_blog_cms` in the same migration-history reconciliation before enabling these features.
 
 Unexpected login, registration, logout, and session-lookup failures return generic service errors and write only the fixed operation name and error class to server logs; credentials, session tokens, database URLs, and exception messages are not logged by these handlers.
 
@@ -85,7 +88,7 @@ Unexpected login, registration, logout, and session-lookup failures return gener
 
 1. Review the exact release and lockfile; require `npm.cmd run verify`, `npx.cmd tsc --noEmit`, `npx.cmd prisma validate`, and `npm.cmd run build` to pass.
 2. Observe the existing Linux/Docker CI workflow pass before considering a Railway image ready. A local Windows build does not verify the Linux native Swiss Ephemeris runtime.
-3. Configure the environment variables above in the correct Railway environment, and verify `LIFE_PUBLIC_APP_URL` is HTTPS and not localhost without printing secret values.
+3. Configure the environment variables above in the correct Railway environment. Verify `LIFE_PUBLIC_APP_URL` is HTTPS when set, or confirm Railway supplied the expected `RAILWAY_PUBLIC_DOMAIN`; never print secret values.
 4. Have the database owner positively identify a new, isolated staging PostgreSQL target and approve the staging migration plan. Do not reuse production or staging credentials across environments. Review and apply migrations only as a separate, explicitly authorized operation; startup does not apply migrations.
 5. On isolated staging, verify Developer and ordinary-user auth, session/logout, `/developers/dashboard` access control, API key scopes and ownership, mail delivery, health/readiness, and backup/restore/rollback.
 6. Confirm log redaction, HTTPS termination, proxy trust, platform secrets, connection limits, monitoring, rate-limiting strategy, and rollback ownership. This app's current rate limits are process-local and are not sufficient for horizontally scaled deployments.

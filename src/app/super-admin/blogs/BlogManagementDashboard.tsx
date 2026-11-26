@@ -29,6 +29,24 @@ export default function BlogManagementDashboard({ author }: { author: string }) 
   const [preview, setPreview] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function signOut() {
+    setSigningOut(true);
+    setError("");
+    try {
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) throw new Error("Sign out failed.");
+      window.location.assign("/super-login");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Sign out failed.");
+      setSigningOut(false);
+    }
+  }
 
   async function loadPosts(nextPage = page) {
     setLoading(true);
@@ -129,20 +147,26 @@ export default function BlogManagementDashboard({ author }: { author: string }) 
   return <main className="super-admin-shell">
     <aside className="super-admin-sidebar">
       <a className="super-admin-brand" href="/super-admin">Super Admin<small>LIFE · OPERATIONS</small></a>
+      <p className="super-admin-identity"><span>Signed in as</span><b>{author}</b></p>
       <nav aria-label="Super Admin navigation" className="super-admin-nav">
         <a href="/super-admin">Overview and admin tools</a>
         <a href="/super-admin/seo">SEO Management</a>
         <a aria-current="page" className="active" href="/super-admin/blogs">Blog Management</a>
         <a href="/admin/scripts">Head / body scripts</a>
       </nav>
-      <div className="super-admin-sidebar-foot"><a href="/blogs">Public blog</a><a href="/super-login">Sign in</a></div>
+      <div className="super-admin-sidebar-foot">
+        <a href="/blogs">Public blog</a>
+        <button disabled={signingOut} onClick={() => void signOut()} type="button">
+          {signingOut ? "Signing out…" : "Sign out"}
+        </button>
+      </div>
     </aside>
     <section className="super-admin-main">
       <header className="super-admin-topbar"><span>BLOG MANAGEMENT</span><span>Super Admin</span></header>
       <div className="super-admin-content">
         <p className="super-admin-eyebrow">LIFE · PUBLISHING</p>
         <h1>Blog Management</h1>
-        <p className="super-admin-description">Draft and manage articles. Only published posts are publicly readable. Publishing requires the prepared database migration to be approved and applied.</p>
+        <p className="super-admin-description">Draft and manage articles stored in PostgreSQL. Only published posts are publicly readable.</p>
         {error && <p className="super-admin-error" role="alert">{error}</p>}
         {notice && <p className="seo-message" role="status">{notice}</p>}
         <section className="developers-section">

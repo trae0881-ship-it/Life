@@ -121,9 +121,13 @@ test("developer portal, interactive docs, blog public routes and protected manag
   assert.ok(existsSync(new URL("../src/app/blogs/[slug]/page.tsx", import.meta.url)));
   const blogsApi = source("src/app/api/super-admin/blogs/route.ts");
   const postApi = source("src/app/api/super-admin/blogs/[postId]/route.ts");
+  const blogDashboard = source("src/app/super-admin/blogs/BlogManagementDashboard.tsx");
   assert.match(blogsApi, /requireRole\(request, \["SUPER_ADMIN"\]\)/);
   assert.match(postApi, /requireRole\(request, \["SUPER_ADMIN"\]\)/);
   assert.match(postApi, /isSameOriginMutation/);
+  assert.match(blogDashboard, /Signed in as/);
+  assert.match(blogDashboard, /api\/auth\/logout/);
+  assert.doesNotMatch(blogDashboard, /href="\/super-login">Sign in/);
   assert.match(source("prisma/schema.prisma"), /model BlogPost/);
   assert.match(source("prisma/migrations/20261026150000_blog_cms/migration.sql"), /CREATE TABLE "BlogPost"/);
   assert.match(source("src/app/sitemap.ts"), /status: "PUBLISHED"/);
