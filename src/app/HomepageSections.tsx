@@ -138,6 +138,17 @@ export default function HomepageSections({ language }: { language: Language }) {
       <section className="home-section home-tools-section" aria-labelledby="tools-title">
         <div className="home-section-heading home-tools-heading"><div><p className="home-eyebrow">A FEW PLACES TO BEGIN</p><h2 id="tools-title">Tools for a closer look</h2></div><div className="carousel-controls"><button type="button" aria-label="Scroll featured tools left" onClick={() => scrollTools(-1)} disabled={scroll.left <= 1}>←</button><button type="button" aria-label="Scroll featured tools right" onClick={() => scrollTools(1)} disabled={scroll.left >= scroll.maximum - 1}>→</button></div></div>
         <div className="home-carousel" ref={carousel} role="region" aria-label="Featured astrology tools" tabIndex={0} onScroll={updateScroll} onKeyDown={(event) => { if (event.key === "ArrowRight") { event.preventDefault(); scrollTools(1); } else if (event.key === "ArrowLeft") { event.preventDefault(); scrollTools(-1); } }}>
+          <svg
+            className="home-carousel-curve"
+            aria-hidden="true"
+            focusable="false"
+            viewBox="0 0 1200 220"
+            preserveAspectRatio="none"
+            style={{ width: `${Math.max(scroll.viewport, scroll.maximum + scroll.viewport)}px` }}
+          >
+            <path className="home-carousel-curve-base" d="M0 110 C100 36 200 36 300 110 S500 184 600 110 S800 36 900 110 S1100 184 1200 110" />
+            <path className="home-carousel-curve-flow" d="M0 110 C100 36 200 36 300 110 S500 184 600 110 S800 36 900 110 S1100 184 1200 110" />
+          </svg>
           {featuredTools.map((tool) => <a className="home-tool-card" href={tool.href} key={tool.href}><span className="home-tool-number">{tool.icon}</span><span className="home-tool-arrow" aria-hidden="true">↗</span><h3>{tool.title}</h3><p>{tool.description}</p><span className="home-tool-open">Open tool</span></a>)}
         </div>
         <p className="home-carousel-hint">Scroll or swipe to explore · use the arrow keys when the carousel is focused</p>
@@ -149,12 +160,12 @@ export default function HomepageSections({ language }: { language: Language }) {
       </section>
 
       <section className="home-section home-blog-section" id="blog" aria-labelledby="blog-title">
-        <div className="home-section-heading"><div><p className="home-eyebrow">FROM THE JOURNAL</p><h2 id="blog-title">Notes on Jyotish</h2></div><a href="/blogs">Visit the LIFE journal ↗</a></div>
+        <div className="home-section-heading"><div><p className="home-eyebrow">FROM THE JOURNAL</p><h2 id="blog-title">Notes on Jyotish</h2></div></div>
         <div className="home-empty-state"><span aria-hidden="true">✧</span><div><h3>No articles published yet</h3><p>When LIFE publishes articles, they’ll appear here. We haven’t added sample or placeholder posts.</p></div></div>
       </section>
 
       <section className="home-about-section" id="about" aria-labelledby="about-title">
-        <div className="about-mark" aria-hidden="true">✳</div><div><p className="home-eyebrow">ABOUT LIFE</p><h2 id="about-title">A workbench, not a black box.</h2><p>LIFE is a Jyotish workbench that calculates astronomical chart data with local application code and provides traditional astrology interpretations from documented rules. Inspect calculation settings, source data and stated limitations alongside your results.</p><p>It is an informational tool—not professional advice or a promise of future outcomes. Some calculations have internal tests but do not yet have independent reference validation.</p><p><a href="/references">Review LIFE’s references, sources and verification scope</a>.</p></div>
+        <div className="about-mark" aria-hidden="true">✳</div><div><p className="home-eyebrow">ABOUT LIFE</p><h2 id="about-title">A workbench, not a black box.</h2><p>LIFE is a Jyotish workbench that calculates astronomical chart data with local application code and provides traditional astrology interpretations from documented rules. Inspect calculation settings, source data and stated limitations alongside your results.</p><p>It is an informational tool—not professional advice or a promise of future outcomes. Some calculations have internal tests but do not yet have independent reference validation.</p></div>
       </section>
 
       <section className="home-section home-faq-section" aria-labelledby="home-faq-title"><div className="home-section-heading"><div><p className="home-eyebrow">GOOD TO KNOW</p><h2 id="home-faq-title">Frequently asked questions</h2></div><a href="#faq">Browse all questions ↓</a></div><AstrologyFaq language={language} /></section>

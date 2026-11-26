@@ -25,7 +25,7 @@ type ChartForSave = {
   settings: { ayanamsa: string; houseSystem: string; node: string };
 };
 
-export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoadSavedChart, language, returnTo, initialMode = "login", lockAuthMode = false, authPortal = "standard" }: { chart: ChartForSave | null; profileDraft: ProfileDraft; onLoadProfile: (profile: Profile) => void; onLoadSavedChart: (chart: unknown) => void; language: Language; returnTo?: string; initialMode?: "login" | "register"; lockAuthMode?: boolean; authPortal?: "standard" | "developer" }) {
+export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoadSavedChart, language, returnTo, initialMode = "login", lockAuthMode = false, authPortal = "standard", showRememberMe = false }: { chart: ChartForSave | null; profileDraft: ProfileDraft; onLoadProfile: (profile: Profile) => void; onLoadSavedChart: (chart: unknown) => void; language: Language; returnTo?: string; initialMode?: "login" | "register"; lockAuthMode?: boolean; authPortal?: "standard" | "developer"; showRememberMe?: boolean }) {
   const [user, setUser] = useState<User | null>(null);
   const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -122,6 +122,7 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
           confirmPassword: mode === "register" ? String(form.get("confirmPassword") ?? "") : undefined,
           acceptedTerms: form.get("acceptedTerms") === "on",
           termsVersion: mode === "register" ? CURRENT_TERMS_VERSION : undefined,
+          rememberMe: mode === "login" && showRememberMe ? form.getAll("rememberMe").includes("true") : undefined,
           portal: mode === "login" && authPortal === "developer" ? "developer" : undefined,
         }),
       });
@@ -416,7 +417,11 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
       {mode === "register" && <small>{t("account.passwordHelp")}</small>}
       {mode === "register" && <label>{t("account.confirmPassword")}<input type={showPasswords ? "text" : "password"} name="confirmPassword" minLength={12} maxLength={128} autoComplete="new-password" required /></label>}
       <button className="account-password-toggle" type="button" aria-pressed={showPasswords} onClick={() => setShowPasswords((visible) => !visible)}>{showPasswords ? t("account.hidePassword") : t("account.showPassword")}</button>
-      {mode === "register" && <label className="account-terms-check"><input type="checkbox" name="acceptedTerms" required /> {t("account.signupTerms")} <a href="/terms-and-conditions">{t("legal.termsLink")}</a> · <a href="/privacy-policy">{t("legal.privacyLink")}</a></label>}
+      {mode === "login" && showRememberMe && <label className="account-remember-check"><input type="hidden" name="rememberMe" value="false" /><input type="checkbox" name="rememberMe" value="true" defaultChecked /> Remember me</label>}
+      {mode === "register" && <div className="account-terms-check">
+        <label className="account-terms-label"><input type="checkbox" name="acceptedTerms" required /> <span>{t("account.signupTerms")}</span></label>
+        <span className="account-terms-links"><a href="/terms-and-conditions">{t("legal.termsLink")}</a> · <a href="/privacy-policy">{t("legal.privacyLink")}</a></span>
+      </div>}
       {mode === "login" && <small className="account-legal-links"><a href="/terms-and-conditions">{t("legal.termsLink")}</a> · <a href="/privacy-policy">{t("legal.privacyLink")}</a></small>}
       <button className="account-action" type="submit" disabled={busy}>{busy ? t("account.wait") : mode === "register" ? t("account.register") : t("account.signIn")}</button>
       {mode === "login" && <a className="account-recovery-link" href="/forgot-password">Forgot password?</a>}

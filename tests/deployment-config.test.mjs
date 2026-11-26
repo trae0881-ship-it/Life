@@ -8,7 +8,8 @@ const railway = JSON.parse(readFileSync(new URL("../railway.json", import.meta.u
 const dockerCi = readFileSync(new URL("../.github/workflows/docker-ci.yml", import.meta.url), "utf8");
 const gitignore = readFileSync(new URL("../.gitignore", import.meta.url), "utf8");
 const deploymentDocs = readFileSync(new URL("../docs/DEPLOYMENT_RAILWAY.md", import.meta.url), "utf8");
-const authHttp = readFileSync(new URL("../src/server/http.ts", import.meta.url), "utf8");
+const authHttp = readFileSync(new URL("../src/server/http.ts", import.meta.url), "utf8")
+  + readFileSync(new URL("../src/server/session-cookie.ts", import.meta.url), "utf8");
 const passwordEmail = readFileSync(new URL("../src/server/password-reset-email.ts", import.meta.url), "utf8");
 const developerPortal = readFileSync(new URL("../src/app/developers/page.tsx", import.meta.url), "utf8");
 const apiDashboard = readFileSync(new URL("../src/app/ApiPlatformDashboard.tsx", import.meta.url), "utf8");

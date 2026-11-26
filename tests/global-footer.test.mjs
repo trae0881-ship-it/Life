@@ -17,6 +17,7 @@ test("root layout renders one shared, accessible footer for all App Router pages
   assert.match(footer, /href="\/developers"/);
   assert.match(footer, /href="\/#about"/);
   assert.match(footer, /href="\/#contact"/);
+  assert.doesNotMatch(footer, /href="\/blogs"|href="\/references"/);
 });
 
 test("all global footer links resolve to real routes or existing homepage sections", () => {
@@ -24,11 +25,9 @@ test("all global footer links resolve to real routes or existing homepage sectio
   const targets = [...footer.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
   const pageFiles = new Map([
     ["/", "src/app/page.tsx"],
-    ["/blogs", "src/app/blogs/page.tsx"],
     ["/developers", "src/app/developers/page.tsx"],
     ["/api/docs", "src/app/api/docs/page.tsx"],
     ["/palmistry", "src/app/palmistry/page.tsx"],
-    ["/references", "src/app/references/page.tsx"],
     ["/privacy-policy", "src/app/privacy-policy/page.tsx"],
     ["/terms-and-conditions", "src/app/terms-and-conditions/page.tsx"],
     ["/disclaimer", "src/app/disclaimer/page.tsx"],

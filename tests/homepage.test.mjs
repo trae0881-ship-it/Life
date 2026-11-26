@@ -60,7 +60,13 @@ test("featured carousel links point to existing tools and support keyboard, touc
   assert.match(homepage, /event\.key === "ArrowLeft"/);
   assert.match(homepage, /element\.scrollTo\(\{ left, behavior: "instant" \}\)/);
   assert.match(homepage, /onScroll=\{updateScroll\}/);
+  assert.match(homepage, /className="home-carousel-curve"[\s\S]*?aria-hidden="true"[\s\S]*?viewBox="0 0 1200 220"/);
+  assert.match(homepage, /scroll\.maximum \+ scroll\.viewport/);
+  assert.match(homepage, /className="home-carousel-curve-flow"/);
   assert.match(homepage, /prefers-reduced-motion: reduce/);
+  assert.match(homepageCss, /@keyframes home-tool-curve-flow/);
+  assert.match(homepageCss, /\.home-carousel-curve-flow\s*\{[^}]*animation:\s*home-tool-curve-flow 3\.8s linear infinite/s);
+  assert.match(homepageCss, /prefers-reduced-motion: reduce[\s\S]*?\.home-carousel-curve-flow\s*\{\s*animation:\s*none/);
   assert.match(homepageCss, /overscroll-behavior-inline: contain/);
   assert.match(homepageCss, /scroll-snap-type: x mandatory/);
   assert.match(homepageCss, /@keyframes home-tool-wave/);
