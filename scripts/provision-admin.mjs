@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../generated/prisma/client.js";
+//import { PrismaClient } from "../generated/prisma/client.ts";
+import { PrismaClient } from "../generated/prisma/client.ts";
 import { parseBootstrapArguments, provisionExistingSuperAdmin } from "./provision-admin-core.mjs";
 
 async function main() {

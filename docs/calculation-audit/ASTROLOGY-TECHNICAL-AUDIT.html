@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Life Astrology Platform - Technical Audit Report</title>
+  <style>
+    :root{
+      --navy:#07111f;--navy2:#0b1a2d;--panel:#101f33;--panel2:#142740;
+      --line:#263a55;--text:#edf4ff;--muted:#aab9cc;--blue:#67a7ff;
+      --green:#35d07f;--red:#ff667a;--yellow:#ffc857;--cyan:#62d5cf;
+      --shadow:0 14px 38px rgba(0,0,0,.28);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:linear-gradient(135deg,var(--navy),#0c2035 55%,#081522);color:var(--text);font-family:Segoe UI,Roboto,Arial,sans-serif;line-height:1.55}
+    a{color:inherit}
+    .topbar{position:sticky;top:0;z-index:30;height:64px;display:flex;align-items:center;gap:16px;padding:0 28px;background:rgba(7,17,31,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}
+    .brand{font-weight:800;letter-spacing:.2px;white-space:nowrap}.brand span{color:var(--blue)}
+    .nav-scroll{display:flex;gap:5px;overflow:auto;padding:8px 0;scrollbar-width:none}.nav-scroll::-webkit-scrollbar{display:none}
+    .nav-scroll a{font-size:.82rem;text-decoration:none;color:var(--muted);padding:7px 9px;border-radius:7px;white-space:nowrap}
+    .nav-scroll a:hover,.nav-scroll a.active{background:var(--panel2);color:white}
+    .print-btn{margin-left:auto;border:1px solid #6e96c8;background:#173557;color:white;border-radius:8px;padding:8px 12px;cursor:pointer}
+    .layout{display:grid;grid-template-columns:250px minmax(0,1fr);max-width:1500px;margin:auto}
+    aside{position:sticky;top:64px;height:calc(100vh - 64px);padding:22px 18px;border-right:1px solid var(--line);background:rgba(9,24,42,.58)}
+    .search{width:100%;border:1px solid var(--line);background:#091727;color:white;border-radius:8px;padding:10px 12px;margin-bottom:14px}
+    .side-nav{display:grid;gap:3px}.side-nav a{display:block;text-decoration:none;color:var(--muted);font-size:.88rem;padding:8px 10px;border-radius:7px}
+    .side-nav a:hover{background:var(--panel2);color:white}
+    main{min-width:0;padding:34px 42px 70px}
+    section{scroll-margin-top:82px;margin:0 0 34px}
+    h1{font-size:clamp(2rem,5vw,3.8rem);line-height:1.05;margin:.2em 0}
+    h2{font-size:1.7rem;margin:0 0 16px;border-bottom:1px solid var(--line);padding-bottom:10px}
+    h3{font-size:1.05rem;margin:18px 0 8px;color:#dbeaff}
+    p{color:#c8d5e5} li{color:#c8d5e5}
+    .hero{border:1px solid var(--line);border-radius:16px;padding:36px;background:radial-gradient(circle at 90% 10%,rgba(70,137,222,.24),transparent 32%),linear-gradient(145deg,#10243b,#0a1728);box-shadow:var(--shadow)}
+    .eyebrow{color:var(--blue);font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.16em}
+    .subtitle{max-width:900px;font-size:1.05rem}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+    .card{grid-column:span 3;border:1px solid var(--line);background:linear-gradient(145deg,var(--panel),#0d1b2b);border-radius:12px;padding:18px;box-shadow:0 8px 22px rgba(0,0,0,.18)}
+    .card.wide{grid-column:span 6}.card.full{grid-column:span 12}
+    .metric{font-size:1.8rem;font-weight:850}.metric-label{color:var(--muted);font-size:.82rem}
+    .badge{display:inline-block;border-radius:999px;padding:4px 9px;font-size:.72rem;font-weight:800;letter-spacing:.02em;border:1px solid transparent}
+    .passed{color:#a1ffd0;background:rgba(53,208,127,.12);border-color:rgba(53,208,127,.35)}
+    .failed{color:#ffabb6;background:rgba(255,102,122,.12);border-color:rgba(255,102,122,.35)}
+    .blocked,.warning{color:#ffe09a;background:rgba(255,200,87,.12);border-color:rgba(255,200,87,.35)}
+    .not-implemented{color:#d1dcec;background:rgba(170,185,204,.10);border-color:rgba(170,185,204,.25)}
+    .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:rgba(10,24,40,.7)}
+    table{width:100%;border-collapse:collapse;font-size:.86rem}
+    th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+    th{background:#14263d;color:#dbeaff;font-weight:750}
+    tr:last-child td{border-bottom:0}td code,li code,p code{color:#8fc1ff}
+    .mono{font-family:Consolas,Courier New,monospace}
+    .callout{border-left:4px solid var(--blue);background:rgba(103,167,255,.08);padding:14px 16px;border-radius:6px}
+    .callout.warning{border-left-color:var(--yellow);background:rgba(255,200,87,.08)}
+    .callout.failed{border-left-color:var(--red);background:rgba(255,102,122,.08)}
+    .roadmap{counter-reset:step}.roadmap li{list-style:none;position:relative;margin:8px 0;padding:10px 12px 10px 44px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+    .roadmap li:before{counter-increment:step;content:counter(step);position:absolute;left:10px;top:9px;width:24px;height:24px;display:grid;place-items:center;border-radius:50%;background:#1d4f83;color:white;font-size:.78rem;font-weight:800}
+    .hidden{display:none!important}
+    footer{border-top:1px solid var(--line);padding:24px 0;color:var(--muted);font-size:.82rem}
+    @media(max-width:1000px){.layout{grid-template-columns:1fr}.topbar{padding:0 14px}.brand{display:none}aside{display:none}main{padding:24px 18px}.card{grid-column:span 6}.card.full{grid-column:span 12}}
+    @media(max-width:620px){.card,.card.wide{grid-column:span 12}.hero{padding:22px}.topbar{height:56px}.nav-scroll a{font-size:.75rem}}
+    @media print{
+      body{background:white;color:#111}.topbar,aside,.print-btn{display:none!important}.layout{display:block}.hero,section,.card,.table-wrap{box-shadow:none;color:#111;background:white;border-color:#bbb}
+      main{padding:0}h2{color:#111}p,li,td{color:#222}th{background:#ddd;color:#111}.badge{border:1px solid #777;color:#111!important;background:white!important}
+      section{break-inside:auto}.card,.table-wrap{break-inside:avoid}
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">LIFE <span>Audit</span></div>
+    <nav class="nav-scroll" aria-label="Section navigation">
+      <a href="#summary">Summary</a><a href="#status">Status</a><a href="#inventory">Inventory</a>
+      <a href="#numerology">Numerology</a><a href="#vedic">Vedic</a><a href="#kp">KP</a>
+      <a href="#palmistry">Palm/Tarot</a><a href="#integration">Integration</a>
+      <a href="#testing">Testing</a><a href="#kundali">Kundali</a><a href="#limitations">Limitations</a>
+      <a href="#roadmap">Roadmap</a>
+    </nav>
+    <button class="print-btn" type="button" id="printBtn">Print / Save PDF</button>
+  </header>
+  <div class="layout">
+    <aside>
+      <input class="search" id="auditSearch" type="search" placeholder="Search audit..." aria-label="Search audit">
+      <nav class="side-nav">
+        <a href="#summary">Executive summary</a><a href="#status">Overall status</a>
+        <a href="#inventory">Feature inventory</a><a href="#numerology">Numerology</a>
+        <a href="#vedic">Vedic astrology</a><a href="#kp">KP astrology</a>
+        <a href="#palmistry">Palmistry & Tarot</a><a href="#integration">API & database</a>
+        <a href="#testing">Testing</a><a href="#kundali">Actual Kundali</a>
+        <a href="#numerology-results">Numerology results</a><a href="#limitations">Known limitations</a>
+        <a href="#missing">Missing features</a><a href="#roadmap">Roadmap</a><a href="#assessment">Final assessment</a>
+      </nav>
+    </aside>
+    <main>
+      <section id="summary" class="hero searchable">
+        <div class="eyebrow">Technical Audit / 26 November 2026</div>
+        <h1>Astrology Platform<br>Technical Audit Report</h1>
+        <p class="subtitle">Read-only audit of the LIFE astrology and numerology repository. This report records source implementation, executed tests, actual Swiss Ephemeris output, blocked checks, and independently verified versus unverified calculations.</p>
+        <div class="grid" style="margin-top:22px">
+          <div class="card"><div class="metric">516</div><div class="metric-label">Unit/subtests passed</div></div>
+          <div class="card"><div class="metric">0</div><div class="metric-label">Unit/subtests failed</div></div>
+          <div class="card"><div class="metric">102</div><div class="metric-label">Exported callable functions found</div></div>
+          <div class="card"><div class="metric">D1-D60</div><div class="metric-label">Divisional engine exposed</div></div>
+        </div>
+      </section>
+
+      <section id="status" class="searchable">
+        <h2>Overall Audit Status</h2>
+        <div class="grid">
+          <div class="card wide"><h3>Core software</h3><p><span class="badge passed">516 / 516 PASSED</span></p><p>The default test command completed successfully with 516 passing subtests and no failures.</p></div>
+          <div class="card wide"><h3>Production readiness</h3><p><span class="badge failed">BUILD FAILED</span> <span class="badge failed">TSC FAILED</span></p><p><code>gsap</code> could not be resolved. PostgreSQL integration is separately blocked.</p></div>
+          <div class="card wide"><h3>Database validation</h3><p><span class="badge blocked">BLOCKED</span></p><p><code>npm.cmd run test:postgres</code> stopped because <code>LIFE_TEST_DATABASE_URL</code> was not configured.</p></div>
+          <div class="card wide"><h3>Astronomical validation</h3><p><span class="badge blocked">NOT INDEPENDENTLY VERIFIED</span></p><p>The synthetic Kundali was executed successfully, but provenance reports <code>fullyVerified=false</code>.</p></div>
+        </div>
+      </section>
+
+      <section id="inventory" class="searchable">
+        <h2>Complete Feature Inventory</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Area</th><th>Status</th><th>Primary implementation</th><th>API / UI / database</th></tr></thead>
+          <tbody>
+            <tr><td>Birth chart / D1</td><td><span class="badge passed">IMPLEMENTED / TESTED</span></td><td><code>src/calculation/chart.ts</code>, <code>time.ts</code>, <code>rules.ts</code></td><td><code>/api/charts</code>, Chart Studio, saved charts</td></tr>
+            <tr><td>D2-D60</td><td><span class="badge passed">IMPLEMENTED / TESTED</span></td><td><code>rules.ts</code>, <code>divisional-metadata.ts</code></td><td>D1-D60 chart workspace sections</td></tr>
+            <tr><td>Vimshottari Dasha</td><td><span class="badge passed">IMPLEMENTED / TESTED</span></td><td><code>rules.ts</code>, <code>dasha-summary.ts</code></td><td>Chart and assistant</td></tr>
+            <tr><td>Panchanga / Vara / transits</td><td><span class="badge blocked">IMPLEMENTED / LIMITED VALIDATION</span></td><td><code>rules.ts</code>, <code>events.ts</code></td><td>Chart API/UI, <code>/api/transits</code></td></tr>
+            <tr><td>Yogas / doshas / dignity / aspects</td><td><span class="badge blocked">IMPLEMENTED / SOURCE REVIEW INCOMPLETE</span></td><td><code>yogas.ts</code>, <code>planetary-status.ts</code></td><td>Chart workspace and assistant</td></tr>
+            <tr><td>KP</td><td><span class="badge blocked">IMPLEMENTED / NO COMPLETE KPI REFERENCE</span></td><td><code>kp.ts</code>, <code>chart.ts</code></td><td>Chart JSON, <code>/kp-astrology</code>, marriage timing</td></tr>
+            <tr><td>DOB/name/mobile/Lo Shu numerology</td><td><span class="badge passed">IMPLEMENTED / TESTED</span></td><td><code>numerology.ts</code>, <code>numerology-recommendations.ts</code></td><td><code>/ank-jyotish</code>, astrology reading API</td></tr>
+            <tr><td>Palmistry</td><td><span class="badge blocked">MANUAL REPORT IMPLEMENTED</span></td><td><code>palmistry/engine.ts</code>, <code>storage.ts</code>, <code>knowledge.ts</code></td><td><code>/palmistry</code>, <code>/api/palmistry*</code></td></tr>
+            <tr><td>Tarot</td><td><span class="badge passed">IMPLEMENTED SOFTWARE FUNCTION</span></td><td><code>tarot.ts</code></td><td><code>/tarot-reading</code>, astrology reading API</td></tr>
+            <tr><td>Saved chart reports</td><td><span class="badge blocked">SOURCE IMPLEMENTED / DB UNVERIFIED</span></td><td><code>saved-report-summary.ts</code>, Prisma <code>SavedChart</code></td><td>Dashboard, <code>/api/saved-charts</code></td></tr>
+            <tr><td>Kundali document upload</td><td><span class="badge blocked">PARTIAL / MANUAL REVIEW</span></td><td><code>kundali-files.ts</code>, <code>KundaliDocument</code></td><td><code>/api/kundalis*</code></td></tr>
+            <tr><td>Kundali Koota matching</td><td><span class="badge not-implemented">NOT IMPLEMENTED</span></td><td>Separate numerology compatibility only</td><td>No complete two-chart matching report</td></tr>
+          </tbody>
+        </table></div>
+        <h3>Calculation inventory</h3>
+        <p>A targeted exported-function enumeration found <strong>102 exported functions</strong> across calculation, palmistry, and interpretation modules. This is a callable-inventory count, not a count of independently validated features.</p>
+      </section>
+
+      <section id="numerology" class="searchable">
+        <h2>Numerology Calculation Audit</h2>
+        <div class="callout warning"><strong>Interpretation notice:</strong> Numerology formulas are implemented, but compatibility and career outputs are cultural traditions and not scientifically validated predictions.</div>
+        <h3>DOB calculations</h3>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Output</th><th>Formula</th><th>Synthetic result</th><th>Source</th></tr></thead>
+          <tbody>
+            <tr><td>Moolank / Birth number</td><td>Reduce birth day: 27 -> 2+7</td><td><strong>9</strong></td><td><code>calculateDateNumbers()</code></td></tr>
+            <tr><td>Bhagyank / Life Path</td><td>2+7+0+4+1+9+9+7=39 -> 3+9=12 -> 3</td><td>Compound 39, reduced <strong>3</strong></td><td><code>calculateDateNumbers()</code></td></tr>
+            <tr><td>Attitude</td><td>Month 4 + day 27 = 31 -> 4</td><td><strong>4</strong></td><td><code>calculateDateNumbers()</code></td></tr>
+            <tr><td>Personal Year</td><td>Birth month + birth day + reference year, reduced</td><td><strong>5</strong></td><td><code>getPersonalCycles()</code></td></tr>
+            <tr><td>Personal Month</td><td>Personal year + calendar month, reduced</td><td><strong>7</strong></td><td><code>getPersonalCycles()</code></td></tr>
+            <tr><td>Personal Day</td><td>Personal month + calendar day, reduced</td><td><strong>6</strong></td><td><code>getPersonalCycles()</code></td></tr>
+          </tbody>
+        </table></div>
+        <h3>Lo Shu and name/mobile modules</h3>
+        <p>DOB-only digits are <code>2,7,4,1,9,9,7</code>. Present: <code>1,2,4,7,9</code>. Missing: <code>3,5,6,8</code>. Repeated: <code>7×2, 9×2</code>. The fixed layout is <code>4-9-2 / 3-5-7 / 8-1-6</code>.</p>
+        <p>Indian extended Lo Shu adds Moolank 9 and Bhagyank 3: present <code>1,2,3,4,7,9</code>, missing <code>5,6,8</code>, 9 repeated three times.</p>
+        <p>Chaldean and Pythagorean name mappings, Soul Urge, Personality, correction suggestions, and mobile digit analysis are implemented. No name or mobile was supplied in the synthetic profile, so those outputs are <span class="badge blocked">INPUT REQUIRED</span>. Mobile validation is syntactic, not carrier or ITU-country validation.</p>
+        <p>Marriage compatibility is a project formula: 3 points for Moolank, 4 for Bhagyank, 3 for name root, plus complementary Lo Shu count, capped at 10. It is not a probability or success prediction.</p>
+      </section>
+
+      <section id="vedic" class="searchable">
+        <h2>Vedic Astrology Calculation Audit</h2>
+        <h3>Executed profile</h3>
+        <p>DOB <code>1997-04-27</code>, time <code>05:45</code>, zone <code>Asia/Kolkata</code>, UTC <code>1997-04-27T00:15:00.000Z</code>, coordinates <code>30.483997, 76.593948</code>, Lahiri, Placidus, true node, engine <code>@swisseph/node 1.4.0</code>.</p>
+        <h3>Lagna and houses</h3>
+        <p><strong>Lagna:</strong> Aries 11.94801181269429°, DMS 11°56'52", Ashwini Pada 4.</p>
+        <div class="table-wrap"><table><thead><tr><th>House</th><th>Sign</th><th>Cusp</th></tr></thead><tbody>
+          <tr><td>1</td><td>Aries</td><td>11.948012°</td></tr><tr><td>2</td><td>Taurus</td><td>42.290398°</td></tr>
+          <tr><td>3</td><td>Gemini</td><td>66.457086°</td></tr><tr><td>4</td><td>Gemini</td><td>89.695986°</td></tr>
+          <tr><td>5</td><td>Cancer</td><td>116.158055°</td></tr><tr><td>6</td><td>Virgo</td><td>150.109075°</td></tr>
+          <tr><td>7</td><td>Libra</td><td>191.948012°</td></tr><tr><td>8</td><td>Scorpio</td><td>222.290398°</td></tr>
+          <tr><td>9</td><td>Sagittarius</td><td>246.457086°</td></tr><tr><td>10</td><td>Sagittarius</td><td>269.695986°</td></tr>
+          <tr><td>11</td><td>Capricorn</td><td>296.158055°</td></tr><tr><td>12</td><td>Pisces</td><td>330.109075°</td></tr>
+        </tbody></table></div>
+        <h3>D1 planetary positions</h3>
+        <div class="table-wrap"><table><thead><tr><th>Planet</th><th>Longitude</th><th>Sign</th><th>House</th><th>Nakshatra</th><th>Pada</th><th>Motion</th></tr></thead><tbody>
+          <tr><td>Sun</td><td>12.967645</td><td>Aries</td><td>1</td><td>Ashwini</td><td>4</td><td>Direct</td></tr>
+          <tr><td>Moon</td><td>243.196022</td><td>Sagittarius</td><td>8</td><td>Mula</td><td>1</td><td>Direct</td></tr>
+          <tr><td>Mercury</td><td>10.376896</td><td>Aries</td><td>12</td><td>Ashwini</td><td>4</td><td>Retrograde</td></tr>
+          <tr><td>Venus</td><td>19.284711</td><td>Aries</td><td>1</td><td>Bharani</td><td>2</td><td>Direct</td></tr>
+          <tr><td>Mars</td><td>142.923106</td><td>Leo</td><td>5</td><td>Purva Phalguni</td><td>3</td><td>Retrograde</td></tr>
+          <tr><td>Jupiter</td><td>295.197446</td><td>Capricorn</td><td>10</td><td>Dhanishta</td><td>1</td><td>Direct</td></tr>
+          <tr><td>Saturn</td><td>349.767115</td><td>Pisces</td><td>12</td><td>Revati</td><td>1</td><td>Direct</td></tr>
+          <tr><td>Uranus</td><td>284.745997</td><td>Capricorn</td><td>10</td><td>Shravana</td><td>2</td><td>Direct</td></tr>
+          <tr><td>Neptune</td><td>276.131811</td><td>Capricorn</td><td>10</td><td>Uttara Ashadha</td><td>3</td><td>Direct</td></tr>
+          <tr><td>Pluto</td><td>221.150888</td><td>Scorpio</td><td>7</td><td>Anuradha</td><td>3</td><td>Retrograde</td></tr>
+          <tr><td>True node</td><td>154.238739</td><td>Virgo</td><td>6</td><td>Uttara Phalguni</td><td>3</td><td>Retrograde</td></tr>
+          <tr><td>True Ketu</td><td>334.238739</td><td>Pisces</td><td>12</td><td>Uttara Bhadrapada</td><td>1</td><td>Retrograde</td></tr>
+        </tbody></table></div>
+        <h3>Dasha and Panchanga</h3>
+        <p>Starting Mahadasha: <strong>Ketu</strong>; birth balance: <strong>5.322088601293914 years</strong>. Birth Ketu period: 1995-08-23T03:58:50.530Z to 2002-08-22T20:43:14.530Z.</p>
+        <p>At 2026-11-26: Sun Mahadasha 2022-08-22T17:07:14.530Z–2028-08-22T04:02:26.530Z; Mercury Antardasha 2026-06-10T15:14:12.130Z–2027-04-17T02:11:01.330Z.</p>
+        <p>Panchanga: Sunday; Mula Pada 1; Krishna Panchami; Kaulava; Shiva; Moon-Sun elongation 230.228376°.</p>
+      </section>
+
+      <section id="kp" class="searchable">
+        <h2>KP Astrology Calculation Audit</h2>
+        <p>KP implementation is in <code>src/calculation/kp.ts</code> and integrated in <code>src/calculation/chart.ts</code>. Actual KP ayanamsa: <strong>23.722186°</strong>.</p>
+        <h3>Actual KP planetary positions</h3>
+        <div class="table-wrap"><table><thead><tr><th>Planet</th><th>Longitude</th><th>Sign</th><th>Sign lord</th><th>Star</th><th>Sub</th><th>Sub-sub</th><th>House</th><th>Signified houses</th></tr></thead><tbody>
+          <tr><td>Sun</td><td>13.064498</td><td>Aries</td><td>Mars</td><td>Ketu</td><td>Mercury</td><td>Saturn</td><td>1</td><td>1,12</td></tr>
+          <tr><td>Moon</td><td>243.292874</td><td>Sagittarius</td><td>Jupiter</td><td>Ketu</td><td>Sun</td><td>Jupiter</td><td>8</td><td>5,8,12</td></tr>
+          <tr><td>Mars</td><td>143.019958</td><td>Leo</td><td>Sun</td><td>Venus</td><td>Saturn</td><td>Sun</td><td>5</td><td>1,2,5,7,8</td></tr>
+          <tr><td>Mercury</td><td>10.473748</td><td>Aries</td><td>Mars</td><td>Ketu</td><td>Saturn</td><td>Sun</td><td>12</td><td>3,4,6,12</td></tr>
+          <tr><td>Jupiter</td><td>295.294298</td><td>Capricorn</td><td>Saturn</td><td>Mars</td><td>Rahu</td><td>Ketu</td><td>10</td><td>1,5,8,9,10,12</td></tr>
+          <tr><td>Venus</td><td>19.381564</td><td>Aries</td><td>Mars</td><td>Venus</td><td>Rahu</td><td>Ketu</td><td>1</td><td>1,2,7</td></tr>
+          <tr><td>Saturn</td><td>349.863967</td><td>Pisces</td><td>Jupiter</td><td>Mercury</td><td>Venus</td><td>Moon</td><td>12</td><td>3,4,6,11,12</td></tr>
+          <tr><td>Rahu</td><td>154.335591</td><td>Virgo</td><td>Mercury</td><td>Sun</td><td>Saturn</td><td>Moon</td><td>6</td><td>1,3,4,6,12</td></tr>
+          <tr><td>Ketu</td><td>334.335591</td><td>Pisces</td><td>Jupiter</td><td>Saturn</td><td>Saturn</td><td>Venus</td><td>12</td><td>9,10,11,12</td></tr>
+        </tbody></table></div>
+        <h3>KP cusps</h3>
+        <div class="table-wrap"><table><thead><tr><th>House</th><th>Longitude</th><th>Sign</th><th>Sign lord</th><th>Star</th><th>Sub</th><th>Sub-sub</th></tr></thead><tbody>
+          <tr><td>1</td><td>12.044864</td><td>Aries</td><td>Mars</td><td>Ketu</td><td>Mercury</td><td>Venus</td></tr>
+          <tr><td>2</td><td>42.387250</td><td>Taurus</td><td>Venus</td><td>Moon</td><td>Rahu</td><td>Jupiter</td></tr>
+          <tr><td>3</td><td>66.553939</td><td>Gemini</td><td>Mercury</td><td>Mars</td><td>Moon</td><td>Venus</td></tr>
+          <tr><td>4</td><td>89.792838</td><td>Gemini</td><td>Mercury</td><td>Jupiter</td><td>Moon</td><td>Jupiter</td></tr>
+          <tr><td>5</td><td>116.254907</td><td>Cancer</td><td>Moon</td><td>Mercury</td><td>Jupiter</td><td>Jupiter</td></tr>
+          <tr><td>6</td><td>150.205927</td><td>Virgo</td><td>Mercury</td><td>Sun</td><td>Rahu</td><td>Mercury</td></tr>
+          <tr><td>7</td><td>192.044864</td><td>Libra</td><td>Venus</td><td>Rahu</td><td>Saturn</td><td>Rahu</td></tr>
+          <tr><td>8</td><td>222.387250</td><td>Scorpio</td><td>Mars</td><td>Saturn</td><td>Mars</td><td>Saturn</td></tr>
+          <tr><td>9</td><td>246.553939</td><td>Sagittarius</td><td>Jupiter</td><td>Ketu</td><td>Rahu</td><td>Mercury</td></tr>
+          <tr><td>10</td><td>269.792838</td><td>Sagittarius</td><td>Jupiter</td><td>Sun</td><td>Rahu</td><td>Saturn</td></tr>
+          <tr><td>11</td><td>296.254907</td><td>Capricorn</td><td>Saturn</td><td>Mars</td><td>Jupiter</td><td>Jupiter</td></tr>
+          <tr><td>12</td><td>330.205927</td><td>Pisces</td><td>Jupiter</td><td>Jupiter</td><td>Moon</td><td>Mercury</td></tr>
+        </tbody></table></div>
+        <p>Marriage timing <code>src/presentation/marriage-timing.ts</code> returns conditional KP 2/7/11 and Dasha intersections only. It explicitly excludes marriage guarantees and uses no reviewed transit event filter.</p>
+      </section>
+
+      <section id="palmistry" class="searchable">
+        <h2>Palmistry and Tarot Audit</h2>
+        <div class="grid">
+          <div class="card wide"><h3>Palmistry implementation</h3><p>Image upload/storage, manual observations, 27-section report, left/right comparison, local history, reference search and deterministic questions are implemented.</p></div>
+          <div class="card wide"><h3>Automatic recognition</h3><p><span class="badge not-implemented">NOT IMPLEMENTED</span></p><p>No AI, OCR, automatic line/mount/finger recognition or external image analysis exists. The image is stored; observations remain manual.</p></div>
+        </div>
+        <p>The source defines 27 palm sections: overall, hand shape, personality, thinking, emotional, heart, head, life, fate, sun, mercury, mounts, fingers, thumb, relationships, marriage, career, business, financial, leadership, creativity, travel, strengths, challenges, comparison, combined, and summary.</p>
+        <p><strong>Tarot:</strong> single, three-card, and past-present-future spreads; general, relationship and career topics; upright/reversed meanings; random selection by <code>crypto.getRandomValues</code>. Tarot is deterministic interpretation text, not astronomical calculation or prediction.</p>
+      </section>
+
+      <section id="integration" class="searchable">
+        <h2>API, Database and Integration Audit</h2>
+        <h3>Calculation trace</h3>
+        <p><code>calculateBirthChart()</code> in <code>src/calculation/chart.ts</code> → <code>POST /api/charts</code> → Chart Studio UI → recalculated saved snapshots in Prisma <code>SavedChart</code>.</p>
+        <div class="table-wrap"><table><thead><tr><th>Area</th><th>Status</th></tr></thead><tbody>
+          <tr><td>Chart calculation</td><td><span class="badge passed">SOURCE IMPLEMENTED</span></td></tr>
+          <tr><td>Chart sensitivity/transits</td><td><span class="badge passed">SOURCE IMPLEMENTED</span></td></tr>
+          <tr><td>Saved charts/profiles/assistant</td><td><span class="badge blocked">SOURCE IMPLEMENTED / LIVE DB UNVERIFIED</span></td></tr>
+          <tr><td>Palmistry routes/storage/RLS</td><td><span class="badge blocked">SOURCE IMPLEMENTED / LIVE DB/RLS UNVERIFIED</span></td></tr>
+          <tr><td>Kundali original document upload</td><td><span class="badge blocked">PARTIAL / NO EXTRACTION</span></td></tr>
+          <tr><td>KP route</td><td><span class="badge passed">NO SEPARATE ROUTE / RETURNED IN CHART JSON</span></td></tr>
+        </tbody></table></div>
+        <p>Prisma 7.10.1 models include birth profiles, saved charts, saved readings, Kundali documents, palmistry records/images/readings, sessions, questions and API platform records.</p>
+        <h3>PostgreSQL result</h3>
+        <div class="callout failed"><strong>BLOCKED:</strong> <code>npm.cmd run test:postgres</code> exited 1 because <code>LIFE_TEST_DATABASE_URL</code> was missing. No migration or database write was performed.</div>
+        <h3>Cross-system integration</h3>
+        <p>No unified Numerology + Vedic, Numerology + KP, or Vedic + KP synthesis report exists. Numerology supports DOB + name + mobile internally. Vedic and KP both exist in chart JSON but remain separate calculations. Career/marriage/foreign cross-system synthesis is not implemented.</p>
+      </section>
+
+      <section id="testing" class="searchable">
+        <h2>Testing and Validation Results</h2>
+        <div class="grid">
+          <div class="card"><div class="metric">516</div><div class="metric-label"><span class="badge passed">PASSED</span> npm test</div></div>
+          <div class="card"><div class="metric">0</div><div class="metric-label"><span class="badge passed">FAILED</span> npm test failures</div></div>
+          <div class="card"><div class="metric">Exit 2</div><div class="metric-label"><span class="badge failed">TSC FAILED</span></div></div>
+          <div class="card"><div class="metric">Exit 1</div><div class="metric-label"><span class="badge failed">BUILD FAILED</span></div></div>
+        </div>
+        <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Command</th><th>Actual result</th><th>Evidence</th></tr></thead><tbody>
+          <tr><td><code>npm.cmd test</code></td><td><span class="badge passed">PASSED</span></td><td>516 tests reported, 516 passed, 0 failed, 10.9657799 seconds</td></tr>
+          <tr><td><code>.\node_modules\.bin\tsc.cmd --noEmit</code></td><td><span class="badge failed">FAILED</span></td><td>Cannot resolve <code>gsap</code>; implicit <code>any</code> parameters in <code>useAuthExperienceMotion.ts</code> line 38</td></tr>
+          <tr><td><code>npm.cmd run build</code></td><td><span class="badge failed">FAILED</span></td><td>Prisma generation completed; Next build stopped at module resolution for <code>gsap</code></td></tr>
+          <tr><td><code>npm.cmd run test:postgres</code></td><td><span class="badge blocked">BLOCKED</span></td><td><code>LIFE_TEST_DATABASE_URL</code> missing</td></tr>
+          <tr><td>Direct chart engine execution</td><td><span class="badge passed">EXECUTED</span></td><td>Chart, D1/D9/D10/D60, Dasha, Panchanga and KP object generated</td></tr>
+          <tr><td>Direct numerology execution</td><td><span class="badge passed">EXECUTED</span></td><td>DOB, personal cycles and both Lo Shu modes generated</td></tr>
+        </tbody></table></div>
+        <h3>Independent verification</h3>
+        <ul>
+          <li>Selected tropical JPL fixtures and PyJHora mapping/natal cross-checks are documented, but the shared Swiss Ephemeris family does not establish independent correctness for all downstream calculations.</li>
+          <li>Vimshottari is internally tested; no independent Dasha numerical fixture was found.</li>
+          <li>KP is internally tested; no complete independent KP result fixture was found.</li>
+          <li>Panchanga/ingress testing is partial and does not establish complete independent astronomical reference accuracy.</li>
+          <li>Yoga/dosha and interpretation rules are software tested, not independently source/classically validated.</li>
+          <li>Numerology formulas are tested, but scientific outcome accuracy is not validated.</li>
+        </ul>
+      </section>
+
+      <section id="kundali" class="searchable">
+        <h2>Actual Kundali Execution Results</h2>
+        <div class="callout warning"><strong>Validation status:</strong> Result hash <code>0ae713702eeee93283fa959555f84752d6e763695661037dbec3ee575388a361</code>. Provenance reports <code>fullyVerified=false</code> and <code>independentReferenceValidation=not-performed</code>.</div>
+        <h3>Divisional representative placements</h3>
+        <div class="table-wrap"><table><thead><tr><th>Chart</th><th>Representative actual placements</th></tr></thead><tbody>
+          <tr><td>D1</td><td>Lagna Aries 11.948012°; Sun Aries 12.967645°; Moon Sagittarius 243.196022°; Jupiter Capricorn 295.197446°; Saturn Pisces 349.767115°.</td></tr>
+          <tr><td>D9</td><td>Lagna Cancer 107.532106°; Sun Cancer 116.708808°; Moon Aries 28.764195°; Jupiter Leo 136.777010°; Saturn Sagittarius 267.904034°.</td></tr>
+          <tr><td>D10</td><td>Lagna Cancer 119.480118°; Sun Leo 129.676453°; Moon Capricorn 271.960217°; Jupiter Taurus 41.974455°; Saturn Taurus 47.671148°.</td></tr>
+          <tr><td>D60</td><td>Lagna Pisces 356.880709°; Sun Taurus 58.058717°; Moon Gemini 71.761303°; Jupiter Pisces 341.846732°; Saturn Gemini 76.026891°.</td></tr>
+        </tbody></table></div>
+        <h3>Dasha and Panchanga</h3>
+        <p>Birth Moon Mula Pada 1, longitude 243.19602171182112°. Starting Mahadasha Ketu. Birth balance 5.322088601293914 years.</p>
+        <p>At 2026-11-26, running Sun Mahadasha and Mercury Antardasha. Civil weekday Sunday; Krishna Panchami; Karana Kaulava; Yoga Shiva.</p>
+        <h3>KP execution summary</h3>
+        <p>KP ayanamsa 23.722186°. Twelve Placidus cusps and nine KP planets with sign, star, sub, sub-sub and house significations were generated. KP 7th-cusp sub lord, house significance and Dasha candidate inputs are present, but no independent complete reference result was executed.</p>
+      </section>
+
+      <section id="numerology-results" class="searchable">
+        <h2>Actual Numerology Execution Results</h2>
+        <div class="grid">
+          <div class="card"><div class="metric">9</div><div class="metric-label">Moolank / Birth number</div></div>
+          <div class="card"><div class="metric">3</div><div class="metric-label">Bhagyank / Life Path</div></div>
+          <div class="card"><div class="metric">4</div><div class="metric-label">Attitude number</div></div>
+          <div class="card"><div class="metric">5 / 7 / 6</div><div class="metric-label">Personal year / month / day</div></div>
+        </div>
+        <p style="margin-top:16px">Bhagyank compound: <strong>39</strong>. DOB-only Lo Shu present <code>1,2,4,7,9</code>; missing <code>3,5,6,8</code>; repeated <code>7×2, 9×2</code>. Indian-extended present <code>1,2,3,4,7,9</code>; missing <code>5,6,8</code>; 9 repeated three times.</p>
+        <p>No name or mobile number was supplied, so name and mobile outputs remain <span class="badge blocked">INPUT REQUIRED</span>.</p>
+      </section>
+
+      <section id="limitations" class="searchable">
+        <h2>Known Limitations</h2>
+        <div class="grid">
+          <div class="card wide"><h3>Verification</h3><p>Selected tropical JPL fixtures and PyJHora cross-checks exist, but complete end-to-end independent sidereal chart, Dasha, KP, Panchanga and ingress reference coverage is incomplete.</p></div>
+          <div class="card wide"><h3>Database</h3><p>Source models and owner guards exist, but live migration state, RLS behavior and browser persistence were not verified.</p></div>
+          <div class="card wide"><h3>Palmistry</h3><p>Manual observations only. No automatic recognition, AI, OCR or clinical interpretation.</p></div>
+          <div class="card wide"><h3>Predictions</h3><p>Career, marriage, wealth, property and foreign-travel outcome rules are not sufficiently implemented or source-reviewed for prediction claims.</p></div>
+        </div>
+      </section>
+
+      <section id="missing" class="searchable">
+        <h2>Missing Features</h2>
+        <div class="table-wrap"><table><thead><tr><th>Feature</th><th>Status</th></tr></thead><tbody>
+          <tr><td>Daily horoscope</td><td><span class="badge not-implemented">NOT ESTABLISHED</span></td></tr>
+          <tr><td>Complete Vedic Kundali Koota matching</td><td><span class="badge not-implemented">NOT IMPLEMENTED</span></td></tr>
+          <tr><td>Numerology + Vedic unified report</td><td><span class="badge not-implemented">NOT IMPLEMENTED</span></td></tr>
+          <tr><td>Numerology + KP unified report</td><td><span class="badge not-implemented">NOT IMPLEMENTED</span></td></tr>
+          <tr><td>Vedic + KP synthesis</td><td><span class="badge blocked">SEPARATE / NO SYNTHESIS</span></td></tr>
+          <tr><td>Career / marriage / foreign event predictions</td><td><span class="badge not-implemented">UNSUPPORTED / CONTEXT ONLY</span></td></tr>
+          <tr><td>AI palm-image recognition</td><td><span class="badge not-implemented">NOT IMPLEMENTED</span></td></tr>
+          <tr><td>Native PDF generator</td><td><span class="badge blocked">NOT ESTABLISHED</span></td></tr>
+          <tr><td>Complete mobile carrier/country validation</td><td><span class="badge blocked">NOT IMPLEMENTED</span></td></tr>
+          <tr><td>Live DB/RLS browser verification</td><td><span class="badge blocked">MISSING</span></td></tr>
+        </tbody></table></div>
+      </section>
+
+      <section id="roadmap" class="searchable">
+        <h2>Implementation Roadmap</h2>
+        <ol class="roadmap">
+          <li>Repair missing <code>gsap</code> resolution or remove stale dependency state, then rerun clean build checks.</li>
+          <li>Re-run Prisma generation, TypeScript and the production build with a consistent dependency tree.</li>
+          <li>Configure an isolated disposable PostgreSQL URL and run migrations plus guarded integration tests.</li>
+          <li>Add independent numerical fixtures for Dasha, full KP, Panchanga, rise/set/refraction, ingress and exact birth charts.</li>
+          <li>Define and source-review outcome rules before enabling career, marriage or travel predictions.</li>
+          <li>Decide whether to implement native PDF generation or retain browser Print / Save PDF.</li>
+          <li>Add complete Vedic Koota matching only with a deterministic, source-reviewed convention.</li>
+          <li>Add model, license and runtime evidence before implementing automatic palm recognition.</li>
+        </ol>
+      </section>
+
+      <section id="assessment" class="searchable">
+        <h2>Final Technical Assessment</h2>
+        <p><strong>Calculation software:</strong> Substantial chart, numerology, divisional, Dasha, Panchanga, KP and Palmistry source functionality exists.</p>
+        <p><strong>Default test suite:</strong> 516 of 516 subtests passed. This is software regression evidence, not prediction accuracy evidence.</p>
+        <p><strong>Production readiness:</strong> Not complete. TypeScript and the production build are blocked by <code>gsap</code> resolution, while database integration remains unexecuted.</p>
+        <p><strong>Independent validation:</strong> Not complete for this Kundali or for many downstream astrology outputs. The report intentionally preserves the engine's own <code>fullyVerified=false</code> state.</p>
+        <p><strong>Customer-facing claim level:</strong> Calculated astronomical/chart facts can be reported with provenance and explicit limitations. Traditional numerology and palmistry should remain reflective/cultural, and outcome predictions should not be presented as proven.</p>
+      </section>
+
+      <footer>
+        Audit source: 8 Markdown reports in <code>docs/calculation-audit/</code>. Generated for local/offline technical review. No external dependencies are used.
+      </footer>
+    </main>
+  </div>
+  <script>
+    (function(){
+      var printBtn=document.getElementById('printBtn');
+      printBtn.addEventListener('click',function(){window.print();});
+
+      var search=document.getElementById('auditSearch');
+      var sections=[].slice.call(document.querySelectorAll('main section.searchable'));
+      search.addEventListener('input',function(){
+        var q=search.value.trim().toLowerCase();
+        sections.forEach(function(section){
+          section.classList.toggle('hidden',q && section.textContent.toLowerCase().indexOf(q)===-1);
+        });
+      });
+
+      var navLinks=[].slice.call(document.querySelectorAll('.side-nav a,.nav-scroll a'));
+      var targets={};
+      navLinks.forEach(function(link){
+        var id=link.getAttribute('href').slice(1);
+        if(document.getElementById(id)) targets[id]=targets[id]||[];
+        targets[id]=targets[id]?targets[id]:[];
+      });
+      var observer=new IntersectionObserver(function(entries){
+        entries.forEach(function(entry){
+          if(entry.isIntersecting){
+            navLinks.forEach(function(link){link.classList.toggle('active',link.getAttribute('href')===('#'+entry.target.id));});
+          }
+        });
+      },{rootMargin:'-20% 0px -70% 0px',threshold:0});
+      sections.forEach(function(section){observer.observe(section);});
+
+      document.querySelectorAll('table').forEach(function(table){
+        table.addEventListener('click',function(){});
+      });
+    }());
+  </script>
+</body>
+</html>
