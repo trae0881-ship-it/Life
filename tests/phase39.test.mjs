@@ -51,6 +51,13 @@ test("dedicated Super Admin login is role-gated and routes only to the protected
   assert.match(admin, /redirect\("\/super-login"\)/);
 });
 
+test("Super Admin segment loads its shared stylesheet for every nested dashboard", () => {
+  const layout = source("src/app/super-admin/layout.tsx");
+  assert.match(layout, /import ["']\.\/super-admin\.css["']/);
+  assert.doesNotMatch(source("src/app/super-admin/SuperAdminDashboard.tsx"), /super-admin\.css/);
+  assert.doesNotMatch(source("src/app/super-admin/database/page.tsx"), /super-admin\.css/);
+});
+
 test("blog validation generates safe slugs and rejects unsafe images, canonical URLs, and invalid fields", () => {
   assert.equal(makeBlogSlug("  Jyotish: A Guide! "), "jyotish-a-guide");
   const valid = validateBlogInput(blogInput());

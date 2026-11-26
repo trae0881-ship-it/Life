@@ -3,7 +3,6 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { readLanguagePreference } from "@/presentation/language-preference";
 import { translate, type Language } from "@/presentation/language";
-import "./super-admin.css";
 
 type Metrics = { accounts: number; profiles: number; savedCharts: number; questions: number };
 type Health = { engine: "ready" | "unavailable"; database: "connected" | "not-configured" | "unreachable" };

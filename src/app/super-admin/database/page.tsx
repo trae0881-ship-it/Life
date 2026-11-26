@@ -1,7 +1,6 @@
 import { getCurrentUser } from "@/server/auth";
 import { notFound, redirect } from "next/navigation";
 import DatabaseCenter from "./DatabaseCenter";
-import "../super-admin.css";
 
 export const dynamic = "force-dynamic";
 
