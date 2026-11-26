@@ -72,6 +72,13 @@ test("featured carousel links point to existing tools and support keyboard, touc
   assert.equal(carouselScrollOffset(450, 300, 500, 1), 500);
 });
 
+test("homepage feature cards stay centered and responsive across viewport sizes", () => {
+  assert.match(homepageCss, /\.home-feature-grid\s*\{[^}]*width:\s*min\(100%,\s*1320px\);[^}]*margin-inline:\s*auto/s);
+  assert.match(homepageCss, /\.home-feature-card\s*\{[^}]*align-items:\s*center;[^}]*text-align:\s*center;/s);
+  assert.match(homepageCss, /@media \(max-width: 760px\)[\s\S]*?\.home-feature-grid\s*\{\s*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(homepageCss, /@media \(max-width: 560px\)[\s\S]*?\.home-feature-grid\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+});
+
 test("homepage uses an honest blog empty state and product-accurate metadata", () => {
   assert.match(homepage, /No articles published yet/);
   assert.match(homepage, /No public contact channel|No support email/);
