@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getPrisma } from "@/server/db";
 import { findPublishedBlogPost } from "@/server/blog-management";
 import { getPublicSiteOrigin } from "@/server/seo-management";
+import PublicPageHeader from "../../PublicPageHeader";
 
 export const dynamic = "force-dynamic";
 type BlogPageProps = { params: Promise<{ slug: string }> };
@@ -40,11 +41,13 @@ export async function generateMetadata({ params }: BlogPageProps): Promise<Metad
 export default async function BlogPostPage({ params }: BlogPageProps) {
   const { slug } = await params;
   const result = await getPost(slug);
-  if (result.kind === "unavailable") return <main className="public-blog"><a href="/blogs">← All articles</a><h1>Blog storage is not ready</h1><p>Review and approve the pending Blog CMS database migration before using published articles.</p></main>;
+  if (result.kind === "unavailable") return <><PublicPageHeader /><main className="public-blog"><h1>Blog storage is not ready</h1><p>Review and approve the pending Blog CMS database migration before using published articles.</p></main></>;
   const post = result.post;
   if (!post) notFound();
   const paragraphs = post.body.split(/\n{2,}/).filter(Boolean);
-  return <main className="public-blog">
+  return <>
+    <PublicPageHeader />
+    <main className="public-blog">
     <a href="/blogs">← All articles</a>
     <article className="public-blog-post">
       <p className="super-admin-eyebrow">{post.category ?? "LIFE JOURNAL"} · {post.publishedAt?.toLocaleDateString("en")}</p>
@@ -56,5 +59,6 @@ export default async function BlogPostPage({ params }: BlogPageProps) {
       {!!post.tags.length && <p className="public-blog-tags">Topics: {post.tags.join(" · ")}</p>}
       <a href="/disclaimer">Read LIFE’s informational-use disclaimer</a>
     </article>
-  </main>;
+    </main>
+  </>;
 }

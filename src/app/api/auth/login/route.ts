@@ -14,6 +14,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await readJson(request);
     if (!body) return jsonError("Invalid email or password.", 401, "INVALID_CREDENTIALS");
+    if (body.rememberMe !== undefined && typeof body.rememberMe !== "boolean") {
+      return jsonError("Remember me setting is invalid.", 400, "INVALID_INPUT");
+    }
     const user = await authenticateCredentials({ email: body.email, password: body.password }, getPrisma());
     if (!user) return jsonError("Invalid email or password.", 401, "INVALID_CREDENTIALS");
     if (body.portal === "developer" && user.role !== "DEVELOPER") {
@@ -23,7 +26,7 @@ export async function POST(request: NextRequest) {
       return jsonError("This sign-in route is for Super Admin accounts.", 403, "SUPER_ADMIN_REQUIRED");
     }
     const { token, expiresAt } = await createSession(user.id, getPrisma());
-    return NextResponse.json({ user }, { headers: { "Set-Cookie": sessionCookie(token, expiresAt), "Cache-Control": "no-store" } });
+    return NextResponse.json({ user }, { headers: { "Set-Cookie": sessionCookie(token, expiresAt, body.rememberMe !== false), "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof RequestBodyError) return jsonError(error.message, error.status, error.status === 400 ? "INVALID_JSON" : "PAYLOAD_TOO_LARGE");
     logAuthServiceError("login", error);

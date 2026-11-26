@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getPrisma } from "@/server/db";
 import { listPublishedBlogPosts } from "@/server/blog-management";
 import { metadataForManagedPage } from "@/server/seo-management";
+import PublicPageHeader from "../PublicPageHeader";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
@@ -13,11 +14,12 @@ export default async function BlogListingPage() {
   try {
     posts = await listPublishedBlogPosts(getPrisma(), 1);
   } catch {
-    return <main className="public-blog"><a href="/">← LIFE home</a><h1>Journal temporarily unavailable</h1><p>Blog storage is not ready. The local Blog CMS database migration must be reviewed and approved before publishing.</p></main>;
+    return <><PublicPageHeader /><main className="public-blog"><h1>Journal temporarily unavailable</h1><p>Blog storage is not ready. The local Blog CMS database migration must be reviewed and approved before publishing.</p></main></>;
   }
 
-  return <main className="public-blog">
-    <a href="/">← LIFE home</a>
+  return <>
+    <PublicPageHeader />
+    <main className="public-blog">
     <p className="super-admin-eyebrow">LIFE · JOURNAL</p>
     <h1>Notes on Jyotish</h1>
     <p>Articles published by LIFE. Editorial content is informational and does not promise future outcomes.</p>
@@ -29,5 +31,6 @@ export default async function BlogListingPage() {
         <p>{post.excerpt}</p>
         <small>By {post.authorName}</small>
       </article>)}</div>}
-  </main>;
+    </main>
+  </>;
 }

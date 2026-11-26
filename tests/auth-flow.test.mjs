@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { safeReturnTo } from "../src/server/auth-redirect.ts";
+import { sessionCookie } from "../src/server/session-cookie.ts";
 import { handleSuperAdminRoleChange } from "../src/server/super-admin-role-handler.ts";
 import { INTENDED_SUPER_ADMIN_EMAIL, parseBootstrapArguments, provisionExistingSuperAdmin } from "../scripts/provision-admin-core.mjs";
 
@@ -35,6 +36,41 @@ test("login and signup routes render distinct forms and preserve a safe return d
   assert.match(accountPanel, /useState<"login" \| "register">\s*\(initialMode\)/);
   assert.match(accountPanel, /name="fullName"/);
   assert.match(accountPanel, /name="confirmPassword"/);
+});
+
+test("remember-me selection controls cookie persistence without changing cookie security attributes", () => {
+  const accountPanel = source("src/app/AccountPanel.tsx");
+  const loginApi = source("src/app/api/auth/login/route.ts");
+  const persistent = sessionCookie("test-token", new Date(Date.now() + 60_000));
+  const sessionOnly = sessionCookie("test-token", new Date(Date.now() + 60_000), false);
+
+  assert.match(accountPanel, /form\.getAll\("rememberMe"\)\.includes\("true"\)/);
+  assert.match(loginApi, /body\.rememberMe !== false/);
+  assert.match(loginApi, /typeof body\.rememberMe !== "boolean"/);
+  assert.match(persistent, /; Max-Age=\d+/);
+  assert.doesNotMatch(sessionOnly, /; Max-Age=/);
+  for (const cookie of [persistent, sessionOnly]) {
+    assert.match(cookie, /; HttpOnly; SameSite=Lax/);
+    assert.match(cookie, /; Path=\//);
+  }
+});
+
+test("auth experience uses scoped GSAP cleanup and disables motion for reduced-motion preferences", () => {
+  const experience = source("src/app/login/LoginExperience.tsx");
+  const motion = source("src/app/login/useAuthExperienceMotion.ts");
+  const scene = source("src/app/login/CosmicAuthScene.tsx");
+  const styles = source("src/app/login/login.css");
+
+  assert.match(experience, /useAuthExperienceMotion\(root\)/);
+  assert.match(experience, /showRememberMe=\{!isRegistration && !isDeveloperPortal\}/);
+  assert.match(motion, /gsap\.context/);
+  assert.match(motion, /context\?\.revert\(\)/);
+  assert.match(motion, /prefers-reduced-motion: reduce/);
+  assert.match(motion, /reducedMotion\.addEventListener\("change", updateMotion\)/);
+  assert.match(scene, /className="auth-orbit auth-orbit-one"/);
+  assert.match(scene, /className="auth-orbit auth-orbit-two"/);
+  assert.match(styles, /@media \(max-width: 760px\)/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
 test("successful login and signup verify the issued session before redirecting to the default dashboard or safe next", () => {

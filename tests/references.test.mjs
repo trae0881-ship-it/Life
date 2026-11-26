@@ -95,9 +95,11 @@ test("public references route renders all categories, labels unverified sources 
   assert.match(page, /No research source is currently used to validate astrology as a predictive science/);
 });
 
-test("references page is reachable from About and the website footer, with feature citations near chart details", () => {
-  assert.match(home, /<a href="\/references">Review LIFE’s references, sources and verification scope<\/a>/);
-  assert.match(globalFooter, /<a href="\/references">References<\/a>/);
+test("reference promotions are hidden from homepage and footer while contextual citations remain", () => {
+  assert.doesNotMatch(home, /Review LIFE’s references, sources and verification scope/);
+  assert.doesNotMatch(globalFooter, /href="\/references"/);
+  assert.doesNotMatch(home, /Visit the LIFE journal/);
+  assert.doesNotMatch(globalFooter, /href="\/blogs"/);
   assert.match(chartStudio, /<ReferenceLinks title="Calculation and data sources"/);
   assert.match(chartStudio, /<ReferenceLinks title="Calculation conventions"/);
   assert.match(chartStudio, /<ReferenceLinks title="Kundli classification sources"/);

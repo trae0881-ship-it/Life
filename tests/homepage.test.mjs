@@ -60,12 +60,29 @@ test("featured carousel links point to existing tools and support keyboard, touc
   assert.match(homepage, /event\.key === "ArrowLeft"/);
   assert.match(homepage, /element\.scrollTo\(\{ left, behavior: "instant" \}\)/);
   assert.match(homepage, /onScroll=\{updateScroll\}/);
+  assert.match(homepage, /className="home-carousel-curve"[\s\S]*?aria-hidden="true"[\s\S]*?viewBox="0 0 1200 220"/);
+  assert.match(homepage, /scroll\.maximum \+ scroll\.viewport/);
+  assert.match(homepage, /className="home-carousel-curve-flow"/);
   assert.match(homepage, /prefers-reduced-motion: reduce/);
+  assert.match(homepageCss, /@keyframes home-tool-curve-flow/);
+  assert.match(homepageCss, /\.home-carousel-curve-flow\s*\{[^}]*animation:\s*home-tool-curve-flow 3\.8s linear infinite/s);
+  assert.match(homepageCss, /prefers-reduced-motion: reduce[\s\S]*?\.home-carousel-curve-flow\s*\{\s*animation:\s*none/);
   assert.match(homepageCss, /overscroll-behavior-inline: contain/);
   assert.match(homepageCss, /scroll-snap-type: x mandatory/);
+  assert.match(homepageCss, /@keyframes home-tool-wave/);
+  assert.match(homepageCss, /animation:\s*home-tool-wave 4\.6s ease-in-out infinite/);
+  assert.match(homepageCss, /\.home-tool-card:nth-child\(5\)\s*\{\s*animation-delay:\s*-1\.84s/);
+  assert.match(homepageCss, /prefers-reduced-motion: reduce[\s\S]*?\.home-tool-card\s*\{\s*animation:\s*none !important/);
   assert.equal(carouselScrollOffset(0, 300, 500, -1), 0);
   assert.equal(carouselScrollOffset(0, 300, 500, 1), 240);
   assert.equal(carouselScrollOffset(450, 300, 500, 1), 500);
+});
+
+test("homepage feature cards stay centered and responsive across viewport sizes", () => {
+  assert.match(homepageCss, /\.home-feature-grid\s*\{[^}]*width:\s*min\(100%,\s*1320px\);[^}]*margin-inline:\s*auto/s);
+  assert.match(homepageCss, /\.home-feature-card\s*\{[^}]*align-items:\s*center;[^}]*text-align:\s*center;/s);
+  assert.match(homepageCss, /@media \(max-width: 760px\)[\s\S]*?\.home-feature-grid\s*\{\s*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(homepageCss, /@media \(max-width: 560px\)[\s\S]*?\.home-feature-grid\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
 });
 
 test("homepage uses an honest blog empty state and product-accurate metadata", () => {
