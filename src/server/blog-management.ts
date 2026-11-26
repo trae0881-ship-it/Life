@@ -3,7 +3,9 @@ import { getPublicSiteOrigin } from "./seo-management.ts";
 
 export const BLOG_PAGE_SIZE = 20;
 export const BLOG_STATUSES = ["DRAFT", "PUBLISHED", "ARCHIVED"] as const;
+export const BLOG_FILTER_STATUSES = [...BLOG_STATUSES, "SCHEDULED"] as const;
 export type BlogStatus = (typeof BLOG_STATUSES)[number];
+export type BlogFilterStatus = (typeof BLOG_FILTER_STATUSES)[number];
 
 type BlogInput = {
   title: string;
@@ -20,7 +22,8 @@ type BlogInput = {
   seoDescription: string | null;
   canonicalUrl: string | null;
   robotsIndex: boolean;
-  publishedAt: Date | null;
+  scheduledAt: Date | null;
+  scheduledAtProvided: boolean;
 };
 
 export type BlogRepository = Pick<PrismaClient, "blogPost">;
@@ -76,6 +79,14 @@ function normalizeBlogInput(value: unknown): BlogInput | null {
   const category = value.category === null || value.category === "" ? null : cleanText(value.category, 80, true);
   const seoTitle = value.seoTitle === null || value.seoTitle === "" ? null : cleanText(value.seoTitle, 70, true);
   const seoDescription = value.seoDescription === null || value.seoDescription === "" ? null : cleanText(value.seoDescription, 160, true);
+  const scheduledAtProvided = Object.prototype.hasOwnProperty.call(value, "scheduledAt");
+  const scheduledAt = value.scheduledAt === undefined || value.scheduledAt === null || value.scheduledAt === ""
+    ? null
+    : typeof value.scheduledAt === "string"
+      && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value.scheduledAt)
+      && Number.isFinite(Date.parse(value.scheduledAt))
+      ? new Date(value.scheduledAt)
+      : undefined;
   if (
     !title || !excerpt || !body || !authorName || !slug
     || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
@@ -87,13 +98,15 @@ function normalizeBlogInput(value: unknown): BlogInput | null {
     || typeof value.robotsIndex !== "boolean"
     || !Array.isArray(value.tags) || value.tags.length > 20
     || !value.tags.every((tag) => typeof tag === "string" && tag.trim().length > 0 && tag.trim().length <= 40)
+    || scheduledAt === undefined
+    || (scheduledAt && (status !== "PUBLISHED" || scheduledAt.getTime() <= Date.now()))
   ) return null;
 
   return {
     title, slug, excerpt, body, featuredImageUrl, featuredImageAlt,
     authorName, category, tags: [...new Set((value.tags as string[]).map((tag) => tag.trim()))],
     status, seoTitle, seoDescription, canonicalUrl, robotsIndex: value.robotsIndex,
-    publishedAt: status === "PUBLISHED" ? new Date() : null,
+    scheduledAt, scheduledAtProvided,
   };
 }
 
@@ -107,10 +120,18 @@ export function makeBlogSlug(value: string) {
 
 export async function listBlogPosts(
   repository: BlogRepository,
-  options: { page: number; query: string; status?: BlogStatus },
+  options: { page: number; query: string; status?: BlogFilterStatus },
 ) {
+  const now = new Date();
+  const statusWhere: Prisma.BlogPostWhereInput = options.status === "SCHEDULED"
+    ? { status: "PUBLISHED", publishedAt: { gt: now } }
+    : options.status === "PUBLISHED"
+      ? { status: "PUBLISHED", publishedAt: { lte: now } }
+      : options.status
+        ? { status: options.status }
+        : {};
   const where: Prisma.BlogPostWhereInput = {
-    ...(options.status ? { status: options.status } : {}),
+    ...statusWhere,
     ...(options.query ? {
       OR: [
         { title: { contains: options.query, mode: "insensitive" } },
@@ -119,7 +140,7 @@ export async function listBlogPosts(
       ],
     } : {}),
   };
-  const [total, posts] = await Promise.all([
+  const [total, posts, all, drafts, published, scheduled, archived] = await Promise.all([
     repository.blogPost.count({ where }),
     repository.blogPost.findMany({
       where,
@@ -131,8 +152,19 @@ export async function listBlogPosts(
         category: true, status: true, publishedAt: true, updatedAt: true,
       },
     }),
+    repository.blogPost.count(),
+    repository.blogPost.count({ where: { status: "DRAFT" } }),
+    repository.blogPost.count({ where: { status: "PUBLISHED", publishedAt: { lte: now } } }),
+    repository.blogPost.count({ where: { status: "PUBLISHED", publishedAt: { gt: now } } }),
+    repository.blogPost.count({ where: { status: "ARCHIVED" } }),
   ]);
-  return { posts, total, page: options.page, pageCount: Math.ceil(total / BLOG_PAGE_SIZE) };
+  return {
+    posts,
+    total,
+    page: options.page,
+    pageCount: Math.ceil(total / BLOG_PAGE_SIZE),
+    counts: { all, drafts, published, scheduled, archived },
+  };
 }
 
 export async function createBlogPost(
@@ -142,8 +174,15 @@ export async function createBlogPost(
 ) {
   const input = normalizeBlogInput(value);
   if (!input) return null;
+  const { scheduledAt, scheduledAtProvided, ...data } = input;
   return repository.blogPost.create({
-    data: { ...input, authorId },
+    data: {
+      ...data,
+      publishedAt: input.status === "PUBLISHED"
+        ? scheduledAtProvided && scheduledAt ? scheduledAt : new Date()
+        : null,
+      authorId,
+    },
     select: { id: true, title: true, slug: true, excerpt: true, status: true, publishedAt: true },
   });
 }
@@ -157,12 +196,18 @@ export async function updateBlogPost(
   if (!input || !id || id.length > 100) return null;
   const previous = await repository.blogPost.findUnique({ where: { id }, select: { id: true, status: true, publishedAt: true } });
   if (!previous) return null;
+  const now = new Date();
   const publishedAt = input.status === "PUBLISHED"
-    ? previous.status === "PUBLISHED" ? previous.publishedAt : new Date()
+    ? input.scheduledAt ?? (
+      input.scheduledAtProvided && previous.publishedAt && previous.publishedAt > now
+        ? now
+        : previous.status === "PUBLISHED" ? previous.publishedAt ?? now : now
+    )
     : null;
+  const { scheduledAt, scheduledAtProvided, ...data } = input;
   return repository.blogPost.update({
     where: { id },
-    data: { ...input, publishedAt },
+    data: { ...data, publishedAt },
     select: { id: true, title: true, slug: true, excerpt: true, status: true, publishedAt: true },
   });
 }

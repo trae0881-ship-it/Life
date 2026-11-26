@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import {
+  BLOG_FILTER_STATUSES,
   BLOG_STATUSES,
   createBlogPost,
   deleteBlogPost,
@@ -68,6 +69,12 @@ test("blog validation generates safe slugs and rejects unsafe images, canonical 
   assert.equal(validateBlogInput(blogInput({ slug: "../admin" })).slug, "admin");
   assert.equal(validateBlogInput(blogInput({ title: "" })), null);
   assert.deepEqual([...BLOG_STATUSES], ["DRAFT", "PUBLISHED", "ARCHIVED"]);
+  assert.deepEqual([...BLOG_FILTER_STATUSES], ["DRAFT", "PUBLISHED", "ARCHIVED", "SCHEDULED"]);
+  const scheduledAt = new Date(Date.now() + 60_000).toISOString();
+  assert.equal(validateBlogInput(blogInput({ status: "PUBLISHED", scheduledAt })).scheduledAt.toISOString(), scheduledAt);
+  assert.equal(validateBlogInput(blogInput({ status: "DRAFT", scheduledAt })), null);
+  assert.equal(validateBlogInput(blogInput({ status: "PUBLISHED", scheduledAt: new Date(Date.now() - 60_000).toISOString() })), null);
+  assert.equal(validateBlogInput(blogInput({ status: "PUBLISHED", scheduledAt: "2026-11-26T12:00:00" })), null);
 });
 
 test("blog management query and publishing helpers keep public reads restricted to published posts", async () => {
@@ -85,18 +92,33 @@ test("blog management query and publishing helpers keep public reads restricted 
     },
   };
 
-  await listBlogPosts(repository, { page: 2, query: "Vedic" });
-  assert.equal(calls[0][1].where.OR[0].title.contains, "Vedic");
-  assert.equal(calls[1][1].skip, 20);
+  const listing = await listBlogPosts(repository, { page: 2, query: "Vedic" });
+  const queryCount = calls.find(([method, args]) => method === "count" && args?.where?.OR);
+  const queryPage = calls.find(([method]) => method === "findMany");
+  assert.equal(queryCount[1].where.OR[0].title.contains, "Vedic");
+  assert.equal(queryPage[1].skip, 20);
+  assert.deepEqual(listing.counts, { all: 2, drafts: 2, published: 2, scheduled: 2, archived: 2 });
 
   const created = await createBlogPost(repository, blogInput({ status: "PUBLISHED" }), "admin-id");
   assert.equal(created.id, "post-2");
-  assert.equal(calls[2][1].data.authorId, "admin-id");
-  assert.equal(calls[2][1].data.status, "PUBLISHED");
-  assert.ok(calls[2][1].data.publishedAt instanceof Date);
+  const createCall = calls.filter(([method]) => method === "create").at(-1);
+  assert.equal(createCall[1].data.authorId, "admin-id");
+  assert.equal(createCall[1].data.status, "PUBLISHED");
+  assert.ok(createCall[1].data.publishedAt instanceof Date);
+  assert.equal("scheduledAt" in createCall[1].data, false);
+
+  const scheduledAt = new Date(Date.now() + 60_000);
+  await createBlogPost(repository, blogInput({ status: "PUBLISHED", scheduledAt: scheduledAt.toISOString() }), "admin-id");
+  const scheduledCreate = calls.filter(([method]) => method === "create").at(-1)[1];
+  assert.equal(scheduledCreate.data.publishedAt.toISOString(), scheduledAt.toISOString());
 
   const changed = await updateBlogPost(repository, "post-1", blogInput({ status: "DRAFT" }));
   assert.equal(changed.status, "DRAFT");
+  const scheduledStart = calls.length;
+  await listBlogPosts(repository, { page: 1, query: "", status: "SCHEDULED" });
+  const scheduledPage = calls.slice(scheduledStart).find(([method]) => method === "findMany");
+  assert.equal(scheduledPage[1].where.status, "PUBLISHED");
+  assert.ok(scheduledPage[1].where.publishedAt.gt instanceof Date);
   const publicPost = await findPublishedBlogPost(repository, "draft-post");
   assert.equal(publicPost, null);
   assert.deepEqual(calls.at(-1)[1].where, { slug: "draft-post", status: "PUBLISHED", publishedAt: { lte: calls.at(-1)[1].where.publishedAt.lte } });
@@ -106,6 +128,20 @@ test("blog management query and publishing helpers keep public reads restricted 
   const callCount = calls.length;
   assert.equal(await deleteBlogPost(repository, ""), false);
   assert.equal(calls.length, callCount);
+});
+
+test("editing a scheduled article without a schedule publishes it now instead of preserving its future date", async () => {
+  const scheduledTime = new Date(Date.now() + 60 * 60_000);
+  let update;
+  const repository = {
+    blogPost: {
+      async findUnique() { return { id: "post-scheduled", status: "PUBLISHED", publishedAt: scheduledTime }; },
+      async update(args) { update = args; return args.data; },
+    },
+  };
+  await updateBlogPost(repository, "post-scheduled", blogInput({ status: "PUBLISHED", scheduledAt: null }));
+  assert.ok(update.data.publishedAt instanceof Date);
+  assert.ok(update.data.publishedAt < scheduledTime);
 });
 
 test("Developer documentation matches real route files and OpenAPI contract structure", () => {
@@ -148,6 +184,10 @@ test("developer portal, interactive docs, blog public routes and protected manag
   assert.match(blogDashboard, /Signed in as/);
   assert.match(blogDashboard, /api\/auth\/logout/);
   assert.match(blogDashboard, /Permanently delete/);
+  assert.match(blogDashboard, /Blog totals/);
+  assert.match(blogDashboard, /counts\.all/);
+  assert.match(blogDashboard, /SCHEDULED/);
+  assert.match(blogDashboard, /datetime-local/);
   assert.doesNotMatch(blogDashboard, /href="\/super-login">Sign in/);
   assert.match(publicArticle, /"@type": "BlogPosting"/);
   assert.match(publicArticle, /application\/ld\+json/);

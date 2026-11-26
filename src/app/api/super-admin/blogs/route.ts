@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/server/auth";
-import { createBlogPost, listBlogPosts, BLOG_STATUSES } from "@/server/blog-management";
+import { createBlogPost, listBlogPosts, BLOG_FILTER_STATUSES } from "@/server/blog-management";
 import { getPrisma } from "@/server/db";
 import { isSameOriginMutation, jsonError, readJson, RequestBodyError } from "@/server/http";
 
@@ -15,11 +15,11 @@ export async function GET(request: NextRequest) {
   const page = Number(rawPage);
   const query = params.get("q")?.trim() ?? "";
   const status = params.get("status") ?? "";
-  if (!/^[1-9]\d{0,4}$/.test(rawPage) || !Number.isSafeInteger(page) || query.length > 100 || (status && !BLOG_STATUSES.includes(status as typeof BLOG_STATUSES[number]))) {
+  if (!/^[1-9]\d{0,4}$/.test(rawPage) || !Number.isSafeInteger(page) || query.length > 100 || (status && !BLOG_FILTER_STATUSES.includes(status as typeof BLOG_FILTER_STATUSES[number]))) {
     return jsonError("Blog filters are invalid.", 400, "INVALID_FILTER");
   }
   try {
-    return NextResponse.json(await listBlogPosts(getPrisma(), { page, query, ...(status ? { status: status as typeof BLOG_STATUSES[number] } : {}) }), { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(await listBlogPosts(getPrisma(), { page, query, ...(status ? { status: status as typeof BLOG_FILTER_STATUSES[number] } : {}) }), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Blog posts could not be loaded.", { errorType: error instanceof Error ? error.name : "UnknownError" });
     return jsonError("Blog storage is unavailable. Verify database connectivity and that all required migrations have been applied.", 503, "BLOG_STORAGE_UNAVAILABLE");
