@@ -1,18 +1,17 @@
 import type { MetadataRoute } from "next";
 import {
   createSitemapEntries,
+  getSitemapPageSettings,
   getPublicSiteOrigin,
-  getSeoDashboardData,
 } from "@/server/seo-management";
 import { getPrisma } from "@/server/db";
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const dashboard = await getSeoDashboardData();
   const origin = getPublicSiteOrigin();
-  const staticEntries = createSitemapEntries(origin, dashboard.pages);
-  if (!origin) return staticEntries;
+  if (!origin) return [];
+  const staticEntries = createSitemapEntries(origin, await getSitemapPageSettings());
   let posts: { slug: string; canonicalUrl: string | null; publishedAt: Date | null }[];
   try {
     posts = await getPrisma().blogPost.findMany({

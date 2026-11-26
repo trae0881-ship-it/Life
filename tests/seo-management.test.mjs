@@ -9,6 +9,7 @@ import {
   createRobotsMetadata,
   createSitemapEntries,
   defaultSeoSettings,
+  getSitemapPageSettings,
   getPublicSiteOrigin,
   getSeoDashboardData,
   metadataForManagedPage,
@@ -270,6 +271,21 @@ test("sitemap and robots helpers include only canonical indexable LIFE routes", 
   const robots = createRobotsMetadata("https://life.example");
   assert.equal(robots.sitemap, "https://life.example/sitemap.xml");
   assert.deepEqual(robots.rules[0].disallow, ["/api", "/admin", "/dashboard", "/super-admin", "/super-login", "/developer/dashboard"]);
+});
+
+test("sitemap settings fall back to built-in public routes when SEO storage is unavailable", async () => {
+  const loggedErrors = [];
+  const originalConsoleError = console.error;
+  console.error = (...args) => loggedErrors.push(args);
+  try {
+    const pages = await getSitemapPageSettings(async () => { throw new Error("Database unavailable."); });
+    assert.deepEqual(pages.map((page) => page.path), SEO_PAGE_DEFINITIONS.map((page) => page.path));
+    assert.ok(pages.every((page) => page.robots.index && page.canonicalPath === page.path));
+    assert.equal(loggedErrors.length, 1);
+    assert.equal(loggedErrors[0][1].errorType, "Error");
+  } finally {
+    console.error = originalConsoleError;
+  }
 });
 
 test("technical audit measures managed routes, JSON-LD, status, sitemap and broken internal links", async () => {

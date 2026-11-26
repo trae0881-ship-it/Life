@@ -534,8 +534,10 @@ export async function metadataForManagedPage(
       }
     }
   } catch (error) {
-    const detail = error instanceof Error ? error.message : "Unknown storage error.";
-    console.error(`Unable to load managed SEO metadata for ${pagePath}; using built-in defaults. ${detail}`);
+    console.error("Managed SEO metadata storage is unavailable; using built-in defaults.", {
+      pagePath,
+      errorType: error instanceof Error ? error.name : "UnknownError",
+    });
   }
   const origin = getPublicSiteOrigin();
   return {
@@ -556,6 +558,19 @@ export async function metadataForManagedPage(
       description: settings.openGraph.description,
     },
   };
+}
+
+export async function getSitemapPageSettings(
+  loadDashboard: () => Promise<{ pages: SeoPageSettings[] }> = () => getSeoDashboardData(),
+): Promise<SeoPageSettings[]> {
+  try {
+    return (await loadDashboard()).pages;
+  } catch (error) {
+    console.error("SEO sitemap settings are unavailable; using built-in public-route defaults.", {
+      errorType: error instanceof Error ? error.name : "UnknownError",
+    });
+    return SEO_PAGE_DEFINITIONS.map(({ path: pagePath }) => defaultSeoSettings(pagePath));
+  }
 }
 
 export function createSitemapEntries(origin: string | null, settings: SeoPageSettings[]): { url: string }[] {

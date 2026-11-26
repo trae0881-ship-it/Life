@@ -135,3 +135,10 @@ Never print or paste the values of database credentials or other secrets in logs
 ### Evidence boundary
 
 This source change does not establish that either migration was applied to Railway, that the specified environment variables are set, that legacy settings were imported, or that the live pages have been deployed. Those remain external deployment checks.
+
+### Read-only live SEO endpoint check (2026-11-26)
+
+- `GET https://life-production-66edc885.up.railway.app/sitemap.xml` returned HTTP 500.
+- `GET https://astro.gyandootnova.in/sitemap.xml` returned HTTP 500.
+- `/robots.txt` returned HTTP 200 on both hosts. The custom-domain response declares `https://astro.gyandootnova.in/sitemap.xml`.
+- These requests do not identify the production exception or prove the migration state. The local sitemap now falls back to built-in public-route metadata when SEO storage cannot be read, but this code has not been deployed. Check Railway logs and have the database owner reconcile migration history before treating the endpoint as fixed.
