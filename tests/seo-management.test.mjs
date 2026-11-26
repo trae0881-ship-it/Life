@@ -41,6 +41,7 @@ function inMemorySeoRepository() {
   const repository = {
     seoPageSetting: {
       findMany: async () => [...settings.values()],
+      findUnique: async ({ where }) => settings.get(where.path) ?? null,
       upsert: async ({ where, create, update }) => {
         const current = settings.get(where.path);
         settings.set(where.path, {
@@ -134,6 +135,34 @@ test("metadata generation uses stored settings and does not invent a public orig
     assert.equal(data.searchConsole.configured, false);
     assert.equal(data.persistence.durableInProduction, false);
   });
+});
+
+test("public metadata reads only its setting and falls back to defaults when SEO storage is unavailable", async () => {
+  const storedSettings = { ...defaultSeoSettings("/privacy-policy"), title: "Managed privacy title" };
+  const repository = {
+    seoPageSetting: {
+      findUnique: async () => ({ settings: storedSettings }),
+    },
+    seoAuditHistory: {
+      findMany: async () => { throw new Error("Public metadata must not load audit history."); },
+    },
+  };
+  const metadata = await metadataForManagedPage("/privacy-policy", undefined, repository);
+  assert.equal(metadata.title, storedSettings.title);
+
+  const loggedErrors = [];
+  const originalConsoleError = console.error;
+  console.error = (...args) => loggedErrors.push(args);
+  try {
+    const fallbackMetadata = await metadataForManagedPage("/privacy-policy", undefined, {
+      seoPageSetting: { findUnique: async () => { throw new Error("Database unavailable."); } },
+    });
+    assert.equal(fallbackMetadata.title, defaultSeoSettings("/privacy-policy").title);
+    assert.equal(loggedErrors.length, 1);
+    assert.match(loggedErrors[0][0], /using built-in defaults/);
+  } finally {
+    console.error = originalConsoleError;
+  }
 });
 
 test("public origin prefers configuration, safely falls back to Railway, then the production deployment origin", () => {

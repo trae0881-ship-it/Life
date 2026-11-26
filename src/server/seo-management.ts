@@ -514,8 +514,29 @@ export async function metadataForManagedPage(
 ): Promise<Metadata> {
   const definition = pageDefinition(pagePath);
   if (!definition) throw new Error("Unknown managed SEO route.");
-  const store = await readSeoStore(storePath, repository);
-  const settings = store.settings[pagePath] ?? defaultSeoSettings(pagePath);
+  let settings = defaultSeoSettings(pagePath);
+  try {
+    if (storePath) {
+      const store = await readSeoStore(storePath);
+      settings = store.settings[pagePath] ?? settings;
+    } else {
+      const database = repository ?? await defaultSeoRepository();
+      const row = await database.seoPageSetting.findUnique({
+        where: { path: pagePath },
+        select: { settings: true },
+      });
+      if (row) {
+        const storedSettings = validateSeoPageSettings(row.settings);
+        if (!storedSettings || storedSettings.path !== pagePath) {
+          throw new Error("SEO metadata database contains invalid page settings.");
+        }
+        settings = storedSettings;
+      }
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown storage error.";
+    console.error(`Unable to load managed SEO metadata for ${pagePath}; using built-in defaults. ${detail}`);
+  }
   const origin = getPublicSiteOrigin();
   return {
     title: settings.title,
