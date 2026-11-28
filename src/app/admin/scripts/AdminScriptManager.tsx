@@ -144,7 +144,7 @@ export default function AdminScriptManager({ email, role }: { email: string; rol
       <p className="super-admin-identity"><span>Signed in as · {role}</span><b>{email}</b></p>
       <nav className="super-admin-nav" aria-label="Administrator navigation">
         <a href="/admin">Admin overview</a>
-        <a href="/super-admin">Super Admin overview</a>
+        {role === "SUPER_ADMIN" && <a href="/super-admin">Super Admin overview</a>}
         <a aria-current="page" className="active" href="/admin/scripts">Head / body scripts</a>
       </nav>
       <div className="super-admin-sidebar-foot"><a href="/">LIFE home</a><a href="/dashboard">User dashboard</a></div>

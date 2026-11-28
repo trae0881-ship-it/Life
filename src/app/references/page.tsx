@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { referenceCategories, referenceFeatures, referenceRegistry } from "@/presentation/references";
+import { getApprovedExternalHref } from "@/presentation/external-link-policy";
 import { metadataForManagedPage } from "@/server/seo-management";
 import "../references.css";
 
@@ -39,7 +40,9 @@ export default function ReferencesPage() {
             ? <p className="references-empty">{category.startsWith("Research")
               ? "No research source is currently used to validate astrology as a predictive science. LIFE does not claim scientific validation."
               : "No source is currently documented in this category."}</p>
-            : <div className="references-grid">{entries.map((reference) => <article className="reference-card" id={reference.id} key={reference.id}>
+            : <div className="references-grid">{entries.map((reference) => {
+              const referenceUrl = getApprovedExternalHref(reference.url);
+              return <article className="reference-card" id={reference.id} key={reference.id}>
               <div className={`reference-status reference-status-${reference.verification_status}`}>{statusLabels[reference.verification_status]}</div>
               <h3>{reference.title}</h3>
               <p className="reference-authors">{reference.authors_or_organization}{reference.publisher ? ` · ${reference.publisher}` : ""}</p>
@@ -53,17 +56,21 @@ export default function ReferencesPage() {
               {reference.verification_review && <details className="reference-review">
                 <summary>Review evidence · {reference.verification_review.checked_at}</summary>
                 <p>{reference.verification_review.method}</p>
-                <ul>{reference.verification_review.evidence.map((evidence) => <li key={evidence}>
-                  {evidence.startsWith("https://")
-                    ? <a href={evidence} target="_blank" rel="noopener noreferrer">{evidence}</a>
-                    : <code>{evidence}</code>}
-                </li>)}</ul>
+                <ul>{reference.verification_review.evidence.map((evidence) => {
+                  const evidenceUrl = getApprovedExternalHref(evidence);
+                  return <li key={evidence}>{evidenceUrl
+                    ? <a href={evidenceUrl} target="_blank" rel="noopener noreferrer">{evidence}</a>
+                    : <code>{evidence}</code>}</li>;
+                })}</ul>
               </details>}
               <div className="reference-uses"><h4>Used by</h4><ul>{reference.used_by.map((feature) => <li key={feature}>{referenceFeatures[feature]}</li>)}</ul></div>
-              {reference.url
-                ? <a className="reference-url" href={reference.url} target="_blank" rel="noopener noreferrer">Open source <span aria-hidden="true">↗</span></a>
-                : <p className="reference-internal">Internal LIFE convention; no external source is claimed.</p>}
-            </article>)}</div>}
+              {referenceUrl
+                ? <a className="reference-url" href={referenceUrl} target="_blank" rel="noopener noreferrer">Open source <span aria-hidden="true">↗</span></a>
+                : reference.url
+                  ? <p className="reference-internal">Source link is not in the approved registry.</p>
+                  : <p className="reference-internal">Internal LIFE convention; no external source is claimed.</p>}
+            </article>;
+            })}</div>}
         </section>;
       })}
     </div>

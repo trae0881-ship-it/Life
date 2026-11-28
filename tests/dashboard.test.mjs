@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { platformServices } from "../src/presentation/platform-services.ts";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -11,27 +12,42 @@ test("dashboard route requires a server-validated session", () => {
   assert.match(page, /<Dashboard user=\{user\}/);
 });
 
-test("authenticated dashboard exposes all astrology services with working routes", () => {
+test("authenticated dashboard exposes implemented services with working routes and search", () => {
   const dashboard = source("src/app/Dashboard.tsx");
-  assert.match(dashboard, /Explore Astrology Services/);
-  for (const [name, route] of [
-    ["Palmistry", "/palmistry"],
-    ["KP Astrology", "/kp-astrology"],
-    ["Ank Jyotish", "/ank-jyotish"],
-    ["Tarot Card Reading", "/tarot-reading"],
-  ]) {
-    assert.ok(dashboard.includes(`name: "${name}"`), `${name} appears as a service card`);
-    assert.ok(dashboard.includes(`href: "${route}"`), `${route} is in the dashboard service inventory`);
-    assert.ok(dashboard.includes(`href={service.href}`), `${route} card and service navigation use actual hrefs`);
+  assert.match(dashboard, /dashboard\.services\.title/);
+  assert.match(dashboard, /platformServices\.map/);
+  assert.match(dashboard, /type="search"/);
+  assert.match(dashboard, /filteredServices/);
+  assert.match(dashboard, /aria-label=\{t\("dashboard\.services\.navigation"\)\}/);
+  assert.deepEqual(platformServices.map((service) => service.id), ["vedic", "kp", "numerology", "palmistry", "tarot"]);
+  for (const service of platformServices) {
+    const route = service.href.split(/[?#]/, 1)[0];
     const page = source(`src/app${route}/page.tsx`);
     assert.ok(page.includes("getCurrentUser"), `${route} checks for authentication`);
     assert.ok(page.includes('redirect("/login")'), `${route} redirects logged-out users to the clean login route`);
   }
   assert.match(dashboard, /className="dashboard-service-grid"/);
-  assert.match(dashboard, /aria-label="Astrology services"/);
   const styles = source("src/app/dashboard.css");
   assert.match(styles, /dashboard-service-card/);
+  assert.match(styles, /dashboard-service-search/);
   assert.match(styles, /@media\(max-width:560px\)[\s\S]*?dashboard-service-grid/);
+});
+
+test("service workspace reuses an explicitly selected saved birth date without treating profile labels as names", () => {
+  const workspace = source("src/app/AstrologyServiceWorkspace.tsx");
+  assert.match(workspace, /fetch\("\/api\/profiles"/);
+  assert.match(workspace, /setDateOfBirth\(profile\.localDate\)/);
+  assert.match(workspace, /setSelectedBirthProfileId\(""\)/);
+  assert.match(workspace, /Only the date is reused from a selected profile/);
+  assert.doesNotMatch(workspace, /setName\(profile\.label\)/);
+  assert.match(workspace, /platformServices\.map/);
+});
+
+test("standard Admin script navigation does not expose the Super Admin destination", () => {
+  const manager = source("src/app/admin/scripts/AdminScriptManager.tsx");
+  const page = source("src/app/admin/scripts/page.tsx");
+  assert.match(manager, /role === "SUPER_ADMIN" && <a href="\/super-admin">/);
+  assert.match(page, /user\.role !== "ADMIN" && user\.role !== "SUPER_ADMIN"/);
 });
 
 test("shared public footer links legal routes and does not expose the health endpoint", () => {

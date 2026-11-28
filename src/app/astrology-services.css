@@ -13,7 +13,7 @@
 .service-icon{width:63px;height:63px;flex:none;display:grid;place-items:center;border:1px solid #7d765f;border-radius:50%;color:#dfc58e;font:32px var(--serif,Georgia,serif)}
 .service-eyebrow,.service-chip,.service-footer{font-family:var(--mono,monospace);letter-spacing:.1em}
 .service-eyebrow{margin:0;color:#a38b62;font-size:8px}
-.service-shortcuts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:15px 0}
+.service-shortcuts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin:15px 0}
 .service-shortcuts a{min-height:44px;justify-content:center;border-color:#e8e5dd;background:#fff;color:#957a4d;font-size:17px}
 .service-shortcuts a span{color:#636e70;font-size:10px}
 .service-alert,.service-notice{margin:12px 0;padding:11px 13px;border:1px solid #e7d0c8;background:#fbf2ef;color:#86534b;font-size:11px;line-height:1.6}

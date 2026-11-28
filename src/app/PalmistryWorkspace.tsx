@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import Link from "next/link";
 import {
   FINGER_LENGTHS,
   HAND_SHAPES,
@@ -29,6 +30,7 @@ import {
   type ThumbType,
 } from "@/palmistry/engine";
 import { PALM_SOURCES, PALM_TRADITION_DIFFERENCES } from "@/palmistry/sources";
+import { getApprovedExternalHref } from "@/presentation/external-link-policy";
 import {
   PALM_FEATURE_DEFINITIONS,
   PALM_OBSERVATION_OPTIONS,
@@ -355,6 +357,7 @@ export default function PalmistryWorkspace() {
   return <main className="palmistry-page">
     <header className="palmistry-header">
       <a className="palmistry-brand" href="/" aria-label="LIFE home">✳ <span>LIFE</span></a>
+      <Link className="palmistry-dashboard-link" href="/dashboard">Dashboard</Link>
       <span className={`palmistry-connectivity ${online ? "is-online" : "is-offline"}`}><i aria-hidden="true" />{online ? "LOCAL TOOLS READY" : "OFFLINE · LOCAL TOOLS READY"}</span>
     </header>
     <div className="palmistry-content">
@@ -631,13 +634,16 @@ export default function PalmistryWorkspace() {
         <p className="palmistry-disclaimer">Reference text is bundled with this page and searched locally. Traditional palmistry is a cultural practice, not a validated diagnostic or predictive method.</p>
         <section className="palmistry-source-register" aria-labelledby="source-register-title">
           <div className="palmistry-panel-heading"><div><p className="palmistry-eyebrow">TRANSPARENT ATTRIBUTION</p><h3 id="source-register-title">Source register</h3></div><span className="palmistry-count">{PALM_SOURCES.length} references</span></div>
-          <div className="palmistry-source-grid">{PALM_SOURCES.map((source) => <article key={source.id}>
-            <h4>{source.title}</h4><p><b>Author / attribution:</b> {source.author}</p><p><b>Tradition:</b> {source.tradition}</p>
-            <p><b>Subjects:</b> {source.subjects.join(", ")}</p><p><b>Contribution:</b> {source.relevantInterpretation}</p>
-            <p><b>Reliability:</b> {source.historicalReliability} for historical descriptions; {source.empiricalReliability}.</p>
-            <p><b>Reuse note:</b> {source.reuseBasis}</p><ul>{source.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul>
-            <a href={source.url} target="_blank" rel="noreferrer">View catalog record ↗</a>
-          </article>)}</div>
+          <div className="palmistry-source-grid">{PALM_SOURCES.map((source) => {
+            const catalogUrl = getApprovedExternalHref(source.url);
+            return <article key={source.id}>
+              <h4>{source.title}</h4><p><b>Author / attribution:</b> {source.author}</p><p><b>Tradition:</b> {source.tradition}</p>
+              <p><b>Subjects:</b> {source.subjects.join(", ")}</p><p><b>Contribution:</b> {source.relevantInterpretation}</p>
+              <p><b>Reliability:</b> {source.historicalReliability} for historical descriptions; {source.empiricalReliability}.</p>
+              <p><b>Reuse note:</b> {source.reuseBasis}</p><ul>{source.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul>
+              {catalogUrl && <a href={catalogUrl} target="_blank" rel="noopener noreferrer">View catalog record ↗</a>}
+            </article>;
+          })}</div>
           <h4>Tradition differences kept explicit</h4>
           <ul className="palmistry-difference-notes">{PALM_TRADITION_DIFFERENCES.map((difference) => <li key={difference.id}><b>{difference.title}:</b> {difference.note}</li>)}</ul>
         </section>

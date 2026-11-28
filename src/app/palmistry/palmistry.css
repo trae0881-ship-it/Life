@@ -3,6 +3,8 @@
 .palmistry-brand{color:#1c2a3a;text-decoration:none;font-size:19px;font-weight:700;letter-spacing:.1em}
 .palmistry-brand:first-letter{color:#b99761}
 .palmistry-brand span{margin-left:5px}
+.palmistry-dashboard-link{color:#766344;text-decoration:none;font-size:10px}
+.palmistry-dashboard-link:hover{text-decoration:underline}
 .palmistry-connectivity,.palmistry-eyebrow,.palmistry-count,.palmistry-rule-badge,.palmistry-footer{font-family:var(--mono,monospace);letter-spacing:.09em}
 .palmistry-connectivity{display:flex;align-items:center;gap:8px;color:#52795e;font-size:9px}
 .palmistry-connectivity i{width:7px;height:7px;border-radius:50%;background:#61a978}
@@ -100,7 +102,7 @@
 .palmistry-footer a:hover{text-decoration:underline}
 .palmistry-page button:focus-visible,.palmistry-page a:focus-visible{outline:3px solid #bf9c5e;outline-offset:3px}
 @media(max-width:700px){.palmistry-content{padding:36px 16px 28px}.palmistry-assurance{display:grid;gap:5px}.palmistry-assurance strong{flex:auto}.palmistry-panel{padding:18px}.palmistry-observation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.palmistry-history-layout{grid-template-columns:1fr}.palmistry-history-list{grid-template-columns:repeat(2,minmax(0,1fr))}.palmistry-report-sections,.palmistry-knowledge-results{grid-template-columns:1fr}}
-@media(max-width:460px){.palmistry-header{height:56px;padding:0 16px}.palmistry-connectivity{max-width:170px;font-size:7px}.palmistry-title h1{font-size:32px}.palmistry-content{padding-top:29px}.palmistry-tabs{gap:2px}.palmistry-tabs button{padding:7px 8px;font-size:10px}.palmistry-form-grid,.palmistry-observation-grid,.palmistry-compare-pickers{grid-template-columns:1fr}.palmistry-panel-heading{align-items:flex-start}.palmistry-rule-badge{font-size:7px}.palmistry-comparison-head,.palmistry-difference{gap:6px;padding:10px 7px;font-size:9px}.palmistry-footer{font-size:7px}.palmistry-qa{grid-template-columns:1fr}.palmistry-qa .palmistry-primary-button{width:100%}}
+@media(max-width:460px){.palmistry-header{height:56px;padding:0 16px}.palmistry-dashboard-link{font-size:9px}.palmistry-connectivity{max-width:150px;font-size:7px}.palmistry-title h1{font-size:32px}.palmistry-content{padding-top:29px}.palmistry-tabs{gap:2px}.palmistry-tabs button{padding:7px 8px;font-size:10px}.palmistry-form-grid,.palmistry-observation-grid,.palmistry-compare-pickers{grid-template-columns:1fr}.palmistry-panel-heading{align-items:flex-start}.palmistry-rule-badge{font-size:7px}.palmistry-comparison-head,.palmistry-difference{gap:6px;padding:10px 7px;font-size:9px}.palmistry-footer{font-size:7px}.palmistry-qa{grid-template-columns:1fr}.palmistry-qa .palmistry-primary-button{width:100%}}
 .palmistry-completeness{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}
 .palmistry-completeness>div{display:flex;justify-content:space-between;gap:8px;padding:10px;border:1px solid #e8e5dd;background:#faf9f6;color:#59635f;font-size:10px}
 .palmistry-completeness span{color:#8e754e}

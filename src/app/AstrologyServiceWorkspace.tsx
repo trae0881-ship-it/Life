@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   createNumerologyReport,
   GRID_LAYOUT,
@@ -31,6 +32,7 @@ import {
   type CheiroWordResult,
 } from "@/calculation/cheiro-revised";
 import { createTarotReading, drawTarotCards, TAROT_CARDS, TAROT_SPREADS, TAROT_TOPICS, type TarotCardId, type TarotSpread, type TarotTopic } from "@/calculation/tarot";
+import { platformServices } from "@/presentation/platform-services";
 import {
   createNameRecommendations,
   createMobileRecommendations,
@@ -52,9 +54,17 @@ type CheiroReportPayload = CheiroNameResult & {
   dateOfBirth: string;
   birthNumber: CheiroBirthNumberResult;
 };
+type BirthProfile = { id: string; label: string; localDate: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isBirthProfile(value: unknown): value is BirthProfile {
+  return isRecord(value)
+    && typeof value.id === "string"
+    && typeof value.label === "string"
+    && typeof value.localDate === "string";
 }
 
 function isCheiroWord(value: unknown): value is CheiroWordResult {
@@ -182,6 +192,10 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
   const [selections, setSelections] = useState<TarotSelection[]>([{ id: "", reversed: false }]);
   const [reading, setReading] = useState<Record<string, unknown> | null>(null);
   const [history, setHistory] = useState<SavedReading[]>([]);
+  const [birthProfiles, setBirthProfiles] = useState<BirthProfile[]>([]);
+  const [selectedBirthProfileId, setSelectedBirthProfileId] = useState("");
+  const [profileStatus, setProfileStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [profileError, setProfileError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [error, setError] = useState("");
@@ -361,6 +375,33 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
     return () => { active = false; };
   }, [service]);
 
+  useEffect(() => {
+    if (service !== "ank-jyotish") return;
+    let active = true;
+    setProfileStatus("loading");
+    setProfileError("");
+    void fetch("/api/profiles", { cache: "no-store" }).then(async (response) => {
+      if (response.status === 401) {
+        window.location.assign("/login");
+        throw new Error("Your session has expired. Sign in again to load birth profiles.");
+      }
+      const body = await responseJson(response);
+      if (!isRecord(body) || !Array.isArray(body.profiles) || !body.profiles.every(isBirthProfile)) {
+        throw new Error("Saved birth profiles could not be read.");
+      }
+      if (active) {
+        setBirthProfiles(body.profiles);
+        setProfileStatus("ready");
+      }
+    }).catch((loadError: unknown) => {
+      if (active) {
+        setProfileStatus("error");
+        setProfileError(loadError instanceof Error ? loadError.message : "Saved birth profiles could not be loaded.");
+      }
+    });
+    return () => { active = false; };
+  }, [service]);
+
   function updateSpread(value: TarotSpread) {
     setSpread(value);
     setSelections(Array.from({ length: value === "single" ? 1 : 3 }, () => ({ id: "", reversed: false })));
@@ -420,8 +461,8 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
   return <main className="service-workspace">
     <header className="service-header">
       <a href="/dashboard" className="service-brand"><span aria-hidden="true">✳</span> LIFE <small>USER DASHBOARD</small></a>
-      <nav aria-label="Astrology service navigation">
-        <a href="/dashboard">Dashboard</a><a href="/palmistry">Palmistry</a><a href="/kp-astrology">KP Astrology</a><a href="/ank-jyotish">Ank Jyotish</a><a href="/tarot-reading">Tarot</a>
+      <nav aria-label="LIFE service navigation">
+        <Link href="/dashboard">Dashboard</Link>{platformServices.map((item) => <Link href={item.href} key={item.id}>{item.label}</Link>)}
       </nav>
     </header>
     <div className="service-content">
@@ -432,8 +473,8 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
             ? "Explore traditional name and date numerology using a documented, deterministic letter-and-number mapping."
             : "Select cards and orientations for a reflective reading from a bundled local Tarot knowledge base."}</p></div>
       </div>
-      <div className="service-shortcuts" aria-label="Switch astrology service">
-        <a href="/palmistry">♧ <span>Palmistry</span></a><a href="/kp-astrology">⌖ <span>KP Astrology</span></a><a href="/ank-jyotish">१ <span>Ank Jyotish</span></a><a href="/tarot-reading">✧ <span>Tarot</span></a>
+      <div className="service-shortcuts" aria-label="Switch LIFE service">
+        {platformServices.map((item) => <Link href={item.href} key={item.id}><span aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>)}
       </div>
       {error && <p className="service-alert" role="alert">{error}</p>}
       {notice && <p className="service-notice" role="status">{notice}</p>}
@@ -442,7 +483,17 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
         <div className="service-panel-heading"><div><p className="service-eyebrow">01 / YOUR DETAILS</p><h2 id="ank-form-title">Create your numerology report</h2></div></div>
         <div className="service-form-grid">
           <label>Full name <input autoComplete="name" maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder={numerologyMethod === "cheiro-revised" ? "ASCII letters; one space between words" : "Enter an Indian or Latin name"} /></label>
-          <label>Date of birth <input type="text" inputMode="numeric" maxLength={10} value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} placeholder="DD-MM-YYYY" /></label>
+          {profileStatus === "error" && <p className="service-alert" role="alert">{profileError}</p>}
+          {birthProfiles.length > 0 && <label>{reportLanguage === "hi" ? "सहेजी गई जन्म प्रोफ़ाइल" : "Saved birth profile"} <select value={selectedBirthProfileId} onChange={(event) => {
+            const profileId = event.target.value;
+            setSelectedBirthProfileId(profileId);
+            const profile = birthProfiles.find((item) => item.id === profileId);
+            if (profile) setDateOfBirth(profile.localDate);
+          }}><option value="">{reportLanguage === "hi" ? "तारीख स्वयं दर्ज करें" : "Enter date manually"}</option>{birthProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.label} · {profile.localDate}</option>)}</select></label>}
+          <label>Date of birth <input type="text" inputMode="numeric" maxLength={10} value={dateOfBirth} onChange={(event) => { setDateOfBirth(event.target.value); setSelectedBirthProfileId(""); }} placeholder="DD-MM-YYYY" /></label>
+          {selectedBirthProfileId && <p className="service-disclaimer">{reportLanguage === "hi"
+            ? "चुनी गई प्रोफ़ाइल से केवल जन्मतिथि ली जाती है; अंक-ज्योतिष के लिए समय और स्थान उपयोग नहीं होते।"
+            : "Only the date is reused from a selected profile; numerology does not use birth time or location."}</p>}
           <label>Calculation method <select value={numerologyMethod} onChange={(event) => setNumerologyMethod(event.target.value as "life" | "cheiro-revised")}><option value="life">LIFE Numerology</option><option value="cheiro-revised">Cheiro Revised Edition</option></select></label>
           <label>Report language <select value={reportLanguage} onChange={(event) => setReportLanguage(event.target.value as NumerologyLanguage)}><option value="en">English</option><option value="hi">हिन्दी</option></select></label>
           {numerologyMethod === "life" && <>

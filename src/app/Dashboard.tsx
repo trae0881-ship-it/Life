@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import KundliAssistant, { type KundliAssistantAccountData } from "./KundliAssistant";
 import KundaliVault from "./KundaliVault";
 import PalmistryDashboard from "./PalmistryDashboard";
@@ -9,6 +10,7 @@ import { analysisReadiness } from "@/calculation/analysis-readiness";
 import { hasChartCalculationInputs, validateBirthForm } from "@/presentation/birth-form";
 import { readLanguagePreference, writeLanguagePreference } from "@/presentation/language-preference";
 import { translate, type Language } from "@/presentation/language";
+import { platformServices } from "@/presentation/platform-services";
 import type { AuthUser } from "@/server/auth-core";
 import "./dashboard.css";
 import "./kundli.css";
@@ -65,12 +67,6 @@ type ProfileForm = {
   longitude: string;
 };
 
-const astrologyServices = [
-  { name: "Palmistry", description: "Record palm lines, mounts and hand observations for a private rule-based reading.", href: "/palmistry", icon: "♧", action: "Explore Palmistry" },
-  { name: "KP Astrology", description: "Explore KP cusps, sub-lords, significators and chart details in Chart Studio.", href: "/kp-astrology", icon: "⌖", action: "Open KP Astrology" },
-  { name: "Ank Jyotish", description: "Explore birth, destiny and name numbers with a detailed traditional report.", href: "/ank-jyotish", icon: "१", action: "Start Ank Jyotish" },
-  { name: "Tarot Card Reading", description: "Select a card or spread and read locally stored upright and reversed meanings.", href: "/tarot-reading", icon: "✧", action: "Start a Tarot Reading" },
-] as const;
 const sections: Section[] = ["home", "profile", "kundlis", "palmistry", "ask", "reports", "settings"];
 const sectionIcon: Record<Section, string> = { home: "⌂", profile: "◉", kundlis: "◇", palmistry: "☷", ask: "✧", reports: "▤", settings: "⚙" };
 const blankForm: ProfileForm = { label: "", birthPlace: "", localDate: "", localTime: "", birthTimeAccuracy: "", timeZone: "", latitude: "", longitude: "" };
@@ -94,6 +90,7 @@ export default function Dashboard({ user }: { user: AuthUser }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const menuToggle = useRef<HTMLButtonElement>(null);
   const [loading, setLoading] = useState(true);
+  const [serviceSearch, setServiceSearch] = useState("");
   const recordsRequest = useRef<AbortController | null>(null);
   const currentLanguage = useRef(language);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -117,6 +114,13 @@ export default function Dashboard({ user }: { user: AuthUser }) {
   const [openingReportId, setOpeningReportId] = useState("");
   const [openError, setOpenError] = useState("");
   const t = (key: string) => translate(language, key);
+  const searchText = serviceSearch.trim().toLocaleLowerCase();
+  const filteredServices = platformServices.filter((service) => !searchText || [
+    t(service.nameKey),
+    t(service.categoryKey),
+    t(service.descriptionKey),
+    ...service.keywords,
+  ].some((value) => value.toLocaleLowerCase().includes(searchText)));
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId) ?? null;
   const selectedProfileReport = reports.find((report) => report.profileId === selectedProfileId) ?? null;
   const formIsDirty = isCreatingProfile
@@ -480,9 +484,9 @@ export default function Dashboard({ user }: { user: AuthUser }) {
           <span aria-hidden="true">{sectionIcon[item]}</span>{t(`dashboard.section.${item}`)}
         </button>)}
       </nav>
-      <nav className="dashboard-service-nav" aria-label="Astrology services">
-        <span>ASTROLOGY SERVICES</span>
-        {astrologyServices.map((service) => <a href={service.href} key={service.name}><span aria-hidden="true">{service.icon}</span>{service.name}</a>)}
+      <nav className="dashboard-service-nav" aria-label={t("dashboard.services.navigation")}>
+        <span>{t("dashboard.services.heading")}</span>
+        {platformServices.map((service) => <Link href={service.href} key={service.id}><span aria-hidden="true">{service.icon}</span>{t(service.nameKey)}</Link>)}
       </nav>
       <div className="dashboard-sidebar-foot">
         <a href="/terms-and-conditions">{t("legal.termsLink")}</a>
@@ -514,11 +518,18 @@ export default function Dashboard({ user }: { user: AuthUser }) {
             <button type="button" onClick={() => changeSection("ask")}>{t("dashboard.askAction")}</button>
           </nav>
           <section className="dashboard-services" aria-labelledby="dashboard-services-title">
-            <div className="dashboard-services-heading"><div><span className="dashboard-card-kicker">YOUR PERSONAL TOOLKIT</span><h2 id="dashboard-services-title">Explore Astrology Services</h2><p>Open any service directly from your dashboard.</p></div></div>
-            <div className="dashboard-service-grid">{astrologyServices.map((service, index) => <article className="dashboard-service-card" key={service.name}>
-              <span className="dashboard-service-index">0{index + 1}</span><span className="dashboard-service-icon" aria-hidden="true">{service.icon}</span>
-              <h3>{service.name}</h3><p>{service.description}</p><a href={service.href}>{service.action}<span aria-hidden="true"> ↗</span></a>
-            </article>)}</div>
+            <div className="dashboard-services-heading"><div><span className="dashboard-card-kicker">{t("dashboard.services.eyebrow")}</span><h2 id="dashboard-services-title">{t("dashboard.services.title")}</h2><p>{t("dashboard.services.intro")}</p></div></div>
+            <div className="dashboard-service-toolbar">
+              <p>{t("dashboard.services.availableOnly")}</p>
+              <label className="dashboard-service-search"><span>{t("dashboard.services.search")}</span><input type="search" value={serviceSearch} onChange={(event) => setServiceSearch(event.target.value)} placeholder={t("dashboard.services.searchPlaceholder")} /></label>
+            </div>
+            {filteredServices.length
+              ? <div className="dashboard-service-grid">{filteredServices.map((service, index) => <article className="dashboard-service-card" key={service.id}>
+                <span className="dashboard-service-index">{String(index + 1).padStart(2, "0")}</span><span className="dashboard-service-icon" aria-hidden="true">{service.icon}</span>
+                <span className="dashboard-service-category">{t(service.categoryKey)}</span>
+                <h3>{t(service.nameKey)}</h3><p>{t(service.descriptionKey)}</p><Link href={service.href}>{t(service.actionKey)}<span aria-hidden="true"> ↗</span></Link>
+              </article>)}</div>
+              : <p className="dashboard-service-empty" role="status">{t("dashboard.services.noResults")}</p>}
           </section>
           <div className="dashboard-stat-grid">
             <button type="button" className="dashboard-stat-card" onClick={() => changeSection("profile")}><span>{t("dashboard.stat.profile")}</span><strong>{profileStatus === "error" ? "—" : profiles.length}</strong><small>{profileStatus === "error" ? t("dashboard.unavailable") : t("dashboard.profileCount")}</small></button>
