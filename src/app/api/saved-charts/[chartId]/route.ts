@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const { chartId } = await context.params;
     const chart = await getPrisma().savedChart.findFirst({
       where: ownedRecordWhere(user.id, chartId),
-      select: { id: true, profileId: true, title: true, engineVersion: true, ephemerisManifest: true, ruleSetVersion: true, settings: true, inputSnapshot: true, result: true, resultHash: true, createdAt: true },
+      select: { id: true, profileId: true, title: true, reportType: true, availableChartCount: true, engineVersion: true, ephemerisManifest: true, ruleSetVersion: true, settings: true, inputSnapshot: true, result: true, resultHash: true, createdAt: true },
     });
     if (!chart) return jsonError("Saved chart not found.", 404, "NOT_FOUND");
     if (!isRestorableSavedChartResult(chart.result)) {

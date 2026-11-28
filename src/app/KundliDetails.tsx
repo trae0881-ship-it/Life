@@ -2,8 +2,9 @@
 
 import { getKundliDetails } from "@/presentation/kundli-details";
 import { hasTranslation, translate, type Language } from "@/presentation/language";
+import KundliSectionQuestions from "./KundliSectionQuestions";
 
-export default function KundliDetails({ result, language }: { result: unknown; language: Language }) {
+export default function KundliDetails({ result, language, savedChartId = null }: { result: unknown; language: Language; savedChartId?: string | null }) {
   const t = (key: string) => translate(language, key);
   const details = getKundliDetails(result).filter((detail) =>
     !["naam", "ishtkaal", "sunrise", "nakshatraPaya"].includes(detail.id),
@@ -32,5 +33,6 @@ export default function KundliDetails({ result, language }: { result: unknown; l
         </div>;
       })}
     </dl>
+    <KundliSectionQuestions savedChartId={savedChartId} sectionKey="nakshatra" sectionLabel={t("kundliDetails.title")} language={language} />
   </section>;
 }

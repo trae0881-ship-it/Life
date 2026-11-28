@@ -249,7 +249,7 @@ export function answerKundliQuestion(
   const topic = popularQuestion?.topic ?? (
     inferredTopic === "interpretation" ? assistantTopicForSection(sectionKey) ?? inferredTopic
       : inferredTopic ?? assistantTopicForSection(sectionKey)
-  );
+  ) ?? null;
   const promptKey = popularQuestion ? `assistant.popular.${popularQuestion.id}` : undefined;
   const followUpIds = topic ? followUps[topic] ?? [] : [];
   const answer: AssistantAnswer = {
@@ -472,7 +472,9 @@ export function answerKundliQuestion(
     return {
       ...answer,
       status: nodes.length ? "answered" : "unavailable",
-      explanation: localize(language, nodes.length ? "assistant.answer.nodes" : "assistant.unavailable"),
+      explanation: nodes.length
+        ? questionExplanation(language, "rahu_ketu", "assistant.answer.nodes")
+        : questionExplanation(language, "rahu_ketu", "assistant.unavailable"),
       evidence: nodes.map((planet) => `${planet.name}: ${planet.sign}, house ${planet.house}, ${planet.siderealLongitude.toFixed(4)}°`),
       limitations: nodes.length ? [] : [localize(language, "assistant.limit.nodesMissing")],
     };
@@ -481,7 +483,14 @@ export function answerKundliQuestion(
   if (popularQuestion?.mode === "long-transits") {
     const ayanamsa = chart.settings?.ayanamsa;
     if (ayanamsa !== "Lahiri" && ayanamsa !== "Raman" && ayanamsa !== "Krishnamurti") {
-      return { ...answer, status: "unavailable", explanation: localize(language, "assistant.transitsUnavailable"), limitations: [localize(language, "assistant.limit.transitConvention")] };
+      return {
+        ...answer,
+        status: "unavailable",
+        explanation: popularQuestion?.id === "next_12_months_transits"
+          ? questionExplanation(language, "next_12_months_transits", "assistant.transitsUnavailable")
+          : localize(language, "assistant.transitsUnavailable"),
+        limitations: [localize(language, "assistant.limit.transitConvention")],
+      };
     }
     const transitSnapshot = calculateTransits(at, { ayanamsa, horizonDays: 365.2425 });
     const oneYearLater = at.getTime() + 365.2425 * 86_400_000;
@@ -494,7 +503,9 @@ export function answerKundliQuestion(
     return {
       ...answer,
       status: "limited",
-      explanation: localize(language, "assistant.limitation.transitYear"),
+      explanation: popularQuestion?.id === "next_12_months_transits"
+        ? questionExplanation(language, "next_12_months_transits", "assistant.limitation.transitYear")
+        : localize(language, "assistant.limitation.transitYear"),
       evidence: unique([
         `Transit snapshot: ${transitSnapshot.instantUtc}; calculated horizon: ${transitSnapshot.horizonDays} days; selected ayanamsa: ${transitSnapshot.ayanamsa}`,
         ...transitSnapshot.bodies.map((body) => `Transit ${body.name}: ${body.sign} at ${body.longitude.toFixed(4)}°`),
@@ -583,7 +594,13 @@ export function answerKundliQuestion(
     return {
       ...answer,
       status: hasPlacements ? "answered" : "unavailable",
-      explanation: localize(language, hasPlacements ? topicKeys.vargas.explanation : "assistant.unavailable"),
+      explanation: hasPlacements
+        ? popularQuestion?.id === "navamsa"
+          ? questionExplanation(language, "navamsa", topicKeys.vargas.explanation)
+          : localize(language, topicKeys.vargas.explanation)
+        : popularQuestion?.id === "navamsa"
+          ? questionExplanation(language, "navamsa", "assistant.unavailable")
+          : localize(language, "assistant.unavailable"),
       evidence,
     };
   }

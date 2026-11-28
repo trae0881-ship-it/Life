@@ -4,10 +4,26 @@ import { useMemo, useState } from "react";
 import { interpretChart } from "@/interpretation/rules";
 import { translate, type Language } from "@/presentation/language";
 import { resultCopy } from "@/presentation/result-copy";
+import type { AssistantReportSection } from "@/presentation/assistant-section-context";
+import KundliSectionQuestions from "./KundliSectionQuestions";
 
 type Chart = Parameters<typeof interpretChart>[0];
 
-export default function InterpretationPanel({ chart, language }: { chart: Chart; language: Language }) {
+const questionSectionKeys: Record<string, AssistantReportSection> = {
+  Personality: "personality",
+  Education: "education",
+  Career: "career",
+  Business: "business",
+  Finances: "finances",
+  Relationships: "relationships",
+  "Spiritual interests": "personality",
+  Dasha: "dasha",
+  Transits: "transits",
+  "Yogas and Doshas": "rules",
+  "Planetary strengths": "planetary-rules",
+};
+
+export default function InterpretationPanel({ chart, language, savedChartId = null }: { chart: Chart; language: Language; savedChartId?: string | null }) {
   const report = interpretChart(chart);
   const r = (key: Parameters<typeof resultCopy>[1]) => resultCopy(language, key);
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -39,6 +55,7 @@ export default function InterpretationPanel({ chart, language }: { chart: Chart;
         <p>{r(`results.prediction.${section.name}` as Parameters<typeof resultCopy>[1])}</p>
         {!["Yogas and Doshas", "Planetary strengths"].includes(section.name) && <p>{item.reading}</p>}
       </details>) : <div className="interpretation-unavailable"><p>{r(`results.prediction.${section.name}` as Parameters<typeof resultCopy>[1])}</p><p>{section.unavailableReason ?? translate(language, "interpretation.unavailable")}</p></div>}
+      {section.available && questionSectionKeys[section.name] && <KundliSectionQuestions savedChartId={savedChartId} sectionKey={questionSectionKeys[section.name]} sectionLabel={translate(language, `prediction.${section.name}`)} language={language} />}
     </article>)}</div>
   </section>;
 }

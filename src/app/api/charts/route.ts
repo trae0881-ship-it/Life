@@ -8,6 +8,8 @@ import { validateChartInput } from "@/server/birth-validation";
 import { requireRole } from "@/server/auth";
 import { withApiKeyAccess } from "@/server/api-platform";
 import { getPrisma } from "@/server/db";
+import { availableChartCountForResult, reportTypeForResult } from "@/server/saved-report-summary";
+import { ownedRecordData } from "@/server/ownership";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,22 +21,73 @@ function jsonError(message: string, code: string, status: number, details?: unkn
 export async function POST(request: NextRequest) {
   return withApiKeyAccess(request, "POST /api/charts", { repository: getPrisma, pepper: process.env.API_KEY_PEPPER }, async (apiAccess) => {
     if (apiAccess.kind === "session" && !isSameOriginMutation(request)) return jsonError("Request origin is not allowed.", "INVALID_ORIGIN", 403);
+    let sessionUserId: string | null = null;
     try {
       if (apiAccess.kind === "session") {
         const auth = await requireRole(request, ["USER", "DEVELOPER", "ADMIN", "SUPER_ADMIN"]);
         if (auth.status !== 200) return jsonError(auth.status === 401 ? "Sign in is required." : "Chart access is not allowed.", auth.status === 401 ? "UNAUTHENTICATED" : "FORBIDDEN", auth.status);
+        sessionUserId = auth.user.id;
       }
       const rate = checkRateLimit(`charts:${apiAccess.kind === "key" ? apiAccess.key.keyId : requestRateLimitKey(request)}`, apiAccess.kind === "key" ? apiAccess.key.requestsPerMinute : 20, 60_000);
       if (!rate.allowed) return NextResponse.json({ error: "Too many calculations. Try again in a minute.", code: "RATE_LIMITED" }, { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds), "Cache-Control": "no-store" } });
       const payload = await readJson(request);
       if (!payload) return jsonError("Birth details are required.", "INVALID_INPUT", 422);
       if (payload.fullName !== undefined && (typeof payload.fullName !== "string" || payload.fullName.trim().length > 120)) return jsonError("Enter a chart name of up to 120 characters.", "INVALID_NAME", 422);
+      if (payload.reportName !== undefined && (typeof payload.reportName !== "string" || payload.reportName.trim().length > 120)) return jsonError("Enter a report name up to 120 characters.", "INVALID_REPORT_NAME", 422);
       if (payload.birthPlace !== undefined && payload.birthPlace !== null && (typeof payload.birthPlace !== "string" || payload.birthPlace.trim().length > 160)) return jsonError("Enter a birthplace label up to 160 characters.", "INVALID_BIRTHPLACE", 422);
       if (payload.coordinateSource !== undefined && payload.coordinateSource !== null && (typeof payload.coordinateSource !== "string" || !["birth-record", "gazetteer", "manual-unknown"].includes(payload.coordinateSource))) return jsonError("Choose a supported coordinate source.", "INVALID_COORDINATE_SOURCE", 422);
       const input = validateChartInput(payload);
       const health = await engineHealth();
       if (!health.ready) return jsonError("Local ephemeris or native engine is unavailable; no fallback was used.", "ENGINE_UNAVAILABLE", 503, health);
       const chart = calculateBirthChart(input);
+      if (sessionUserId) {
+        try {
+          const prisma = getPrisma();
+          const profile = await prisma.birthProfile.findFirst({
+            where: {
+              userId: sessionUserId,
+              localDate: chart.input.localDate,
+              localTime: chart.input.localTime,
+              timeZone: chart.input.timeZone,
+              latitude: chart.input.latitude,
+              longitude: chart.input.longitude,
+            },
+            orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+            select: { id: true },
+          });
+          const reportType = reportTypeForResult(chart);
+          const availableChartCount = availableChartCountForResult(chart);
+          const title = typeof payload.reportName === "string" && payload.reportName.trim()
+            ? payload.reportName.trim()
+            : `${chart.input.fullName?.trim() || "My"} Kundali`;
+          const saved = await prisma.savedChart.create({
+            data: ownedRecordData(sessionUserId, {
+              profileId: profile?.id ?? null,
+              title,
+              reportType,
+              availableChartCount,
+              engineVersion: chart.settings.engine,
+              ephemerisManifest: JSON.stringify(chart.settings.ephemerisAssets),
+              ruleSetVersion: chart.settings.ruleSetVersion,
+              settings: JSON.parse(JSON.stringify(chart.settings)),
+              inputSnapshot: JSON.parse(JSON.stringify(chart.input)),
+              result: JSON.parse(JSON.stringify(chart)),
+              resultHash: chart.provenance.resultHash,
+            }),
+            select: { id: true, profileId: true, title: true, reportType: true, availableChartCount: true },
+          });
+          return NextResponse.json({
+            ...chart,
+            savedChartId: saved.id,
+            savedChartProfileId: saved.profileId,
+            reportType: saved.reportType,
+            availableChartCount: saved.availableChartCount,
+          }, { headers: { "Cache-Control": "no-store" } });
+        } catch (error) {
+          console.error("Generated Kundali could not be saved.", { errorType: error instanceof Error ? error.name : "UnknownError" });
+          return jsonError("Kundali calculation completed, but the report could not be saved. Please try again.", "REPORT_SAVE_FAILED", 503);
+        }
+      }
       return NextResponse.json(chart, { headers: { "Cache-Control": "no-store" } });
     } catch (error) {
       if (error instanceof RequestBodyError) return jsonError(error.message, error.status === 400 ? "INVALID_JSON" : "PAYLOAD_TOO_LARGE", error.status);

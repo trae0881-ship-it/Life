@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { answerKundliQuestion, isAssistantChart } from "@/presentation/kundli-assistant";
 import { assistantQuestionCatalog } from "@/presentation/assistant-questions";
-import { languages } from "@/presentation/language";
+import { languages, translate } from "@/presentation/language";
 import { CURRENT_TERMS_VERSION } from "@/legal/terms";
 import { getUserFromRequest } from "@/server/auth";
 import { getPrisma } from "@/server/db";
@@ -53,6 +53,15 @@ function validDateFilter(value: string | null) {
   if (value === null) return true;
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`))
     && new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
+}
+
+function customerFacingEvidence(evidence: string[]): string[] {
+  const internalDetails = /^(Rule convention|Rule provenance|Matched chart conditions|Conflicting chart factors|Project-selected|Selected transit instant|Birth date:|Local birth time:|IANA timezone:|Coordinates:|Ayanamsa:|House system:|Node mode:)/i;
+  return evidence.flatMap((item) => {
+    if (internalDetails.test(item)) return [];
+    const dashaContext = /^Traditional Dasha context:\s*(.*?);\s*factors:.*$/i.exec(item);
+    return [dashaContext ? `Traditional reading: ${dashaContext[1]}` : item];
+  });
 }
 
 async function requireAcceptedUser(request: NextRequest) {
@@ -215,7 +224,13 @@ export async function POST(request: NextRequest) {
       new Date(),
       submitted.sectionKey ?? undefined,
     );
-    const safeAnswer = { ...answer, provenance: null };
+    const safeAnswer = {
+      ...answer,
+      evidence: customerFacingEvidence(answer.evidence),
+      limitations: answer.limitations.filter((item) => !/\b(source[- ]reviewed|outcome rule|calculation convention|current interpretation rules)\b/i.test(item)),
+      evidenceDisclosure: translate(body.language as typeof languages[number], "assistant.evidenceDisclosure"),
+      provenance: null,
+    };
     const record = await prisma.kundliQuestion.create({
       data: {
         userId: user.id,
@@ -251,7 +266,7 @@ export async function POST(request: NextRequest) {
           where: { userId: auth.user!.id, requestId: currentRequestId },
           select: {
             id: true, profileId: true, savedChartId: true, question: true, questionId: true, topic: true,
-            answer: true, answerStatus: true, createdAt: true,
+            sectionKey: true, sectionLabel: true, answer: true, answerStatus: true, createdAt: true,
             answeredAt: true,
             profile: { select: { label: true } },
           },

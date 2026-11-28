@@ -1,9 +1,22 @@
 const reportSectionTopics = {
   overview: "basics",
+  personality: "basics",
+  nakshatra: "basics",
   "birth-chart": "basics",
   "chandra-kundli": "basics",
   "bhava-chalit": "basics",
   "planetary-positions": "basics",
+  "planetary-aspects": "interpretation",
+  career: "career",
+  education: "career",
+  business: "business",
+  finances: "business",
+  relationships: "relationships",
+  marriage: "relationships",
+  family: "relationships",
+  health: undefined,
+  property: undefined,
+  "foreign-travel": undefined,
   panchanga: "panchanga",
   dasha: "dasha",
   transits: "transits",
@@ -15,7 +28,7 @@ const reportSectionTopics = {
 } as const;
 
 export type AssistantReportSection = keyof typeof reportSectionTopics | `D${number}`;
-export type AssistantReportTopic = (typeof reportSectionTopics)[keyof typeof reportSectionTopics] | "vargas";
+export type AssistantReportTopic = Exclude<(typeof reportSectionTopics)[keyof typeof reportSectionTopics], undefined> | "vargas";
 
 export function isAssistantReportSection(value: unknown): value is AssistantReportSection {
   if (typeof value !== "string") return false;

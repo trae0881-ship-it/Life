@@ -28,6 +28,8 @@ test("saved report summary describes calculated sections from the stored chart r
     calculationStatus: "saved-snapshot",
     availableSections: ["kundli", "dasha", "divisionalCharts", "transits", "panchanga", "kp"],
     calculationConvention: ["Lahiri", "WholeSign", "True"],
+    reportType: "COMBINED",
+    availableChartCount: 1,
   });
 });
 
@@ -64,6 +66,8 @@ test("saved report summary fails closed for malformed stored JSON and never inve
     calculationStatus: "saved-snapshot",
     availableSections: [],
     calculationConvention: [],
+    reportType: "VEDIC",
+    availableChartCount: 0,
   });
 });
 
@@ -71,7 +75,7 @@ test("saved report endpoints keep list, detail, profile association, and deletio
   const listRoute = readFileSync(new URL("../src/app/api/saved-charts/route.ts", import.meta.url), "utf8");
   const detailRoute = readFileSync(new URL("../src/app/api/saved-charts/[chartId]/route.ts", import.meta.url), "utf8");
   assert.match(listRoute, /getUserFromRequest\(request\)/);
-  assert.match(listRoute, /where: ownedRecordWhere\(user\.id\)/);
+  assert.match(listRoute, /ownedRecordWhere\(user\.id\)/);
   assert.match(listRoute, /orderBy:\s*\[\{\s*createdAt:\s*"desc"\s*\},\s*\{\s*id:\s*"desc"\s*\}\]/);
   assert.match(listRoute, /ownedRecordWhere\(user\.id, body\.profileId\)/);
   assert.match(listRoute, /chart\.input\.(?:localDate|localTime|timeZone|latitude|longitude)/);

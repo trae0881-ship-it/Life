@@ -45,7 +45,7 @@ test("DOB 1997-04-27 stays canonical through form, profile validation, chart and
   assert.match(profileDetailRoute, /body\.localDate !== undefined \? \{ localDate: input\.localDate \}/);
   assert.match(profileDetailRoute, /body\.birthPlace !== undefined \? \{ birthPlace: input\.birthPlace \}/);
   assert.match(accountPanel, /isRestorableSavedChartResult\(result\.chart\.result\)/);
-  assert.match(accountPanel, /onLoadSavedChart\(result\.chart\.result\)/);
+  assert.match(accountPanel, /onLoadSavedChart\(\{ \.\.\.result\.chart\.result, savedChartId: result\.chart\.id \}\)/);
   assert.match(dashboard, /!isValidDateOnly\(profile\.localDate\) \|\| birthYear < 1800 \|\| birthYear > 2399/);
   assert.match(dashboard, /dateField\.value = ""/);
   assert.match(dashboard, /error\.invalidProfileDate/);

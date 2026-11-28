@@ -23,6 +23,7 @@ export const REQUIRED_MIGRATIONS = [
   "20261124150000_palmistry_hands_readings",
   "20261124160000_saved_astrology_readings",
   "20261126160000_seo_management",
+  "20261127140000_kundali_report_management",
 ] as const;
 
 const SENSITIVE_TABLES = new Set([

@@ -210,6 +210,86 @@ body {
   font-size: var(--font-helper);
 }
 
+.account-report-filters {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.account-report-filters input,
+.account-report-filters select,
+.account-report-rename input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  border: 1px solid #45566a;
+  border-radius: 3px;
+  background: #101e2c;
+  color: #fff;
+  padding: 0 7px;
+  font: inherit;
+}
+
+.account-report-filters button,
+.account-report-actions button,
+.account-report-rename button,
+.account-report-pagination button {
+  min-height: 28px;
+  border: 1px solid #45566a;
+  border-radius: 3px;
+  background: #23354a;
+  color: #e7e2d6;
+  padding: 5px 7px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.account-report-filters button:disabled,
+.account-report-actions button:disabled,
+.account-report-rename button:disabled,
+.account-report-pagination button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.account-report-open {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-report-actions {
+  display: grid;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.account-report-rename {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 5px;
+  width: 100%;
+}
+
+.account-report-empty {
+  display: block;
+  margin-top: 8px;
+  color: #a4afba;
+}
+
+.account-report-pagination {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.account-report-pagination span {
+  color: #a4afba;
+  text-align: center;
+  font-size: var(--font-metadata);
+}
+
 .sensitivity-intro p,
 .sensitivity-loading,
 .sensitivity-error,

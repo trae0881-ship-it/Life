@@ -18,15 +18,32 @@ export async function GET(request: NextRequest) {
     }
 
     const prisma = getPrisma();
-    const [accounts, profiles, savedCharts, questions] = await Promise.all([
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const [accounts, profiles, savedCharts, questions, reportGroups, chartAggregate, reportsThisMonth, questionsThisMonth] = await Promise.all([
       prisma.user.count(),
       prisma.birthProfile.count(),
       prisma.savedChart.count(),
       prisma.kundliQuestion.count(),
+      prisma.savedChart.groupBy({ by: ["reportType"], _count: { _all: true } }),
+      prisma.savedChart.aggregate({ _sum: { availableChartCount: true } }),
+      prisma.savedChart.count({ where: { createdAt: { gte: monthStart } } }),
+      prisma.kundliQuestion.count({ where: { createdAt: { gte: monthStart } } }),
     ]);
+    const reportTypes = { VEDIC: 0, KP: 0, COMBINED: 0 };
+    for (const group of reportGroups) reportTypes[group.reportType] = group._count._all;
 
     return NextResponse.json(
-      { accounts, profiles, savedCharts, questions },
+      {
+        accounts,
+        profiles,
+        savedCharts,
+        questions,
+        reportTypes,
+        reportsThisMonth,
+        availableCharts: chartAggregate._sum.availableChartCount ?? 0,
+        questionsThisMonth,
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch {

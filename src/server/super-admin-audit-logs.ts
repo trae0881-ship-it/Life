@@ -1,6 +1,13 @@
 import { isValidDateOnly } from "../calculation/date-only.ts";
 
-export const SUPER_ADMIN_AUDIT_ACTIONS = ["USER_LIST_READ", "USER_FILTERED_READ", "USER_ROLE_CHANGED", "BOOTSTRAP_SUPER_ADMIN"] as const;
+export const SUPER_ADMIN_AUDIT_ACTIONS = [
+  "USER_LIST_READ",
+  "USER_FILTERED_READ",
+  "USER_ROLE_CHANGED",
+  "BOOTSTRAP_SUPER_ADMIN",
+  "KUNDALI_REPORT_LIST_READ",
+  "KUNDALI_REPORT_DETAIL_READ",
+] as const;
 export type SuperAdminAuditAction = (typeof SUPER_ADMIN_AUDIT_ACTIONS)[number];
 
 const MAX_PAGE = 100_000;

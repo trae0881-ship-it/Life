@@ -119,7 +119,7 @@ test("Super Admin navigation remains honest, accessible, localized, and responsi
   const styles = source("src/app/super-admin/super-admin.css");
   const healthApi = source("src/app/api/super-admin/health/route.ts");
   const healthHandler = source("src/server/super-admin-health-handler.ts");
-  for (const key of ["overview", "users", "health", "auditLogs"]) {
+  for (const key of ["overview", "users", "kundaliReports", "health", "auditLogs"]) {
     assert.match(dashboard, new RegExp(`\\b${key}: "superAdmin\\.`));
   }
   assert.match(dashboard, /aria-label=\{t\("superAdmin\.navigation"\)\}/);
@@ -136,7 +136,8 @@ test("Super Admin navigation remains honest, accessible, localized, and responsi
   assert.match(dashboard, /superAdmin\.noAuditEvents/);
   assert.match(dashboard, /superAdmin\.healthError/);
   assert.match(dashboard, /superAdmin\.loadError/);
-  assert.doesNotMatch(dashboard, /questionAudit|superAdmin\.settings|superAdmin\.reports/);
+  assert.doesNotMatch(dashboard, /questionAudit|superAdmin\.settings/);
+  assert.match(dashboard, /kundaliReports/);
   assert.match(dashboard, /activeModule === "users"/);
   assert.match(dashboard, /super-admin\/users\?/);
   assert.match(styles, /@media\(max-width:760px\)/);

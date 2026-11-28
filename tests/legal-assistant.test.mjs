@@ -69,12 +69,13 @@ test("assistant persistence uses authenticated profile/chart ownership, bounded 
   const route = source("src/app/api/assistant/questions/route.ts");
   const detail = source("src/app/api/assistant/questions/[questionId]/route.ts");
   assert.match(route, /getUserFromRequest\(request\)/);
-  assert.match(route, /ownedRecordWhere\(user\.id, body\.profileId\)/);
-  assert.match(route, /userId: user\.id, profileId: profile\.id/);
+  assert.match(route, /where:\s*\{\s*id:\s*body\.savedChartId,\s*userId:\s*user\.id/);
+  assert.match(route, /profileId: savedChart\.profileId/);
   assert.match(route, /body\.question\.trim\(\)\.length > 500/);
   assert.match(route, /take: PAGE_SIZE \+ 1/);
   assert.match(route, /@@unique|requestId/);
-  assert.match(route, /safeAnswer = \{ \.\.\.answer, provenance: null \}/);
+  assert.match(route, /safeAnswer = \{\s*\.\.\.answer,/);
+  assert.match(route, /provenance: null/);
   assert.match(detail, /ownedRecordWhere\(auth\.user!\.id, questionId\)/);
   assert.match(detail, /deleteMany\(\{\s*where: ownedRecordWhere/);
   assert.deepEqual(ownedRecordWhere("user-a", "q-user-b"), { id: "q-user-b", userId: "user-a" });

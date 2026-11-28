@@ -77,5 +77,6 @@ export default function KundliChart({ chart, language, referenceSign, chartTitle
       <span>℞ {t("chart.retrogradeLegend")}</span>
     </div>
     <div className="kundli-planet-legend">{chart.planets.map((planet) => <span key={planet.name}><b>{shortNames[planet.name] ?? planet.name.slice(0, 2)}</b> {planet.name}{planet.motion === "Retrograde" ? " ℞" : ""}</span>)}</div>
+    <p className="kundli-reading-guide">{t(referenceSign ? "chart.guide.moon" : "chart.guide.lagna")}</p>
   </div>;
 }

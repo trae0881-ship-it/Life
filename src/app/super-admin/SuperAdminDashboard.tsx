@@ -3,8 +3,18 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { readLanguagePreference } from "@/presentation/language-preference";
 import { translate, type Language } from "@/presentation/language";
+import SuperAdminReportMonitoring from "./SuperAdminReportMonitoring";
 
-type Metrics = { accounts: number; profiles: number; savedCharts: number; questions: number };
+type Metrics = {
+  accounts: number;
+  profiles: number;
+  savedCharts: number;
+  questions: number;
+  reportsThisMonth: number;
+  availableCharts: number;
+  questionsThisMonth: number;
+  reportTypes: { VEDIC: number; KP: number; COMBINED: number };
+};
 type Health = { engine: "ready" | "unavailable"; database: "connected" | "not-configured" | "unreachable" };
 type AdminUser = {
   id: string;
@@ -19,7 +29,7 @@ type AuditEvent = {
   id: string;
   actorUserId: string | null;
   actorLabel: string | null;
-  action: "USER_LIST_READ" | "USER_FILTERED_READ" | "USER_ROLE_CHANGED" | "BOOTSTRAP_SUPER_ADMIN";
+  action: "USER_LIST_READ" | "USER_FILTERED_READ" | "USER_ROLE_CHANGED" | "BOOTSTRAP_SUPER_ADMIN" | "KUNDALI_REPORT_LIST_READ" | "KUNDALI_REPORT_DETAIL_READ";
   page: number;
   resultCount: number;
   targetUserId: string | null;
@@ -28,12 +38,13 @@ type AuditEvent = {
   createdAt: string;
 };
 type AuditFilters = { action: string; startDate: string; endDate: string };
-type ModuleId = "overview" | "users" | "health" | "auditLogs";
+type ModuleId = "overview" | "users" | "kundaliReports" | "health" | "auditLogs";
 
-const modules: ModuleId[] = ["overview", "users", "health", "auditLogs"];
+const modules: ModuleId[] = ["overview", "users", "kundaliReports", "health", "auditLogs"];
 const moduleLabels: Record<ModuleId, string> = {
   overview: "superAdmin.overview",
   users: "superAdmin.users",
+  kundaliReports: "superAdmin.kundaliReports",
   health: "superAdmin.health",
   auditLogs: "superAdmin.auditLogs",
 };
@@ -41,9 +52,11 @@ const moduleLabels: Record<ModuleId, string> = {
 function validMetrics(value: unknown): value is Metrics {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const metrics = value as Record<string, unknown>;
-  return ["accounts", "profiles", "savedCharts", "questions"].every(
+  return ["accounts", "profiles", "savedCharts", "questions", "reportsThisMonth", "availableCharts", "questionsThisMonth"].every(
     (key) => Number.isSafeInteger(metrics[key]) && (metrics[key] as number) >= 0,
-  );
+  ) && Boolean(metrics.reportTypes) && typeof metrics.reportTypes === "object" && !Array.isArray(metrics.reportTypes)
+    && ["VEDIC", "KP", "COMBINED"].every((key) => Number.isSafeInteger((metrics.reportTypes as Record<string, unknown>)[key])
+      && ((metrics.reportTypes as Record<string, number>)[key] >= 0));
 }
 
 function validUserList(value: unknown): value is { users: AdminUser[]; page: number; pageCount: number; total: number } {
@@ -78,7 +91,7 @@ function validAuditList(value: unknown): value is { events: AuditEvent[]; page: 
       return typeof item.id === "string"
         && (item.actorUserId === null || typeof item.actorUserId === "string")
         && (item.actorLabel === null || typeof item.actorLabel === "string")
-        && ["USER_LIST_READ", "USER_FILTERED_READ", "USER_ROLE_CHANGED", "BOOTSTRAP_SUPER_ADMIN"].includes(item.action as string)
+        && ["USER_LIST_READ", "USER_FILTERED_READ", "USER_ROLE_CHANGED", "BOOTSTRAP_SUPER_ADMIN", "KUNDALI_REPORT_LIST_READ", "KUNDALI_REPORT_DETAIL_READ"].includes(item.action as string)
         && Number.isSafeInteger(item.page)
         && Number.isSafeInteger(item.resultCount)
         && (item.targetUserId === null || typeof item.targetUserId === "string")
@@ -388,6 +401,18 @@ export default function SuperAdminDashboard({ email, userId }: { email: string; 
                   ))}
                 </div>
               ) : null}
+              {metrics && <div className="super-admin-metrics super-admin-report-metrics">
+                {([
+                  ["VEDIC", "superAdmin.reportType.VEDIC"],
+                  ["KP", "superAdmin.reportType.KP"],
+                  ["COMBINED", "superAdmin.reportType.COMBINED"],
+                ] as const).map(([key, label]) => <article className="super-admin-card" key={key}>
+                  <h2>{t(label)}</h2><p>{metrics.reportTypes[key].toLocaleString(language === "hi" ? "hi-IN" : "en")}</p>
+                </article>)}
+                <article className="super-admin-card"><h2>{t("superAdmin.reportsThisMonth")}</h2><p>{metrics.reportsThisMonth.toLocaleString(language === "hi" ? "hi-IN" : "en")}</p></article>
+                <article className="super-admin-card"><h2>{t("superAdmin.availableCharts")}</h2><p>{metrics.availableCharts.toLocaleString(language === "hi" ? "hi-IN" : "en")}</p></article>
+                <article className="super-admin-card"><h2>{t("superAdmin.questionsThisMonth")}</h2><p>{metrics.questionsThisMonth.toLocaleString(language === "hi" ? "hi-IN" : "en")}</p></article>
+              </div>}
               {!loading && !error && !metricsDenied && !metrics ? <p className="super-admin-unavailable" role="status">{t("superAdmin.noMetrics")}</p> : null}
             </>
           ) : activeModule === "users" ? (
@@ -449,6 +474,8 @@ export default function SuperAdminDashboard({ email, userId }: { email: string; 
                 </>
               ) : null}
             </section>
+          ) : activeModule === "kundaliReports" ? (
+            <SuperAdminReportMonitoring language={language} />
           ) : activeModule === "auditLogs" ? (
             <section aria-label={t("superAdmin.auditLogs")} className="super-admin-audit">
               <form className="super-admin-audit-filters" onSubmit={applyAuditFilters}>
@@ -460,6 +487,8 @@ export default function SuperAdminDashboard({ email, userId }: { email: string; 
                     <option value="USER_FILTERED_READ">{t("superAdmin.action.USER_FILTERED_READ")}</option>
                     <option value="USER_ROLE_CHANGED">{t("superAdmin.action.USER_ROLE_CHANGED")}</option>
                     <option value="BOOTSTRAP_SUPER_ADMIN">{t("superAdmin.action.BOOTSTRAP_SUPER_ADMIN")}</option>
+                    <option value="KUNDALI_REPORT_LIST_READ">{t("superAdmin.action.KUNDALI_REPORT_LIST_READ")}</option>
+                    <option value="KUNDALI_REPORT_DETAIL_READ">{t("superAdmin.action.KUNDALI_REPORT_DETAIL_READ")}</option>
                   </select>
                 </label>
                 <label>

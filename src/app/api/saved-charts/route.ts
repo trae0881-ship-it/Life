@@ -6,10 +6,12 @@ import { getUserFromRequest } from "@/server/auth";
 import { getPrisma } from "@/server/db";
 import { jsonError, isSameOriginMutation, readJson, RequestBodyError } from "@/server/http";
 import { ownedRecordData, ownedRecordWhere } from "@/server/ownership";
-import { savedReportSummary } from "@/server/saved-report-summary";
+import { availableChartCountForResult, reportTypeForResult, savedReportSummary } from "@/server/saved-report-summary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const PAGE_SIZE = 10;
+const REPORT_TYPES = ["VEDIC", "KP", "COMBINED"] as const;
 
 function validTitle(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.trim().length <= 120;
@@ -19,20 +21,53 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
     if (!user) return jsonError("Sign in is required.", 401, "UNAUTHENTICATED");
-    const records = await getPrisma().savedChart.findMany({
-      where: ownedRecordWhere(user.id),
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: {
-        id: true, profileId: true, title: true, createdAt: true,
-        inputSnapshot: true, result: true,
-        profile: { select: { label: true, localDate: true, localTime: true, timeZone: true, latitude: true, longitude: true } },
-      },
-    });
+    const params = request.nextUrl.searchParams;
+    const allowedParams = new Set(["page", "q", "reportType"]);
+    if ([...params.keys()].some((key) => !allowedParams.has(key))
+      || [...allowedParams].some((key) => params.getAll(key).length > 1)) {
+      return jsonError("Report filters are invalid.", 400, "INVALID_QUERY");
+    }
+    const rawPage = params.get("page") ?? "1";
+    if (!/^[1-9]\d{0,5}$/.test(rawPage)) return jsonError("Report page is invalid.", 400, "INVALID_PAGE");
+    const page = Number(rawPage);
+    if (!Number.isSafeInteger(page) || page > 100_000) return jsonError("Report page is invalid.", 400, "INVALID_PAGE");
+    const query = params.get("q")?.trim() ?? "";
+    if (query.length > 100) return jsonError("Search text must be at most 100 characters.", 400, "INVALID_QUERY");
+    const rawReportType = params.get("reportType") ?? "ALL";
+    if (rawReportType !== "ALL" && !REPORT_TYPES.includes(rawReportType as typeof REPORT_TYPES[number])) {
+      return jsonError("Report type is invalid.", 400, "INVALID_REPORT_TYPE");
+    }
+    const where = {
+      ...ownedRecordWhere(user.id),
+      ...(query ? { title: { contains: query, mode: "insensitive" as const } } : {}),
+      ...(rawReportType !== "ALL" ? { reportType: rawReportType as typeof REPORT_TYPES[number] } : {}),
+    };
+    const prisma = getPrisma();
+    const [total, records] = await Promise.all([
+      prisma.savedChart.count({ where }),
+      prisma.savedChart.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+        select: {
+          id: true, profileId: true, title: true, reportType: true, availableChartCount: true, createdAt: true,
+          inputSnapshot: true, result: true,
+          profile: { select: { label: true, localDate: true, localTime: true, timeZone: true, latitude: true, longitude: true } },
+        },
+      }),
+    ]);
     const charts = records.map(({ inputSnapshot, result, profile, ...record }) => ({
       ...record,
       ...savedReportSummary({ inputSnapshot, result, profile }),
     }));
-    return NextResponse.json({ charts }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({
+      charts,
+      page,
+      pageSize: PAGE_SIZE,
+      total,
+      pageCount: Math.ceil(total / PAGE_SIZE),
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return jsonError("Saved-chart storage is temporarily unavailable.", 503, "DATABASE_UNAVAILABLE");
   }
@@ -74,6 +109,8 @@ export async function POST(request: NextRequest) {
       data: ownedRecordData(user.id, {
         profileId: typeof body.profileId === "string" ? body.profileId : null,
         title: body.title.trim(),
+        reportType: reportTypeForResult(chart),
+        availableChartCount: availableChartCountForResult(chart),
         engineVersion: chart.settings.engine,
         ephemerisManifest: JSON.stringify(chart.settings.ephemerisAssets),
         ruleSetVersion: chart.settings.ruleSetVersion,
@@ -82,7 +119,7 @@ export async function POST(request: NextRequest) {
         result,
         resultHash: chart.provenance.resultHash,
       }),
-      select: { id: true, profileId: true, title: true, createdAt: true },
+      select: { id: true, profileId: true, title: true, reportType: true, availableChartCount: true, createdAt: true },
     });
     return NextResponse.json({
       chart: {

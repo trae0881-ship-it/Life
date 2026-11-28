@@ -12,6 +12,8 @@ type SavedChart = {
   id: string;
   profileId: string | null;
   title: string;
+  reportType: "VEDIC" | "KP" | "COMBINED";
+  availableChartCount: number;
   profileLabel: string | null;
   birthDate: string | null;
   calculationStatus: "saved-snapshot" | "profile-changed";
@@ -19,7 +21,9 @@ type SavedChart = {
   calculationConvention: string[];
   createdAt: string;
 };
+type SavedChartFilters = { query: string; reportType: "ALL" | SavedChart["reportType"] };
 type ChartForSave = {
+  savedChartId?: string;
   input: { fullName: string | null; birthPlace: string | null; localDate: string; localTime: string; timeZone: string; latitude: number; longitude: number; coordinateSource: string; birthTimeAccuracy: string; resolvedOffset: string };
   settings: { ayanamsa: string; houseSystem: string; node: string };
 };
@@ -29,6 +33,14 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
   const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [charts, setCharts] = useState<SavedChart[]>([]);
+  const [chartPage, setChartPage] = useState(1);
+  const [chartPageCount, setChartPageCount] = useState(0);
+  const [chartTotal, setChartTotal] = useState(0);
+  const [reportSearch, setReportSearch] = useState("");
+  const [reportTypeFilter, setReportTypeFilter] = useState<SavedChartFilters["reportType"]>("ALL");
+  const [appliedReportFilters, setAppliedReportFilters] = useState<SavedChartFilters>({ query: "", reportType: "ALL" });
+  const [editingChartId, setEditingChartId] = useState("");
+  const [editingChartTitle, setEditingChartTitle] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [selectedProfileId, setSelectedProfileId] = useState("");
@@ -55,36 +67,75 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [mobileOpen]);
 
+  const loadSavedCharts = useCallback(async (page: number, filters: SavedChartFilters) => {
+    const params = new URLSearchParams({ page: String(page) });
+    if (filters.query) params.set("q", filters.query);
+    if (filters.reportType !== "ALL") params.set("reportType", filters.reportType);
+    try {
+      const response = await fetch(`/api/saved-charts?${params}`, { cache: "no-store" });
+      if (response.status === 401) {
+        setUser(null);
+        setCharts([]);
+        setMessage("account.sessionExpired");
+        return;
+      }
+      if (response.status === 503) {
+        setMessage("account.persistenceUnavailable");
+        return;
+      }
+      if (!response.ok) throw new Error("Saved report history request failed.");
+      const body: unknown = await response.json();
+      if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Saved report history response was invalid.");
+      const result = body as Record<string, unknown>;
+      if (!Array.isArray(result.charts) || !Number.isSafeInteger(result.page)
+        || !Number.isSafeInteger(result.pageCount) || !Number.isSafeInteger(result.total)) {
+        throw new Error("Saved report history response was invalid.");
+      }
+      setCharts(result.charts as SavedChart[]);
+      setChartPage(result.page as number);
+      setChartPageCount(result.pageCount as number);
+      setChartTotal(result.total as number);
+    } catch {
+      setMessage("account.refreshError");
+    }
+  }, []);
+
   const refreshRecords = useCallback(async () => {
-    const [profileResponse, chartResponse, acceptanceResponse] = await Promise.all([
+    const [profileResponse, acceptanceResponse] = await Promise.all([
       fetch("/api/profiles", { cache: "no-store" }),
-      fetch("/api/saved-charts", { cache: "no-store" }),
       fetch("/api/legal/acceptance", { cache: "no-store" }),
     ]);
-    if (profileResponse.status === 401 || chartResponse.status === 401) {
+    if (profileResponse.status === 401) {
       setUser(null);
       setProfiles([]);
       setCharts([]);
       setMessage("account.sessionExpired");
       return;
     }
-    if (profileResponse.status === 503 || chartResponse.status === 503 || acceptanceResponse.status === 503) {
+    if (profileResponse.status === 503 || acceptanceResponse.status === 503) {
       setMessage("account.persistenceUnavailable");
       return;
     }
-    if (!profileResponse.ok || !chartResponse.ok || !acceptanceResponse.ok) {
+    if (!profileResponse.ok || !acceptanceResponse.ok) {
       setMessage("account.refreshError");
       return;
     }
-    const [profileResult, chartResult, acceptanceResult] = await Promise.all([
+    const [profileResult, acceptanceResult] = await Promise.all([
       profileResponse.json(),
-      chartResponse.json(),
       acceptanceResponse.json(),
     ]);
     setProfiles(profileResult.profiles);
-    setCharts(chartResult.charts);
     setTermsRequired(acceptanceResult.requiresAcceptance);
-  }, []);
+    await loadSavedCharts(chartPage, appliedReportFilters);
+  }, [appliedReportFilters, chartPage, loadSavedCharts]);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (user) void refreshRecords();
+    };
+    window.addEventListener("life-account-changed", refresh);
+    return () => window.removeEventListener("life-account-changed", refresh);
+  }, [refreshRecords, user]);
 
   useEffect(() => {
     fetch("/api/auth/me", { cache: "no-store" })
@@ -211,6 +262,14 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
     }
   }
 
+  function applyReportFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const filters = { query: reportSearch.trim(), reportType: reportTypeFilter };
+    setAppliedReportFilters(filters);
+    setChartPage(1);
+    void loadSavedCharts(1, filters);
+  }
+
   async function saveProfile() {
     const source = chart ? {
       localDate: chart.input.localDate,
@@ -289,9 +348,10 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
         }
         throw new Error(t("account.chartSaveError"));
       }
-      setCharts((old) => [result.chart, ...old]);
       setTitle("");
       setMessage("account.chartSaved");
+      setChartPage(1);
+      await loadSavedCharts(1, appliedReportFilters);
     } catch {
       setMessage("account.chartSaveError");
     } finally {
@@ -304,10 +364,42 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
     try {
       const response = await fetch(`/api/saved-charts/${encodeURIComponent(chartId)}`, { method: "DELETE" });
       if (!response.ok) throw new Error(t("account.chartDeleteError"));
-      setCharts((old) => old.filter((item) => item.id !== chartId));
+      const nextTotal = Math.max(0, chartTotal - 1);
+      const nextPageCount = Math.ceil(nextTotal / 10);
+      const nextPage = nextPageCount === 0 ? 1 : Math.min(chartPage, nextPageCount);
+      if (chartPage !== nextPage) await loadSavedCharts(nextPage, appliedReportFilters);
+      else {
+        setCharts((old) => old.filter((item) => item.id !== chartId));
+        setChartTotal(nextTotal);
+        setChartPageCount(nextPageCount);
+      }
+      if (editingChartId === chartId) setEditingChartId("");
       setMessage("account.chartDeleted");
     } catch {
       setMessage("account.chartDeleteError");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function renameChart(chartId: string) {
+    const nextTitle = editingChartTitle.trim();
+    if (!nextTitle || busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/saved-charts/${encodeURIComponent(chartId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: nextTitle }),
+      });
+      if (!response.ok) throw new Error(t("account.chartRenameError"));
+      setCharts((old) => old.map((item) => item.id === chartId ? { ...item, title: nextTitle } : item));
+      setEditingChartId("");
+      setEditingChartTitle("");
+      setMessage("account.chartRenamed");
+    } catch {
+      setMessage("account.chartRenameError");
     } finally {
       setBusy(false);
     }
@@ -323,7 +415,7 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
         throw new Error(t("account.chartLoadError"));
       }
       setSelectedProfileId(result.chart.profileId ?? "");
-      onLoadSavedChart(result.chart.result);
+      onLoadSavedChart({ ...result.chart.result, savedChartId: result.chart.id });
       setMessage("account.chartLoaded");
     } catch {
       setMessage("account.chartLoadError");
@@ -373,27 +465,53 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
       </div>
       <div className="account-records">
         <b>{t("account.savedCharts")}</b>
+        <form className="account-report-filters" onSubmit={applyReportFilters}>
+          <input aria-label={t("account.reportSearch")} maxLength={100} placeholder={t("account.reportSearch")} value={reportSearch} onChange={(event) => setReportSearch(event.target.value)} />
+          <select aria-label={t("account.reportTypeFilter")} value={reportTypeFilter} onChange={(event) => setReportTypeFilter(event.target.value as SavedChartFilters["reportType"])}>
+            <option value="ALL">{t("account.reportType.all")}</option>
+            <option value="VEDIC">{t("account.reportType.VEDIC")}</option>
+            <option value="KP">{t("account.reportType.KP")}</option>
+            <option value="COMBINED">{t("account.reportType.COMBINED")}</option>
+          </select>
+          <button type="submit">{t("account.applyReportFilters")}</button>
+        </form>
         {charts.map((item) => {
           const reportStatus = item.calculationStatus === "profile-changed"
             ? t("account.reportProfileChanged")
             : t("account.reportSavedSnapshot");
           return <div className="account-record account-report-record" key={item.id}>
-            <button type="button" disabled={busy} onClick={() => void loadSavedChart(item.id)}>
-              {item.title}
-              <small>{new Date(item.createdAt).toLocaleDateString()} · {t("account.reportProfile")}: {item.profileLabel ?? t("account.noProfileLink")}</small>
-              <small>{t("account.reportBirthDate")}: {item.birthDate ?? t("results.unknown")}</small>
-              <small>{reportStatus}</small>
-              <small>{t("account.reportSections")}: {item.availableSections.map((section) => t(`account.reportSection.${section}`)).join(" · ") || t("results.unknown")}</small>
-            </button>
-            <button type="button" aria-label={`${t("account.delete")} ${item.title}`} disabled={busy} onClick={() => void deleteChart(item.id)}>×</button>
+            {editingChartId === item.id ? <form className="account-report-rename" onSubmit={(event) => { event.preventDefault(); void renameChart(item.id); }}>
+              <input aria-label={t("account.chartTitle")} maxLength={120} required value={editingChartTitle} onChange={(event) => setEditingChartTitle(event.target.value)} />
+              <button type="submit" disabled={busy || !editingChartTitle.trim()}>{t("account.renameSave")}</button>
+              <button type="button" disabled={busy} onClick={() => setEditingChartId("")}>{t("account.renameCancel")}</button>
+            </form> : <>
+              <button className="account-report-open" type="button" disabled={busy} onClick={() => void loadSavedChart(item.id)}>
+                {item.title}
+                <small>{new Date(item.createdAt).toLocaleDateString()} · {t("account.reportProfile")}: {item.profileLabel ?? t("account.noProfileLink")}</small>
+                <small>{t("account.reportBirthDate")}: {item.birthDate ?? t("results.unknown")}</small>
+                <small>{t(`account.reportType.${item.reportType}`)} · {t("account.chartsAvailable")}: {item.availableChartCount}</small>
+                <small>{reportStatus}</small>
+                <small>{t("account.reportSections")}: {item.availableSections.map((section) => t(`account.reportSection.${section}`)).join(" · ") || t("results.unknown")}</small>
+              </button>
+              <div className="account-report-actions">
+                <button type="button" disabled={busy} onClick={() => { setEditingChartId(item.id); setEditingChartTitle(item.title); }}>{t("account.renameReport")}</button>
+                <button type="button" aria-label={`${t("account.delete")} ${item.title}`} disabled={busy} onClick={() => void deleteChart(item.id)}>×</button>
+              </div>
+            </>}
           </div>;
         })}
-        {chart && <div className="account-inline account-save-chart">
+        {charts.length === 0 && <small className="account-report-empty">{t("account.noSavedReports")}</small>}
+        {chartPageCount > 1 && <div className="account-report-pagination">
+          <button type="button" disabled={busy || chartPage <= 1} onClick={() => void loadSavedCharts(chartPage - 1, appliedReportFilters)}>{t("account.reportPrevious")}</button>
+          <span>{t("account.reportPage")} {chartPage} / {chartPageCount} · {chartTotal}</span>
+          <button type="button" disabled={busy || chartPage >= chartPageCount} onClick={() => void loadSavedCharts(chartPage + 1, appliedReportFilters)}>{t("account.reportNext")}</button>
+        </div>}
+        {chart && !chart.savedChartId && <div className="account-inline account-save-chart">
           <label>{t("account.linkProfile")}<select aria-label={t("account.linkProfile")} value={selectedProfileId} onChange={(event) => setSelectedProfileId(event.target.value)}><option value="">{t("account.noProfileLink")}</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}</select></label>
           <input aria-label={t("account.chartTitle")} maxLength={120} placeholder={t("account.chartPlaceholder")} value={title} onChange={(event) => setTitle(event.target.value)} />
           <button type="button" disabled={busy || !title.trim()} onClick={() => void saveChart()}>{t("account.saveChart")}</button>
         </div>}
-        <small className="account-report-pdf-note">{t("account.pdfUnavailable")}</small>
+        <small className="account-report-pdf-note">{t("account.pdfAvailable")}</small>
       </div>
     </> : <form className="account-auth-form" onSubmit={submitAuth}>
       {!lockAuthMode && <div className="account-mode"><button type="button" aria-pressed={mode === "login"} onClick={() => setMode("login")}>{t("account.signIn")}</button><button type="button" aria-pressed={mode === "register"} onClick={() => setMode("register")}>{t("account.register")}</button></div>}

@@ -186,7 +186,7 @@ test("Kundli Details is localized and wired into live charts and saved reports",
   const dashboard = source("src/app/Dashboard.tsx");
   const component = source("src/app/KundliDetails.tsx");
   const styles = source("src/app/kundli.css");
-  assert.match(chartPage, /<KundliDetails result=\{chart\} language=\{language\} \/>/);
+  assert.match(chartPage, /<KundliDetails result=\{chart\} language=\{language\} savedChartId=\{chart\.savedChartId \?\? null\} \/>/);
   assert.match(dashboard, /<KundliDetails result=\{openedReport\.result\} language=\{language\} \/>/);
   assert.match(component, /getKundliDetails\(result\)/);
   assert.match(component, /classificationKey && hasTranslation\(language, classificationKey\)/);

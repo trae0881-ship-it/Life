@@ -7,6 +7,7 @@ import KundliChart from "./KundliChart";
 import DivisionalChartSections from "./DivisionalChartSections";
 import InterpretationPanel from "./InterpretationPanel";
 import KundliAssistant from "./KundliAssistant";
+import KundliSectionQuestions from "./KundliSectionQuestions";
 import AstrologyFaq from "./AstrologyFaq";
 import LocationSearch from "./LocationSearch";
 import type { PlaceMatch } from "@/server/location-search";
@@ -43,6 +44,10 @@ type Chart = {
   yogasAndDoshas: YogaFinding[];
   kp: Kp | null;
   provenance: { resultHash: string; timezoneDatabaseVersion: string; engineVersion: string; status: string; fullyVerified: boolean; independentReferenceValidation: string; limitations: string[] };
+  savedChartId?: string;
+  savedChartProfileId?: string | null;
+  reportType?: "VEDIC" | "KP" | "COMBINED";
+  availableChartCount?: number;
 };
 type RiseSetEvent = { event: string; status: "calculated" | "no-event"; utc: string | null; localTime: string | null; julianDayUt: number | null; eventLocalDate: string | null; occursOnReferenceDate: boolean | null; reason: string | null };
 type RiseSet = { referenceDate: string; timeZone: string; latitude: number; longitude: number; sunrise: RiseSetEvent; sunset: RiseSetEvent; moonrise: RiseSetEvent; moonset: RiseSetEvent; convention: string; library: string };
@@ -174,6 +179,7 @@ export default function ChartStudioWorkspace() {
     const form = new FormData(formElement);
     const payload = {
       fullName: String(form.get("fullName") ?? ""),
+      reportName: String(form.get("reportName") ?? ""),
       birthPlace: String(form.get("birthPlace") ?? ""),
       localDate: String(form.get("localDate")),
       localTime: String(form.get("localTime")),
@@ -191,11 +197,13 @@ export default function ChartStudioWorkspace() {
       const response = await fetch("/api/charts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const result = await response.json();
       if (!response.ok) {
-        setError({ messageKey: "error.calculation", code: result.code, details: result.details });
+        setError({ messageKey: result.code === "REPORT_SAVE_FAILED" ? "error.reportSaveFailed" : "error.calculation", code: result.code, details: result.details });
         if (result.code !== "AMBIGUOUS_LOCAL_TIME") setSelectedOffset("");
       } else {
-        setChart(result as Chart);
-        window.sessionStorage.setItem("life-current-chart", JSON.stringify(result));
+        const calculatedChart = result as Chart;
+        setChart(calculatedChart);
+        window.sessionStorage.setItem("life-current-chart", JSON.stringify(calculatedChart));
+        if (calculatedChart.savedChartId) window.dispatchEvent(new Event("life-account-changed"));
         setSelectedTransits(null);
         setSelectedOffset("");
       }
@@ -311,6 +319,7 @@ export default function ChartStudioWorkspace() {
           {readinessBirthDate && readiness !== "MISSING_DOB" && <a href={`/life-timeline?date=${encodeURIComponent(readinessBirthDate)}`}>{t("readiness.timelineLink")}</a>}
         </section>
 
+        <div id="kundli-report">
         <div className="studio-grid" id="chart">
           <section className="card form-card"><div className="card-head"><div><div className="section-index">01 <span>—</span> {t("form.input")}</div><h2>{t("form.title")}</h2></div><span className="lock-icon">⌑ <small>{t("form.private")}</small></span></div>
             <form id="birth-form" ref={birthForm} onSubmit={calculate} onInput={(event) => {
@@ -332,6 +341,7 @@ export default function ChartStudioWorkspace() {
               refreshFormValidation();
             }} className="birth-form" noValidate>
               <label className="field-label">{t("form.name")} <span className="muted">{t("form.optionalName")}</span><input name="fullName" type="text" maxLength={120} autoComplete="name" placeholder={t("form.namePlaceholder")} /></label>
+              <label className="field-label">{t("form.reportName")} <span className="muted">{t("form.optional")}</span><input name="reportName" type="text" maxLength={120} disabled={busy || Boolean(chart)} placeholder={t("form.reportNamePlaceholder")} /></label>
               <LocationSearch language={language} onSelect={selectBirthplace} selectionVersion={locationSelectionVersion} />
               <label className="field-label">{t("form.birthPlace")} <span className="muted">{t("form.optional")} · {t("form.placeManual")}</span><input name="birthPlace" type="text" maxLength={160} placeholder={t("form.placePlaceholder")} /><small className="field-hint">{t("form.placeHelp")}</small></label>
               <label className="field-label">{t("form.date")}<input name="localDate" type="date" min="1800-01-01" max="2399-12-31" required aria-required="true" aria-invalid={Boolean(messageForField("localDate"))} />{messageForField("localDate") && <small className="field-error" role="alert">{messageForField("localDate")}</small>}</label>
@@ -344,30 +354,30 @@ export default function ChartStudioWorkspace() {
               {error && <div className="error-box" role="alert"><span>{t(error.messageKey)}</span>{error.code === "AMBIGUOUS_LOCAL_TIME" && error.details && <label className="field-label offset-choice">{t("app.selectUtcOffset")}<select value={selectedOffset} onChange={(e) => setSelectedOffset(e.target.value)} required><option value="">{t("app.chooseOffset")}</option>{error.details.map((offset) => <option key={offset} value={offset}>{offset}</option>)}</select></label>}</div>}
               {engine !== "ready" && <p className="engine-form-status" role="status">{t(engine === "checking" ? "form.engineChecking" : "form.engineOffline")}</p>}
               <button className="calculate-btn" type="submit" disabled={!canSubmitBirthForm(formIsValid, busy)} aria-busy={busy}>{busy ? <><span className="spinner" /> {t("form.calculating")}</> : <>{t("form.calculate")} <span>↗</span></>}</button>
-              <div className="form-foot"><span>{t("form.notSaved")}</span></div>
+              <div className="form-foot"><span>{t("form.reportSavedAfterCalculation")}</span></div>
             </form>
           </section>
 
           <section className="card chart-card" id="birth-chart"><div className="card-head"><div><div className="section-index">02 <span>—</span> {t("app.d1Rashi")}</div><h2>{chart ? t("form.chartTitle") : t("form.chartPreview")}</h2></div></div>
-            {chart ? <><div className="chart-summary"><span className="summary-sun">☼</span><div><b>{chart.ascendant.sign} {t("app.rising")}</b></div></div><KundliChart chart={chart} language={language} /></> : <div className="empty-chart"><div className="empty-orbit"><span>✳</span><i /><i /><i /></div><b>{t("form.emptyTitle")}</b><p>{t("form.emptyHelp")}</p></div>}
+            {chart ? <><div className="chart-summary"><span className="summary-sun">☼</span><div><b>{chart.ascendant.sign} {t("app.rising")}</b></div></div><KundliChart chart={chart} language={language} /><KundliSectionQuestions savedChartId={chart.savedChartId ?? null} sectionKey="birth-chart" sectionLabel={t("app.d1Rashi")} language={language} /></> : <div className="empty-chart"><div className="empty-orbit"><span>✳</span><i /><i /><i /></div><b>{t("form.emptyTitle")}</b><p>{t("form.emptyHelp")}</p></div>}
           </section>
         </div>
 
         {chart && <nav className="kundli-tabs" aria-label={t("app.dashboardSections")}>{[["overview", "tabs.overview"], ["kundli-details", "kundliDetails.title"], ["birth-chart", "tabs.birthChart"], ["chandra-kundli", "house.moonChart"], ["bhava-chalit", "house.bhavaChalit"], ["planetary-positions", "tabs.graha"], ["divisional-charts", "tabs.varga"], ["panchanga", "tabs.panchanga"], ["transits", "tabs.transits"], ["kp", "tabs.kp"], ["predictions", "tabs.predictions"], ["assistant", "assistant.title"], ["rules", "tabs.rules"]].map(([id, key]) => <a href={`#${id}`} key={id}>{t(key)}</a>)}</nav>}
         {chart && <section className="card positions-card kundli-overview" id="overview">
-          <div className="card-head"><div><div className="section-index">{t("app.kundliOverview")}</div><h2>{t("overview.title")}</h2></div></div>
+          <div className="card-head"><div><div className="section-index">{t("app.kundliOverview")}</div><h2>{t("overview.title")}</h2></div>{chart.savedChartId && <button className="report-print-control" type="button" onClick={() => printReport("kundli-report")}>{t("account.printReport")}</button>}</div>
           <div className="overview-grid">
             <div><small>{t("overview.lagna")}</small><b>{chart.ascendant.sign}</b></div>
             <div><small>{t("overview.moon")}</small><b>{moonPlacement?.sign ?? t("overview.unavailable")}</b><span>{moonPlacement ? `${moonPlacement.nakshatra} · Pada ${moonPlacement.pada}` : t("overview.unavailable")}</span></div>
             <div><small>{t("overview.birthData")}</small><b>{chart.input.fullName || t("kundliDetails.notProvided")}</b><span>{chart.input.localDate} · {chart.input.localTime}</span><span>{chart.input.birthPlace || t("kundliDetails.notProvided")}</span></div>
           </div>
         </section>}
-        {chart && <KundliDetails result={chart} language={language} />}
-        {chart && <HouseAnalysisSections chart={chart} language={language} />}
-        {chart && <section className="card positions-card" id="planetary-positions"><div className="card-head"><div><div className="section-index">03 <span>—</span> {t("app.kundliOverview")}</div><h2>{t("positions.title")}</h2></div></div><label className="field-label result-filter">{r("results.tableSearch")}<input type="search" aria-label={r("results.searchPlanetAria")} placeholder={r("results.searchPlaceholder")} value={planetSearch} onChange={(event) => setPlanetSearch(event.target.value)} /></label><div className="table-scroll"><table><thead><tr><th>{r("results.body")}</th><th>{r("results.sign")}</th><th>{r("results.house")}</th><th>{r("results.nakshatraPada")}</th></tr></thead><tbody>{visiblePlanets.map((planet) => <tr key={planet.name}><td><span className="planet-glyph">{houseShort[planet.name]}</span>{planet.name}</td><td>{planet.sign}</td><td>{planet.house}</td><td>{planet.nakshatra} · {planet.pada}</td></tr>)}</tbody></table>{visiblePlanets.length === 0 && <p className="empty-result" role="status">{r("results.noPlanets")}</p>}</div></section>}
+        {chart && <KundliDetails result={chart} language={language} savedChartId={chart.savedChartId ?? null} />}
+        {chart && <HouseAnalysisSections chart={chart} language={language} savedChartId={chart.savedChartId ?? null} />}
+        {chart && <section className="card positions-card" id="planetary-positions"><div className="card-head"><div><div className="section-index">03 <span>—</span> {t("app.kundliOverview")}</div><h2>{t("positions.title")}</h2></div></div><label className="field-label result-filter">{r("results.tableSearch")}<input type="search" aria-label={r("results.searchPlanetAria")} placeholder={r("results.searchPlaceholder")} value={planetSearch} onChange={(event) => setPlanetSearch(event.target.value)} /></label><div className="table-scroll"><table><thead><tr><th>{r("results.body")}</th><th>{r("results.sign")}</th><th>{r("results.house")}</th><th>{r("results.nakshatraPada")}</th></tr></thead><tbody>{visiblePlanets.map((planet) => <tr key={planet.name}><td><span className="planet-glyph">{houseShort[planet.name]}</span>{planet.name}</td><td>{planet.sign}</td><td>{planet.house}</td><td>{planet.nakshatra} · {planet.pada}</td></tr>)}</tbody></table>{visiblePlanets.length === 0 && <p className="empty-result" role="status">{r("results.noPlanets")}</p>}</div><KundliSectionQuestions savedChartId={chart.savedChartId ?? null} sectionKey="planetary-positions" sectionLabel={t("positions.title")} language={language} /></section>}
 
 
-        {chart && <DivisionalChartSections chart={chart} language={language} />}
+        {chart && <DivisionalChartSections chart={chart} language={language} savedChartId={chart.savedChartId ?? null} />}
 
         {chart && <section className="card positions-card dasha-card" id="panchanga">
           <div className="card-head"><div><div className="section-index">{t("app.vimshottari")}</div><h2>{t("panchanga.title")}</h2></div></div>
@@ -389,15 +399,18 @@ export default function ChartStudioWorkspace() {
           </div>
           <div className="current-dasha" aria-live="polite"><b>{r("results.periodNow")} · {new Date(dashaNow).toISOString().slice(0, 10)}</b><span>{currentMahadasha ? `${currentMahadasha.lord} ${r("results.mahadasha")}${currentAntardasha ? ` / ${currentAntardasha.lord} ${r("results.antardasha")}` : ""}${currentPratyantardasha ? ` / ${currentPratyantardasha.lord} ${r("results.pratyantardasha")}` : ""}` : t("dasha.unavailable")}</span></div>
           <div className="table-scroll"><table><thead><tr><th>{r("results.mahadasha")}</th><th>{r("results.starts")}</th><th>{r("results.ends")}</th><th>{r("results.antardasha")}</th><th>{r("results.pratyantardasha")}</th></tr></thead><tbody>{chart.vimshottariDasha.mahadashas.filter((period) => Date.parse(period.end) > dashaNow).slice(0, 4).map((period) => { const antardashas = period.antardashas.filter((item) => Date.parse(item.end) > dashaNow).slice(0, 3); return <tr key={`${period.lord}-${period.start}`}><td>{period.lord}{period === currentMahadasha ? ` · ${r("results.current")}` : ""}</td><td className="mono">{period.start.slice(0, 10)}</td><td className="mono">{period.end.slice(0, 10)}</td><td>{antardashas.map((item) => `${item.lord}${item === currentAntardasha ? ` (${r("results.current")})` : ""}`).join(" · ")}</td><td>{antardashas.map((item) => `${item.lord}: ${item.pratyantardashas.filter((sub) => Date.parse(sub.end) > dashaNow).slice(0, 3).map((sub) => `${sub.lord}${sub === currentPratyantardasha ? ` (${r("results.current")})` : ""} ${sub.start.slice(0, 10)}–${sub.end.slice(0, 10)}`).join(", ")}`).join("; ")}</td></tr>; })}</tbody></table></div>
+          <KundliSectionQuestions savedChartId={chart.savedChartId ?? null} sectionKey="panchanga" sectionLabel={t("panchanga.title")} language={language} />
+          <KundliSectionQuestions savedChartId={chart.savedChartId ?? null} sectionKey="dasha" sectionLabel={t("app.vimshottari")} language={language} />
         </section>}
         {chart && <section className="card positions-card cusp-card"><div className="card-head"><div><div className="section-index">{t("house.bhavaChalit")}</div><h2>{t("house.bhavaChalit")}</h2></div></div><div className="table-scroll"><table><thead><tr><th>{r("results.house")}</th><th>{r("results.signAtCusp")}</th></tr></thead><tbody>{chart.houses.map((house) => <tr key={house.house}><td>{house.house}</td><td>{house.sign}</td></tr>)}</tbody></table></div></section>}
 
         {chart && <RiseSetSection chart={chart} language={language} />}
         {chart && <TransitSection key={chart.provenance.resultHash} chart={chart} language={language} onTransitChange={setSelectedTransits} />}
-        {chart && <DignityAspectSection chart={chart} language={language} />}
-        {chart && <YogaSection chart={chart} language={language} />}
-        {chart && <KpSection chart={chart} language={language} />}
-        {chart && <InterpretationPanel chart={{ ...chart, transits: selectedTransits ?? undefined }} language={language} />}
+        {chart && <DignityAspectSection chart={chart} language={language} savedChartId={chart.savedChartId ?? null} />}
+        {chart && <YogaSection chart={chart} language={language} savedChartId={chart.savedChartId ?? null} />}
+        {chart && <KpSection chart={chart} language={language} savedChartId={chart.savedChartId ?? null} />}
+        {chart && <InterpretationPanel chart={{ ...chart, transits: selectedTransits ?? undefined }} language={language} savedChartId={chart.savedChartId ?? null} />}
+        </div>
         <KundliAssistant chart={chart ? { ...chart, transits: selectedTransits ?? chart.transits } : null} language={language} />
       </div>
     </section>
@@ -479,7 +492,7 @@ function TransitSection({ chart, onTransitChange, language }: { chart: Chart; on
   </section>;
 }
 
-function DignityAspectSection({ chart, language }: { chart: Chart; language: Language }) {
+function DignityAspectSection({ chart, language, savedChartId }: { chart: Chart; language: Language; savedChartId: string | null }) {
   const r = (key: Parameters<typeof resultCopy>[1]) => resultCopy(language, key);
   return <section className="card positions-card varga-card" id="planetary-rules">
     <div className="card-head"><div><div className="section-index">{r("results.dignityTitle")}</div><h2>{r("results.dignityTitle")}</h2></div></div>
@@ -487,20 +500,22 @@ function DignityAspectSection({ chart, language }: { chart: Chart; language: Lan
       <div className="table-scroll"><h3>{r("results.dignity")}</h3><table><thead><tr><th>{r("results.body")}</th><th>{r("results.sign")}</th><th>{r("results.dignity")}</th><th>{r("results.state")}</th></tr></thead><tbody>{chart.planetaryDignity.map((planet) => <tr key={planet.name}><td>{planet.name}</td><td>{planet.sign}</td><td>{planet.dignity}</td><td>{[planet.combust ? r("results.combust") : null, planet.retrograde === null ? null : planet.retrograde ? r("results.retrogradeLabel") : r("results.direct")].filter(Boolean).join(" · ") || "—"}</td></tr>)}</tbody></table></div>
       <div className="table-scroll"><h3>{r("results.fullAspects")}</h3><table><thead><tr><th>{r("results.body")}</th><th>{r("results.houseColumn")}</th><th>{r("results.aspectedHouses")}</th><th>{r("results.aspectedBodies")}</th></tr></thead><tbody>{chart.planetaryAspects.details.map((detail) => <tr key={detail.name}><td>{detail.name}</td><td>{detail.house}</td><td>{detail.aspectsHouses.join(" · ")}</td><td>{detail.aspectsPlanets.join(" · ") || "—"}</td></tr>)}</tbody></table></div>
     </div>
+    <KundliSectionQuestions savedChartId={savedChartId} sectionKey="planetary-rules" sectionLabel={r("results.dignityTitle")} language={language} />
   </section>;
 }
 
-function YogaSection({ chart, language }: { chart: Chart; language: Language }) {
+function YogaSection({ chart, language, savedChartId }: { chart: Chart; language: Language; savedChartId: string | null }) {
   const r = (key: Parameters<typeof resultCopy>[1]) => resultCopy(language, key);
   const t = (key: string) => translate(language, key);
   const present = chart.yogasAndDoshas.filter((finding) => finding.present);
   return <section className="card positions-card" id="rules">
     <div className="card-head"><div><div className="section-index">{t("app.yogasDoshas")}</div><h2>{r("results.yogaTitle")}</h2></div></div>
     {present.length ? <div className="table-scroll"><table><thead><tr><th>{r("results.name")}</th><th>{r("results.type")}</th><th>{r("results.bodies")}</th></tr></thead><tbody>{present.map((finding) => <tr key={finding.id}><td>{finding.name}</td><td>{finding.category}</td><td>{finding.planets.join(" · ") || "—"}</td></tr>)}</tbody></table></div> : <div className="empty-result" role="status">{r("results.noYoga")}</div>}
+    <KundliSectionQuestions savedChartId={savedChartId} sectionKey="rules" sectionLabel={r("results.yogaTitle")} language={language} />
   </section>;
 }
 
-function KpSection({ chart, language }: { chart: Chart; language: Language }) {
+function KpSection({ chart, language, savedChartId }: { chart: Chart; language: Language; savedChartId: string | null }) {
   const r = (key: Parameters<typeof resultCopy>[1]) => resultCopy(language, key);
   if (!chart.kp) return <section className="card positions-card" id="kp">
     <div className="card-head"><div><div className="section-index">KP</div><h2>{r("results.kpTitle")}</h2></div><span className="table-count">{translate(language, "overview.unavailable")}</span></div>
@@ -528,5 +543,6 @@ function KpSection({ chart, language }: { chart: Chart; language: Language }) {
     <div className="table-scroll"><table><thead><tr><th>{r("results.body")}</th><th>{r("results.sign")}</th><th>{r("results.signLord")}</th><th>{r("results.starLord")}</th><th>{r("results.subLord")}</th><th>{r("results.subSubLord")}</th><th>{r("results.houseColumn")}</th><th>{r("results.signifies")}</th></tr></thead><tbody>{chart.kp.planets.map((planet) => <tr key={planet.name}><td>{planet.name}</td><td>{planet.sign}</td><td>{planet.signLord}</td><td>{planet.nakshatra.name} · {planet.nakshatra.lord}</td><td>{planet.sub.lord}</td><td>{planet.subSub.lord}</td><td>H{String(planet.house).padStart(2, "0")}</td><td>{planet.significations.houses.map((house) => `H${house}`).join(" · ") || "—"}</td></tr>)}</tbody></table></div>
     <div className="table-scroll"><table><thead><tr><th>{r("results.cusp")}</th><th>{r("results.sign")}</th><th>{r("results.signLord")}</th><th>{r("results.starLord")}</th><th>{r("results.subLord")}</th><th>{r("results.subSubLord")}</th><th>{r("results.signifiedBy")}</th></tr></thead><tbody>{chart.kp.cusps.map((cusp) => <tr key={cusp.house}><td>H{String(cusp.house).padStart(2, "0")}</td><td>{cusp.sign}</td><td>{cusp.signLord}</td><td>{cusp.nakshatra.name} · {cusp.nakshatra.lord}</td><td>{cusp.sub.lord}</td><td>{cusp.subSub.lord}</td><td>{cusp.signifiedBy.join(" · ") || "—"}</td></tr>)}</tbody></table></div>
     <div className="kp-interpretation"><div className="card-head"><div><div className="section-index">HOUSE THEMES</div><h2>KP house themes</h2></div></div><div className="kp-interpretation-grid">{chart.kp.cusps.map((cusp) => <article key={cusp.house}><b>House {cusp.house} · {houseThemes[cusp.house - 1]}</b><span>Sub-lord: {cusp.sub.lord}</span><span>Significators: {cusp.signifiedBy.join(" · ") || "—"}</span></article>)}</div></div>
+    <KundliSectionQuestions savedChartId={savedChartId} sectionKey="kp" sectionLabel={r("results.kpTitle")} language={language} />
   </section>;
 }
