@@ -384,6 +384,7 @@ model SavedChart {
   title            String
   reportType       AstrologyReportType @default(VEDIC)
   availableChartCount Int              @default(0)
+  divisionalChartCount Int              @default(0)
   engineVersion    String
   ephemerisManifest String
   ruleSetVersion   String
@@ -392,12 +393,14 @@ model SavedChart {
   result           Json
   resultHash       String
   createdAt        DateTime           @default(now())
+  lastViewedAt     DateTime?
   user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   profile          BirthProfile?      @relation(fields: [profileId], references: [id], onDelete: SetNull)
   questions        KundliQuestion[]
 
   @@index([userId, createdAt])
   @@index([userId, reportType, createdAt])
+  @@index([userId, lastViewedAt])
   @@index([resultHash])
 }
 

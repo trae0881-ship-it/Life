@@ -365,6 +365,8 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
               {GRID_LAYOUT.flat().map((number) => <div className={ankReport.grid.frequency[number] ? "is-present" : "is-missing"} key={number}><strong>{number}</strong><span>{ankReport.grid.frequency[number] ? `×${ankReport.grid.frequency[number]}` : "Missing"}</span></div>)}
             </div>
             <div className="loshu-summary">
+              <b>{reportLanguage==="hi"?"जन्मतिथि अंक":"DOB digits"}</b><span>{ankReport.grid.dobDigits.join(", ")||"None"}</span>
+              {ankReport.grid.derivedNumbers.length>0&&<><b>{reportLanguage==="hi"?"व्युत्पन्न अंक":"Derived entries"}</b><span>{ankReport.grid.derivedNumbers.join(", ")}</span></>}
               <b>Present</b><span>{ankReport.grid.present.join(", ")}</span>
               <b>Missing</b><span>{ankReport.grid.missing.join(", ") || "None"}</span>
               <b>Repeated</b><span>{ankReport.grid.repeated.map((item) => `${item.number}×${item.count}`).join(", ") || "None"}</span>

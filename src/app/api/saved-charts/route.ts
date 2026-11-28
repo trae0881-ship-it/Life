@@ -6,7 +6,7 @@ import { getUserFromRequest } from "@/server/auth";
 import { getPrisma } from "@/server/db";
 import { jsonError, isSameOriginMutation, readJson, RequestBodyError } from "@/server/http";
 import { ownedRecordData, ownedRecordWhere } from "@/server/ownership";
-import { availableChartCountForResult, reportTypeForResult, savedReportSummary } from "@/server/saved-report-summary";
+import { availableChartCountForResult, divisionalChartCountForResult, reportTypeForResult, savedReportSummary } from "@/server/saved-report-summary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -111,6 +111,7 @@ export async function POST(request: NextRequest) {
         title: body.title.trim(),
         reportType: reportTypeForResult(chart),
         availableChartCount: availableChartCountForResult(chart),
+        divisionalChartCount: divisionalChartCountForResult(chart),
         engineVersion: chart.settings.engine,
         ephemerisManifest: JSON.stringify(chart.settings.ephemerisAssets),
         ruleSetVersion: chart.settings.ruleSetVersion,

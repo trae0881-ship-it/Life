@@ -44,6 +44,15 @@ type Question = {
   answerStatus: string;
   createdAt: string;
 };
+type DashboardSummary = {
+  totalReports: number;
+  vedicReports: number;
+  kpReports: number;
+  divisionalCharts: number;
+  totalQuestions: number;
+  recentlyGenerated: Array<{ id: string; title: string; reportType: string; createdAt: string }>;
+  recentlyViewed: Array<{ id: string; title: string; reportType: string; lastViewedAt: string }>;
+};
 type Section = "home" | "profile" | "kundlis" | "palmistry" | "ask" | "reports" | "settings";
 type ProfileForm = {
   label: string;
@@ -90,10 +99,12 @@ export default function Dashboard({ user }: { user: AuthUser }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [recordsError, setRecordsError] = useState("");
   const [profileStatus, setProfileStatus] = useState<"loading" | "ready" | "error">("loading");
   const [reportStatus, setReportStatus] = useState<"loading" | "ready" | "error">("loading");
   const [questionStatus, setQuestionStatus] = useState<"loading" | "ready" | "empty" | "terms" | "error">("loading");
+  const [summaryStatus, setSummaryStatus] = useState<"loading" | "ready" | "error">("loading");
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [form, setForm] = useState<ProfileForm>(blankForm);
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
@@ -126,28 +137,43 @@ export default function Dashboard({ user }: { user: AuthUser }) {
     if (showLoading) {
       setProfileStatus("loading");
       setReportStatus("loading");
+      setSummaryStatus("loading");
     }
     try {
-      const [profileResponse, reportResponse] = await Promise.all([
+      const [profileResponse, reportResponse, summaryResponse] = await Promise.all([
         fetch("/api/profiles", { cache: "no-store", signal: controller.signal }).catch(() => null),
         fetch("/api/saved-charts", { cache: "no-store", signal: controller.signal }).catch(() => null),
+        fetch("/api/dashboard/astrology-summary", { cache: "no-store", signal: controller.signal }).catch(() => null),
       ]);
       if (controller.signal.aborted) return;
-      if (profileResponse?.status === 401 || reportResponse?.status === 401) {
+      if (profileResponse?.status === 401 || reportResponse?.status === 401 || summaryResponse?.status === 401) {
         window.location.assign("/dashboard");
         return;
       }
-      const [profileJson, reportJson] = await Promise.all([
+      const [profileJson, reportJson, summaryJson] = await Promise.all([
         profileResponse?.ok ? profileResponse.json().catch(() => null) : Promise.resolve(null),
         reportResponse?.ok ? reportResponse.json().catch(() => null) : Promise.resolve(null),
+        summaryResponse?.ok ? summaryResponse.json().catch(() => null) : Promise.resolve(null),
       ]);
       const profileDataReady = Boolean(profileResponse?.ok && Array.isArray(profileJson?.profiles));
       const reportDataReady = Boolean(reportResponse?.ok && Array.isArray(reportJson?.charts));
+      const summaryDataReady = Boolean(
+        summaryResponse?.ok
+        && Number.isSafeInteger(summaryJson?.totalReports)
+        && Number.isSafeInteger(summaryJson?.vedicReports)
+        && Number.isSafeInteger(summaryJson?.kpReports)
+        && Number.isSafeInteger(summaryJson?.divisionalCharts)
+        && Number.isSafeInteger(summaryJson?.totalQuestions)
+        && Array.isArray(summaryJson?.recentlyGenerated)
+        && Array.isArray(summaryJson?.recentlyViewed),
+      );
       setProfiles(profileDataReady ? profileJson.profiles : []);
       setReports(reportDataReady ? reportJson.charts : []);
+      setSummary(summaryDataReady ? summaryJson as DashboardSummary : null);
       setProfileStatus(profileDataReady ? "ready" : "error");
       setReportStatus(reportDataReady ? "ready" : "error");
-      if (!profileDataReady || !reportDataReady) setRecordsError(translate(currentLanguage.current, "dashboard.dataUnavailable"));
+      setSummaryStatus(summaryDataReady ? "ready" : "error");
+      if (!profileDataReady || !reportDataReady || !summaryDataReady) setRecordsError(translate(currentLanguage.current, "dashboard.dataUnavailable"));
       setSelectedProfileId((current) => {
         const next = profileDataReady ? profileJson.profiles as Profile[] : [];
         return next.some((profile) => profile.id === current) ? current : next[0]?.id ?? "";
@@ -389,7 +415,7 @@ export default function Dashboard({ user }: { user: AuthUser }) {
     }
   }
 
-  async function openReport(report: SavedReport, opener?: HTMLButtonElement) {
+  async function openReport(report: Pick<SavedReport, "id" | "title">, opener?: HTMLButtonElement) {
     if (openingReportId) return;
     reportOpener.current = opener ?? null;
     setOpeningReportId(report.id);
@@ -406,6 +432,13 @@ export default function Dashboard({ user }: { user: AuthUser }) {
         return;
       }
       setOpenedReport({ title: report.title, result: body.chart.result as Record<string, unknown> });
+      setSummary((current) => current ? {
+        ...current,
+        recentlyViewed: [
+          { id: report.id, title: report.title, reportType: body.chart.reportType, lastViewedAt: new Date().toISOString() },
+          ...current.recentlyViewed.filter((item) => item.id !== report.id),
+        ].slice(0, 5),
+      } : current);
     } catch {
       setOpenError(t("dashboard.reportOpenFailed"));
     } finally {
@@ -475,6 +508,11 @@ export default function Dashboard({ user }: { user: AuthUser }) {
             <div><span className="dashboard-card-kicker">{t("dashboard.personalSpace")}</span><h2>{t("dashboard.welcome")}</h2><p>{user.email}{selectedProfile ? ` · ${selectedProfile.label} · ${selectedProfile.localDate}` : ` · ${t("dashboard.noSelectedProfile")}`}</p></div>
             <span className="dashboard-welcome-symbol" aria-hidden="true">☾</span>
           </article>
+          <nav className="dashboard-quick-actions" aria-label={t("dashboard.quickActions")}>
+            <a href="/studio">{t("dashboard.calculateNew")}</a>
+            <button type="button" onClick={() => changeSection("reports")}>{t("dashboard.myReports")}</button>
+            <button type="button" onClick={() => changeSection("ask")}>{t("dashboard.askAction")}</button>
+          </nav>
           <section className="dashboard-services" aria-labelledby="dashboard-services-title">
             <div className="dashboard-services-heading"><div><span className="dashboard-card-kicker">YOUR PERSONAL TOOLKIT</span><h2 id="dashboard-services-title">Explore Astrology Services</h2><p>Open any service directly from your dashboard.</p></div></div>
             <div className="dashboard-service-grid">{astrologyServices.map((service, index) => <article className="dashboard-service-card" key={service.name}>
@@ -484,9 +522,11 @@ export default function Dashboard({ user }: { user: AuthUser }) {
           </section>
           <div className="dashboard-stat-grid">
             <button type="button" className="dashboard-stat-card" onClick={() => changeSection("profile")}><span>{t("dashboard.stat.profile")}</span><strong>{profileStatus === "error" ? "—" : profiles.length}</strong><small>{profileStatus === "error" ? t("dashboard.unavailable") : t("dashboard.profileCount")}</small></button>
-            <button type="button" className="dashboard-stat-card" onClick={() => changeSection("kundlis")}><span>{t("dashboard.stat.kundlis")}</span><strong>{reportStatus === "error" ? "—" : reports.length}</strong><small>{reportStatus === "error" ? t("dashboard.unavailable") : t("dashboard.savedCount")}</small></button>
-            <button type="button" className="dashboard-stat-card" onClick={() => changeSection("reports")}><span>{t("dashboard.stat.reports")}</span><strong>{reportStatus === "error" ? "—" : reports.length}</strong><small>{reportStatus === "error" ? t("dashboard.unavailable") : t("dashboard.savedCount")}</small></button>
-            <button type="button" className="dashboard-stat-card" onClick={() => changeSection("ask")}><span>{t("dashboard.stat.questions")}</span><strong>{questionStatus === "ready" ? questions.length : questionStatus === "empty" ? 0 : "—"}</strong><small>{questionStatus === "error" ? t("dashboard.unavailable") : questionStatus === "terms" ? t("dashboard.termsNeeded") : t("dashboard.recentQuestions")}</small></button>
+            <button type="button" className="dashboard-stat-card" onClick={() => changeSection("kundlis")}><span>{t("dashboard.stat.kundlis")}</span><strong>{summaryStatus === "ready" ? summary?.totalReports : "—"}</strong><small>{summaryStatus === "ready" ? t("dashboard.savedCount") : t("dashboard.unavailable")}</small></button>
+            <button type="button" className="dashboard-stat-card" onClick={() => changeSection("reports")}><span>{t("dashboard.stat.vedicReports")}</span><strong>{summaryStatus === "ready" ? summary?.vedicReports : "—"}</strong><small>{summaryStatus === "ready" ? t("dashboard.combinedIncluded") : t("dashboard.unavailable")}</small></button>
+            <button type="button" className="dashboard-stat-card" onClick={() => changeSection("reports")}><span>{t("dashboard.stat.kpReports")}</span><strong>{summaryStatus === "ready" ? summary?.kpReports : "—"}</strong><small>{summaryStatus === "ready" ? t("dashboard.combinedIncluded") : t("dashboard.unavailable")}</small></button>
+            <button type="button" className="dashboard-stat-card" onClick={() => changeSection("reports")}><span>{t("dashboard.stat.divisionalCharts")}</span><strong>{summaryStatus === "ready" ? summary?.divisionalCharts : "—"}</strong><small>{summaryStatus === "ready" ? t("dashboard.divisionalChartCount") : t("dashboard.unavailable")}</small></button>
+            <button type="button" className="dashboard-stat-card" onClick={() => changeSection("ask")}><span>{t("dashboard.stat.questions")}</span><strong>{summaryStatus === "ready" ? summary?.totalQuestions : "—"}</strong><small>{summaryStatus === "ready" ? t("dashboard.questionCount") : t("dashboard.unavailable")}</small></button>
           </div>
           <div className="dashboard-two-column">
             <section className="dashboard-panel">
@@ -500,10 +540,17 @@ export default function Dashboard({ user }: { user: AuthUser }) {
             </section>
             <section className="dashboard-panel">
               <div className="dashboard-panel-heading"><div><span className="dashboard-card-kicker">{t("dashboard.latest")}</span><h2>{t("dashboard.recentReports")}</h2></div><button type="button" onClick={() => changeSection("reports")}>{t("dashboard.viewAll")}</button></div>
-              {reportStatus === "loading" ? <p role="status">{t("dashboard.loading")}</p> : reportStatus === "error" ? <p className="dashboard-muted">{t("dashboard.dataUnavailable")}</p> : reports.length ? reports.slice(0, 3).map((report) => <article className="dashboard-recent-item dashboard-recent-report" key={report.id}>
-                <div><b>{report.title}</b><small>{report.profileLabel ?? t("dashboard.unlinkedProfile")} · {report.birthDate ?? t("results.unknown")}</small></div>
+              {summaryStatus === "loading" ? <p role="status">{t("dashboard.loading")}</p> : summaryStatus === "error" ? <p className="dashboard-muted" role="alert">{t("dashboard.dataUnavailable")}</p> : summary?.recentlyGenerated.length ? summary.recentlyGenerated.map((report) => <article className="dashboard-recent-item dashboard-recent-report" key={report.id}>
+                <div><b>{report.title}</b><small>{new Date(report.createdAt).toLocaleDateString(language === "hi" ? "hi-IN" : language === "hinglish" ? "en-IN" : "en")}</small></div>
                 <button type="button" disabled={Boolean(openingReportId)} onClick={(event) => void openReport(report, event.currentTarget)}>{openingReportId === report.id ? t("dashboard.opening") : t("dashboard.openReport")}</button>
               </article>) : <div className="dashboard-empty"><p>{t("dashboard.noReports")}</p><a href="/studio">{t("dashboard.calculateFirst")}</a></div>}
+              <div className="dashboard-recent-questions">
+                <div className="dashboard-panel-heading"><h3>{t("dashboard.recentlyViewed")}</h3></div>
+                {summaryStatus === "loading" ? <p role="status">{t("dashboard.loading")}</p> : summaryStatus === "error" ? <p className="dashboard-muted" role="alert">{t("dashboard.dataUnavailable")}</p> : summary?.recentlyViewed.length ? summary.recentlyViewed.map((report) => <article className="dashboard-recent-item dashboard-recent-report" key={report.id}>
+                  <div><b>{report.title}</b><small>{new Date(report.lastViewedAt).toLocaleDateString(language === "hi" ? "hi-IN" : language === "hinglish" ? "en-IN" : "en")}</small></div>
+                  <button type="button" disabled={Boolean(openingReportId)} onClick={(event) => void openReport(report, event.currentTarget)}>{openingReportId === report.id ? t("dashboard.opening") : t("dashboard.openReport")}</button>
+                </article>) : <div className="dashboard-empty"><p>{t("dashboard.noRecentlyViewed")}</p></div>}
+              </div>
               <div className="dashboard-recent-questions">
                 <div className="dashboard-panel-heading"><h3>{t("assistant.historyTitle")}</h3><button type="button" onClick={() => changeSection("ask")}>{t("dashboard.viewAll")}</button></div>
                 {questionStatus === "loading" ? <p role="status">{t("dashboard.loading")}</p> : questionStatus === "error" ? <div className="dashboard-empty"><p className="dashboard-muted">{t("dashboard.historyUnavailable")}</p><button type="button" onClick={() => void loadRecords()}>{t("dashboard.retry")}</button></div> : questionStatus === "terms" ? <p className="dashboard-muted">{t("dashboard.termsNeeded")}</p> : questions.length ? questions.slice(0, 3).map((question) => <article className="dashboard-recent-item" key={question.id}><b>{question.question}</b><small>{question.profileLabel ?? t("assistant.profileUnavailable")} · {new Date(question.createdAt).toLocaleDateString(language === "hi" ? "hi-IN" : language === "hinglish" ? "en-IN" : "en")}</small></article>) : <div className="dashboard-empty"><p>{t("dashboard.noQuestions")}</p><button type="button" onClick={() => changeSection("ask")}>{t("dashboard.askAction")}</button></div>}

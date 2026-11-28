@@ -8,7 +8,7 @@ import { validateChartInput } from "@/server/birth-validation";
 import { requireRole } from "@/server/auth";
 import { withApiKeyAccess } from "@/server/api-platform";
 import { getPrisma } from "@/server/db";
-import { availableChartCountForResult, reportTypeForResult } from "@/server/saved-report-summary";
+import { availableChartCountForResult, divisionalChartCountForResult, reportTypeForResult } from "@/server/saved-report-summary";
 import { ownedRecordData } from "@/server/ownership";
 
 export const runtime = "nodejs";
@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
           });
           const reportType = reportTypeForResult(chart);
           const availableChartCount = availableChartCountForResult(chart);
+          const divisionalChartCount = divisionalChartCountForResult(chart);
           const title = typeof payload.reportName === "string" && payload.reportName.trim()
             ? payload.reportName.trim()
             : `${chart.input.fullName?.trim() || "My"} Kundali`;
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
               title,
               reportType,
               availableChartCount,
+              divisionalChartCount,
               engineVersion: chart.settings.engine,
               ephemerisManifest: JSON.stringify(chart.settings.ephemerisAssets),
               ruleSetVersion: chart.settings.ruleSetVersion,

@@ -22,7 +22,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const user = await getUserFromRequest(request);
     if (!user) return jsonError("Sign in is required.", 401, "UNAUTHENTICATED");
     const { chartId } = await context.params;
-    const chart = await getPrisma().savedChart.findFirst({
+    const prisma = getPrisma();
+    const chart = await prisma.savedChart.findFirst({
       where: ownedRecordWhere(user.id, chartId),
       select: { id: true, profileId: true, title: true, reportType: true, availableChartCount: true, engineVersion: true, ephemerisManifest: true, ruleSetVersion: true, settings: true, inputSnapshot: true, result: true, resultHash: true, createdAt: true },
     });
@@ -30,6 +31,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
     if (!isRestorableSavedChartResult(chart.result)) {
       return jsonError("This saved chart uses an unsupported or incomplete result format.", 422, "UNSUPPORTED_SAVED_CHART");
     }
+    await prisma.savedChart.updateMany({
+      where: ownedRecordWhere(user.id, chartId),
+      data: { lastViewedAt: new Date() },
+    });
     return NextResponse.json({ chart }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return jsonError("Saved-chart storage is temporarily unavailable.", 503, "DATABASE_UNAVAILABLE");

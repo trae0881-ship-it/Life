@@ -46,6 +46,28 @@ test("Indian date modes keep Moolank and Bhagyank separate and verified", () => 
   const extended = calculateLoShu("1990-08-15","indian-extended");
   assert.equal(extended.frequency[6],2);
   assert.deepEqual(calculateLoShu("1990-08-15","indian-extended").present,[1,5,6,8,9]);
+  assert.deepEqual(calculateLoShu("1990-08-15","dob-only").derivedNumbers,[]);
+  assert.deepEqual(extended.derivedNumbers,[6,6]);
+  assert.deepEqual(extended.dobDigits,[1,5,8,1,9,9]);
+});
+
+test("DOB-only Lo Shu counts raw nonzero date digits and never rearranges its cells", () => {
+  const leapDay=calculateLoShu("2000-02-29","dob-only");
+  assert.deepEqual(leapDay.dobDigits,[2,9,2,2]);
+  assert.deepEqual(leapDay.derivedNumbers,[]);
+  assert.deepEqual(leapDay.frequency,{1:0,2:3,3:0,4:0,5:0,6:0,7:0,8:0,9:1});
+  assert.deepEqual(leapDay.layout,GRID_LAYOUT);
+
+  const zeros=calculateLoShu("2000-01-10","dob-only");
+  assert.deepEqual(zeros.dobDigits,[1,1,2]);
+  assert.deepEqual(zeros.frequency,{1:2,2:1,3:0,4:0,5:0,6:0,7:0,8:0,9:0});
+  assert.deepEqual(calculateLoShu("10-01-2000","dob-only"),zeros);
+
+  const extended=calculateLoShu("2000-02-29","indian-extended");
+  assert.deepEqual(extended.dobDigits,[2,9,2,2]);
+  assert.deepEqual(extended.derivedNumbers,[2,6]);
+  assert.deepEqual(extended.frequency,{1:0,2:4,3:0,4:0,5:0,6:1,7:0,8:0,9:1});
+  assert.deepEqual(extended.layout,GRID_LAYOUT);
 });
 
 test("calendar dates, leap years, DD-MM-YYYY and leading zeros are validated", () => {

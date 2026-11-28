@@ -208,16 +208,18 @@ export function calculateNameName(name: string, system: NumerologySystem, keepMa
 
 export function calculateLoShu(dateOfBirth: string, mode: LoShuMode) {
   const date = parseIsoDate(dateOfBirth);
-  const digits = `${date.day}${String(date.month).padStart(2,"0")}${date.year}`.replaceAll("0","").split("").map(Number).filter(Boolean);
+  const dobDigits = `${String(date.day).padStart(2,"0")}${String(date.month).padStart(2,"0")}${date.year}`
+    .split("").map(Number).filter((digit) => digit !== 0);
   const frequency: Record<number,number> = Object.fromEntries(Array.from({length:9},(_,index)=>[index+1,0]));
-  for (const digit of digits) frequency[digit] += 1;
-  let gridDigits = [...digits];
+  for (const digit of dobDigits) frequency[digit] += 1;
+  const derivedNumbers: number[] = [];
   if (mode === "indian-extended") {
     const dateNumbers = calculateDateNumbers(dateOfBirth);
-    gridDigits.push(dateNumbers.moolank, dateNumbers.bhagyank);
+    derivedNumbers.push(dateNumbers.moolank, dateNumbers.bhagyank);
     frequency[dateNumbers.moolank] += 1;
     frequency[dateNumbers.bhagyank] += 1;
   }
+  const gridDigits = [...dobDigits, ...derivedNumbers];
   const present = Array.from({length:9},(_,index)=>index+1).filter((number)=>frequency[number]>0);
   const missing = Array.from({length:9},(_,index)=>index+1).filter((number)=>frequency[number]===0);
   const repeated = present.filter((number)=>frequency[number]>1).map((number)=>({number,count:frequency[number]}));
@@ -228,7 +230,7 @@ export function calculateLoShu(dateOfBirth: string, mode: LoShuMode) {
     const strength = presentNumbers.length === 3 ? "strong" : presentNumbers.length === 2 ? "moderate" : presentNumbers.length === 1 ? "weak" : "absent";
     return {id,label,labelHi,numbers:[...numbers],presentNumbers,missingNumbers,status,strength};
   });
-  return { mode, layout:GRID_LAYOUT, gridDigits, frequency, present, missing, repeated, planes };
+  return { mode, layout:GRID_LAYOUT, dobDigits, derivedNumbers, gridDigits, frequency, present, missing, repeated, planes };
 }
 
 export type AdvancedLoShuAnalysis = {
@@ -256,7 +258,7 @@ export function calculateNameEnhancedLoShu(dateOfBirth: string, name: string, sy
     const strength = presentNumbers.length === 3 ? "strong" : presentNumbers.length === 2 ? "moderate" : presentNumbers.length === 1 ? "weak" : "absent";
     return { ...plane, presentNumbers, missingNumbers, status, strength };
   });
-  return { ...base, mode: "name-enhanced" as const, gridDigits: [...base.gridDigits, ...digits], frequency, present, missing, repeated, planes, nameCompound: nameValue.expression.compound, nameRoot: nameValue.expression.reduced, system };
+  return { ...base, mode: "name-enhanced" as const, derivedNumbers: digits, gridDigits: [...base.gridDigits, ...digits], frequency, present, missing, repeated, planes, nameCompound: nameValue.expression.compound, nameRoot: nameValue.expression.reduced, system };
 }
 
 export function analyzeAdvancedLoShu(dateOfBirth: string, name?: string, system: NumerologySystem = "pythagorean"): AdvancedLoShuAnalysis {
@@ -308,7 +310,7 @@ export function createNumerologyReport(input:{name:string;dateOfBirth:string;sys
     ["Name Number Analysis","नामांक विश्लेषण",String(name.expression.reduced),`${system} expression compound ${name.expression.compound} → ${name.expression.reduced}`,`The selected name system is used consistently for the full name.`,"चयनित नाम-पद्धति पूरे नाम पर एकसमान रूप से लागू है।"],
     ["Chaldean Analysis","चाल्दीयन विश्लेषण",system==="chaldean"?String(name.expression.reduced):"System not selected",`Chaldean mapping used: ${system==="chaldean"?"yes":"no"}`,`Chaldean and Pythagorean mappings are never mixed.`,"चाल्दीयन और पाइथागोरियन मानचित्रण कभी नहीं मिलाए जाते।"],
     ["Pythagorean Analysis","पाइथागोरियन विश्लेषण",system==="pythagorean"?String(name.expression.reduced):"System not selected",`Pythagorean mapping used: ${system==="pythagorean"?"yes":"no"}`,`Pythagorean and Chaldean calculations remain separate.`,"पाइथागोरियन और चाल्दीयन गणनाएँ अलग रहती हैं।"],
-    ["Lo Shu Grid","लो शु जाल",loShuMode,`Layout 4-9-2 / 3-5-7 / 8-1-6`,grid.mode==="dob-only"?"Traditional mode uses raw non-zero birth-date digits only.":"Indian extended mode also adds Moolank and Bhagyank separately.","पारंपरिक रूप में कच्चे जन्मतिथि-अंक; भारतीय विस्तृत रूप में मूलांक और भाग्यांक भी अलग जोड़े जाते हैं।"],
+    ["Lo Shu Grid","लो शु जाल",loShuMode,`DOB digits ${grid.dobDigits.join(",")}; derived entries ${grid.derivedNumbers.join(",")||"none"}; fixed layout 4-9-2 / 3-5-7 / 8-1-6`,grid.mode==="dob-only"?"DOB-only mode counts the original non-zero date digits.":"Indian extended mode separately adds the Moolank and Bhagyank roots.","जन्मतिथि के मूल गैर-शून्य अंक गिने जाते हैं; भारतीय विस्तृत रूप में मूलांक और भाग्यांक अलग जोड़े जाते हैं।"],
     ["Present Numbers","उपस्थित अंक",grid.present.join(", ")||"None",`Frequency ${JSON.stringify(grid.frequency)}`,`These numbers occur in the selected grid mode.`,"चयनित जाल-पद्धति में ये अंक उपस्थित हैं।"],
     ["Missing Numbers","अनुपस्थित अंक",grid.missing.join(", ")||"None",`Absent from frequency map`,`Missing numbers are developmental prompts, not faults.`,"अनुपस्थित अंक दोष नहीं बल्कि विकास-सूचक हैं।"],
     ["Repeated Numbers","दोहराए गए अंक",grid.repeated.map((item)=>`${item.number}×${item.count}`).join(", ")||"None",`Repeated counts from selected grid`,`Repeated numbers indicate a traditionally amplified theme.`,"दोहराए अंक पारंपरिक रूप से उभरे हुए विषय बताते हैं।"],

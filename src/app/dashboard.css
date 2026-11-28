@@ -54,6 +54,10 @@
 .dashboard-welcome-card h2{margin:9px 0 5px;font:500 23px var(--serif)}
 .dashboard-welcome-card p{margin:0;color:#c0c6c8;font-size:11px;overflow-wrap:anywhere}
 .dashboard-welcome-symbol{color:#c6a76d;font:48px var(--serif);opacity:.8}
+.dashboard-quick-actions{display:flex;flex-wrap:wrap;gap:8px}
+.dashboard-quick-actions a,.dashboard-quick-actions button{min-height:36px;padding:0 12px;border:1px solid #ded6c6;border-radius:3px;background:#fff;color:#8c7249;text-decoration:none;font:10px var(--sans);cursor:pointer}
+.dashboard-quick-actions a{display:inline-flex;align-items:center}
+.dashboard-quick-actions a:hover,.dashboard-quick-actions button:hover{border-color:#b89a67;background:#faf7ef}
 .dashboard-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .dashboard-stat-card{min-width:0;min-height:108px;display:grid;justify-items:start;align-content:center;gap:5px;padding:15px 17px;border:1px solid #e7e5de;border-radius:4px;background:#fff;color:#414a4d;text-align:left;cursor:pointer}
 .dashboard-stat-card:hover{border-color:#c8b488;transform:translateY(-1px)}

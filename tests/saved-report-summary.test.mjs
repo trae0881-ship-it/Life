@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { savedReportSummary } from "../src/server/saved-report-summary.ts";
+import { divisionalChartCountForResult, savedReportSummary } from "../src/server/saved-report-summary.ts";
 import { savedReportSettingsChanged } from "../src/presentation/saved-report.ts";
 
 const snapshot = {
@@ -31,6 +31,14 @@ test("saved report summary describes calculated sections from the stored chart r
     reportType: "COMBINED",
     availableChartCount: 1,
   });
+});
+
+test("divisional chart totals count only populated non-D1 divisions", () => {
+  assert.equal(divisionalChartCountForResult({
+    divisionalCharts: { D1: [{ sign: "Aries" }], D2: [{ sign: "Taurus" }], D9: [], D10: [{ sign: "Gemini" }] },
+  }), 2);
+  assert.equal(divisionalChartCountForResult({ divisionalCharts: { D9: "invalid" } }), 0);
+  assert.equal(divisionalChartCountForResult(null), 0);
 });
 
 test("saved report summary marks changed linked birth details for recalculation", () => {
@@ -81,8 +89,21 @@ test("saved report endpoints keep list, detail, profile association, and deletio
   assert.match(listRoute, /chart\.input\.(?:localDate|localTime|timeZone|latitude|longitude)/);
   assert.match(detailRoute, /ownedRecordWhere\(user\.id, chartId\)/);
   assert.match(detailRoute, /isRestorableSavedChartResult\(chart\.result\)/);
+  assert.match(detailRoute, /data: \{ lastViewedAt: new Date\(\) \}/);
   assert.match(detailRoute, /UNSUPPORTED_SAVED_CHART/);
   assert.match(detailRoute, /ownedProfile\.localTime === null/);
   assert.match(detailRoute, /PROFILE_CHART_MISMATCH/);
   assert.match(detailRoute, /deleteMany\(\{\s*where: ownedRecordWhere\(user\.id, chartId\)/);
+});
+
+test("personal dashboard summary uses account-scoped database aggregates and recent records", () => {
+  const route = readFileSync(new URL("../src/app/api/dashboard/astrology-summary/route.ts", import.meta.url), "utf8");
+  assert.match(route, /getUserFromRequest\(request\)/);
+  assert.match(route, /const where = \{ userId: user\.id \}/);
+  assert.match(route, /prisma\.savedChart\.count\(\{ where \}\)/);
+  assert.match(route, /prisma\.kundliQuestion\.count\(\{ where \}\)/);
+  assert.match(route, /prisma\.savedChart\.groupBy\(\{ by: \["reportType"\], where/);
+  assert.match(route, /_sum: \{ divisionalChartCount: true \}/);
+  assert.match(route, /lastViewedAt: \{ not: null \}/);
+  assert.match(route, /Cache-Control.*private, no-store/);
 });

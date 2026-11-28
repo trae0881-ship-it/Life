@@ -68,6 +68,12 @@ export function availableChartCountForResult(result: unknown): number {
   return Number(hasRashi) + divisions;
 }
 
+export function divisionalChartCountForResult(result: unknown): number {
+  if (!isRecord(result) || !isRecord(result.divisionalCharts)) return 0;
+  return Object.entries(result.divisionalCharts).filter(([division, rows]) =>
+    division !== "D1" && Array.isArray(rows) && rows.length > 0).length;
+}
+
 export function savedReportSummary(data: ReportData): SavedReportSummary {
   const snapshot = isRecord(data.inputSnapshot) ? data.inputSnapshot : {};
   const result = isRecord(data.result) ? data.result : {};
