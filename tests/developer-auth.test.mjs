@@ -49,7 +49,7 @@ test("Developer login and signup routes remain separate from ordinary auth route
   assert.match(login, /portal="developer"/);
   assert.match(login, /user\?\.role === "DEVELOPER"/);
   assert.match(signup, /initialMode="register"/);
-  assert.match(signup, /approval-required/);
+  assert.match(signup, /redirect\("\/developers"\)/);
   assert.doesNotMatch(signup, /\?next=|safeDeveloperSignupReturnTo/);
   assert.match(signup, /user\?\.role === "DEVELOPER"/);
   assert.match(ordinaryLogin, /return <LoginExperience returnTo="\/dashboard" \/>/);
@@ -58,7 +58,7 @@ test("Developer login and signup routes remain separate from ordinary auth route
   assert.match(experience, /\/developer\/login/);
   assert.match(experience, /href=\{isDeveloperPortal \? "\/developer\/login" \: "\/login"\}/);
   assert.match(experience, /href=\{isDeveloperPortal \? "\/developer\/signup" \: "\/signup"\}/);
-  assert.match(experience, /Developer permissions and API product access are assigned separately/);
+  assert.match(experience, /Developer signup creates a review request/);
 });
 
 test("Developer login authorization is checked before a session is issued; registration remains USER-only", () => {
@@ -76,7 +76,7 @@ test("Developer login authorization is checked before a session is issued; regis
   assert.match(dashboard, /\/developer\/login/);
   assert.match(dashboard, /user\.role !== "DEVELOPER"/);
   assert.match(accountPanel, /authPortal === "developer"/);
-  assert.match(accountPanel, /portal: mode === "login"/);
+  assert.match(accountPanel, /portal: authPortal === "developer"/);
   assert.match(registrationApi, /registerAccountWithSession/);
   assert.doesNotMatch(registrationApi, /DEVELOPER_REQUIRED|role:\s*"DEVELOPER"/);
   assert.match(authCore, /role: "USER"/);

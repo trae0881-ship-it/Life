@@ -25,6 +25,7 @@ export default function ApiAnalyticsDashboard({ superAdmin = false }: { superAdm
   const [filters, setFilters] = useState<FilterDraft>({
     from: monthAgo, to: today, granularity: "daily", developerId: "", productId: "", endpoint: "", statusCode: "", planId: "",
   });
+  const [draft, setDraft] = useState(filters);
   const [data, setData] = useState<UsageAnalytics>(emptyAnalytics);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,7 +51,7 @@ export default function ApiAnalyticsDashboard({ superAdmin = false }: { superAdm
 
   function apply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void load(filters);
+    setFilters(draft);
   }
 
   const cards = [
@@ -62,6 +63,10 @@ export default function ApiAnalyticsDashboard({ superAdmin = false }: { superAdm
   ];
 
   return <div className="super-admin-content">
+    <nav className="api-ecosystem-nav" aria-label="API platform navigation">
+      {superAdmin ? <><a href="/super-admin">Super Admin home</a><a href="/super-admin/api-products">Products</a><a href="/super-admin/developers">Developers</a><a href="/super-admin/api-billing">Plans & billing</a></>
+        : <><a href="/developers">Developer portal</a><a href="/developers/dashboard">Products & keys</a><a href="/developers/subscription">Plans & billing</a><a href="/api/docs">API docs</a></>}
+    </nav>
     <p className="super-admin-eyebrow">API PLATFORM · OBSERVABILITY</p>
     <h1>API usage analytics</h1>
     <p className="super-admin-description">
@@ -69,19 +74,19 @@ export default function ApiAnalyticsDashboard({ superAdmin = false }: { superAdm
       {" "}Detailed request events are retained for 90 days; monthly quota counters are shown separately.
     </p>
     <form className="api-analytics-filters" onSubmit={apply}>
-      <label>From (UTC)<input type="date" value={filters.from} onChange={(event) => setFilters((old) => ({ ...old, from: event.target.value }))} /></label>
-      <label>To (UTC)<input type="date" value={filters.to} onChange={(event) => setFilters((old) => ({ ...old, to: event.target.value }))} /></label>
-      <label>Interval<select value={filters.granularity} onChange={(event) => setFilters((old) => ({ ...old, granularity: event.target.value }))}>
+      <label>From (UTC)<input type="date" value={draft.from} onChange={(event) => setDraft((old) => ({ ...old, from: event.target.value }))} /></label>
+      <label>To (UTC)<input type="date" value={draft.to} onChange={(event) => setDraft((old) => ({ ...old, to: event.target.value }))} /></label>
+      <label>Interval<select value={draft.granularity} onChange={(event) => setDraft((old) => ({ ...old, granularity: event.target.value }))}>
         <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option>
       </select></label>
-      {superAdmin && <label>Developer ID<input value={filters.developerId} onChange={(event) => setFilters((old) => ({ ...old, developerId: event.target.value }))} /></label>}
-      <label>Product ID<input value={filters.productId} onChange={(event) => setFilters((old) => ({ ...old, productId: event.target.value }))} /></label>
-      <label>Endpoint<select value={filters.endpoint} onChange={(event) => setFilters((old) => ({ ...old, endpoint: event.target.value }))}>
+      {superAdmin && <label>Developer ID<input value={draft.developerId} onChange={(event) => setDraft((old) => ({ ...old, developerId: event.target.value }))} /></label>}
+      <label>Product ID<input value={draft.productId} onChange={(event) => setDraft((old) => ({ ...old, productId: event.target.value }))} /></label>
+      <label>Endpoint<select value={draft.endpoint} onChange={(event) => setDraft((old) => ({ ...old, endpoint: event.target.value }))}>
         <option value="">All endpoints</option>
         <option>GET /api/health</option><option>GET /api/locations</option><option>POST /api/charts</option><option>POST /api/transits</option><option>GET /api/developer/test</option>
       </select></label>
-      <label>HTTP status<input inputMode="numeric" maxLength={3} value={filters.statusCode} onChange={(event) => setFilters((old) => ({ ...old, statusCode: event.target.value.replace(/\D/g, "") }))} placeholder="e.g. 429" /></label>
-      <label>Plan ID<input value={filters.planId} onChange={(event) => setFilters((old) => ({ ...old, planId: event.target.value }))} /></label>
+      <label>HTTP status<input inputMode="numeric" maxLength={3} value={draft.statusCode} onChange={(event) => setDraft((old) => ({ ...old, statusCode: event.target.value.replace(/\D/g, "") }))} placeholder="e.g. 429" /></label>
+      <label>Plan ID<input value={draft.planId} onChange={(event) => setDraft((old) => ({ ...old, planId: event.target.value }))} /></label>
       <button disabled={loading} type="submit">Apply filters</button>
     </form>
     {error && <div className="super-admin-error" role="alert"><p>{error}</p><button onClick={() => void load(filters)} type="button">Retry</button></div>}

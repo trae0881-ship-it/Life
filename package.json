@@ -15,7 +15,8 @@
     "verify": "node scripts/verify.mjs",
     "admin:provision": "node scripts/provision-admin.mjs",
     "db:deploy": "prisma migrate deploy",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "api-platform:maintenance": "node scripts/api-platform-maintenance.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",

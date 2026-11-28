@@ -64,7 +64,7 @@ export default async function DevelopersPage({ searchParams }: DevelopersPagePro
         <li><strong>Private charts, profiles and saved records:</strong> remain session-bound and are not available through an external API-key program.</li>
         <li><strong>Super Admin routes:</strong> remain role-restricted and are excluded from developer documentation.</li>
       </ul>
-      <p>API keys are managed in the authenticated developer dashboard and are displayed once at creation. OAuth and external developer account registration are not available. Never use a database URL, Supabase service key or session cookie as an API key.</p>
+      <p>API keys are managed in the authenticated Developer dashboard and are displayed once at creation. Developer access requires Super Admin verification. Never use a database URL, service key or session cookie as an API key.</p>
     </section>
     <section className="developers-section">
       <h2>Verified endpoint catalogue</h2>
@@ -79,7 +79,7 @@ export default async function DevelopersPage({ searchParams }: DevelopersPagePro
     <section className="developers-section developers-grid">
       <article><h2>Usage and rate limits</h2><p>Current in-process limits include 20 chart calculations/minute, 12 transit calculations/minute, and 30 gazetteer searches/minute per request identity. Limits are operational protections, not an availability commitment.</p></article>
       <article><h2>Versioning and deprecation</h2><p>The API is currently unversioned and has no published compatibility or deprecation guarantee. Check the OpenAPI version and application release before relying on a route.</p></article>
-      <article><h2>Onboarding</h2><p>Sign in with a LIFE Developer account to save an API product draft or submit it for Super Admin review. Product submissions can include only verified LIFE endpoints. After approval, a Super Admin must activate the product and grant developer access before keys can use it. Review status, feedback and current-month usage in the dashboard. Pricing labels are informational; LIFE does not process payments.</p></article>
+      <article><h2>Onboarding</h2><p>Submit a Developer application and wait for Super Admin verification. Verified Developers can submit API products for review, configure keys and view usage analytics. Subscription plans are configured by Super Admins; paid checkout is sandbox-only and stays disabled until currency and tax are explicitly configured. Mock transactions never represent real revenue.</p></article>
       <article><h2>Safe examples</h2><pre><code>{`BASE_URL="https://your-deployment-host"\ncurl -X POST "$BASE_URL/api/charts" \\\n  -H "Content-Type: application/json" \\\n  -d '{"localDate":"1990-05-15","localTime":"10:30","timeZone":"Asia/Kolkata","latitude":19.076,"longitude":72.8777}'`}</code></pre><p>Replace the sample origin with this deployment's HTTPS origin. Example data is fictional; requests require an authenticated browser session or an appropriately scoped API key.</p></article>
     </section>
   </main>;

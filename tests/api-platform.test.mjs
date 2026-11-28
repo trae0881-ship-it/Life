@@ -26,13 +26,17 @@ function makeRepository(overrides = {}) {
     productId: "product-1", accountGrantId: "grant-1", scopes: [scope],
     requestsPerMinute: 4, dailyQuota: 10, monthlyQuota: 30, status: "ACTIVE",
     expiresAt: null, lastUsedAt: null,
-    owner: { role: "DEVELOPER" },
+    owner: {
+      role: "DEVELOPER",
+      apiDeveloperProfile: { status: "VERIFIED", grandfathered: true },
+      apiSubscriptions: [],
+    },
     product: { enabled: true, endpoints: [...API_ENDPOINTS] },
     accountGrant: { id: "grant-1", enabled: true, scopes: [scope], requestsPerMinute: 8, dailyQuota: 20, monthlyQuota: 60 },
   };
   const keyWindows = new Map();
   const accountWindows = new Map();
-  const state = { key, keyWindows, accountWindows, lastKeyQuery: null, storedKeys: [], audit: [] };
+  const state = { key, keyWindows, accountWindows, lastKeyQuery: null, storedKeys: [], audit: [], usageEvents: [] };
   const increment = (map, where, create) => {
     const mapKey = Object.values(where).map((value) => value instanceof Date ? value.toISOString() : value).join("|");
     const previous = map.get(mapKey);
@@ -67,6 +71,12 @@ function makeRepository(overrides = {}) {
       async findMany() { return []; },
     },
     apiPlatformAuditLog: { async create({ data }) { state.audit.push(data); return data; } },
+    apiDeveloperProfile: {
+      async findUnique() { return { status: "VERIFIED", grandfathered: true }; },
+    },
+    apiUsageEvent: {
+      async create({ data }) { state.usageEvents.push(data); return { id: `usage-${state.usageEvents.length}`, ...data }; },
+    },
     user: {
       async findUnique({ where }) {
         return { id: where.id, email: `${where.id}@example.test`, role: where.id === "admin-1" ? "ADMIN" : "DEVELOPER" };
@@ -117,7 +127,7 @@ test("valid API keys are digest-verified and return only scopes and per-key/per-
 });
 
 test("authenticated test endpoint returns scopes and quota without exposing credentials", async () => {
-  const { repository } = makeRepository();
+  const { repository, state } = makeRepository();
   const response = await handleApiKeyTest(bearer(), dependencies(repository));
   assert.equal(response.status, 200);
   const body = await response.json();
@@ -126,6 +136,12 @@ test("authenticated test endpoint returns scopes and quota without exposing cred
   assert.equal(body.quota.remaining.key.day, 9);
   assert.equal(JSON.stringify(body).includes(secret), false);
   assert.equal(JSON.stringify(body).includes(digest(secret)), false);
+  assert.equal(state.usageEvents.length, 1);
+  assert.equal(state.usageEvents[0].developerUserId, "developer-1");
+  assert.equal(state.usageEvents[0].productId, "product-1");
+  assert.equal(state.usageEvents[0].endpoint, scope);
+  assert.equal(state.usageEvents[0].statusCode, 200);
+  assert.doesNotMatch(JSON.stringify(state.usageEvents[0]), /authorization|token|secret|body|ip/i);
 });
 
 test("missing and invalid API keys are rejected with consistent authentication errors", async () => {
@@ -357,6 +373,11 @@ test("usage export includes non-secret usage fields and excludes digests and raw
 function makeProductRepository(initialProducts = []) {
   const state = { products: structuredClone(initialProducts), audit: [], queries: [], uniqueSlug: false };
   const repository = {
+    apiDeveloperProfile: {
+      async findUnique({ where }) {
+        return where.userId ? { userId: where.userId, status: "VERIFIED" } : null;
+      },
+    },
     apiProduct: {
       async create({ data }) {
         if (state.uniqueSlug || state.products.some((product) => product.slug === data.slug)) {

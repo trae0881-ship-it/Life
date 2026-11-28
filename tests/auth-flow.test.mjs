@@ -83,7 +83,7 @@ test("successful login and signup verify the issued session before redirecting t
   assert.match(accountPanel, /account\.registrationSessionUnverified/);
   assert.match(accountPanel, /Sign in to continue/);
   assert.match(accountPanel, /window\.location\.assign\(destination\)/);
-  assert.match(loginApi, /createSession\(user\.id, getPrisma\(\)\)/);
+  assert.match(loginApi, /createSession\(user\.id, repository\)/);
   assert.match(registrationApi, /registerAccountWithSession/);
   assert.match(registrationApi, /sessionCookie\(token, expiresAt\)/);
   assert.match(source("src/server/auth-redirect.ts"), /DEFAULT_RETURN_TO = "\/dashboard"/);
@@ -185,7 +185,8 @@ test("Super Admin role changes reject self-escalation and audit the constrained 
   const bootstrapCore = source("scripts/provision-admin-core.mjs");
   assert.match(endpoint, /authorize: requireRole/);
   assert.match(roleHandler, /dependencies\.authorize\(request, \["SUPER_ADMIN"\]\)/);
-  assert.match(roleHandler, /ASSIGNABLE_ROLES = \["USER", "DEVELOPER", "ADMIN"\]/);
+  assert.match(roleHandler, /ASSIGNABLE_ROLES = \["USER", "ADMIN"\]/);
+  assert.match(roleHandler, /DEVELOPER_WORKFLOW_REQUIRED/);
   assert.match(roleHandler, /userId === actorUserId/);
   assert.match(roleHandler, /target\.role === "SUPER_ADMIN"/);
   assert.match(roleHandler, /updateMany\([\s\S]*?where: \{ id: target\.id, role: target\.role \}/);
@@ -299,6 +300,20 @@ test("role-change handler rejects privilege escalation and audits allowed change
     toRole: "ADMIN",
   }]);
   assert.equal(state.isolation, "Serializable");
+});
+
+test("general role changes cannot promote or bypass the verified Developer lifecycle", async () => {
+  const { dependencies, state } = roleDependencies();
+  const promotion = await handleSuperAdminRoleChange(roleRequest({ role: "DEVELOPER" }), "target-id", dependencies);
+  assert.equal(promotion.status, 422);
+  assert.equal((await promotion.json()).code, "INVALID_ROLE");
+  assert.equal(state.transactions, 0);
+
+  const developerTarget = roleDependencies({ target: { id: "target-id", role: "DEVELOPER" } });
+  const demotion = await handleSuperAdminRoleChange(roleRequest({ role: "ADMIN" }), "target-id", developerTarget.dependencies);
+  assert.equal(demotion.status, 409);
+  assert.equal((await demotion.json()).code, "DEVELOPER_WORKFLOW_REQUIRED");
+  assert.equal(developerTarget.state.updates.length, 0);
 });
 
 function bootstrapRepository({ target = { id: "user-id", role: "USER" }, superAdmins = 0 } = {}) {

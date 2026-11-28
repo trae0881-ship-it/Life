@@ -61,6 +61,20 @@ The chart example uses fictional values and computes a chart using the existing 
 
 The additive migration is `prisma/migrations/20261027120000_api_platform/migration.sql`. It adds product, account-grant, Admin-permission, hashed-key, usage-window and audit tables; it is **not applied** by this development task. Do not apply it to the live Supabase database until an authorized operator has reconciled the unknown migration ledger from actual deployment records and backups, and tested the migration against a disposable staging database. No seed product or demo credential is installed.
 
+### Developer verification, analytics and billing migration
+
+The follow-up migration is `prisma/migrations/20261129100000_api_ecosystem_phase_6_8/migration.sql`. It is additive: it creates the `ApiDeveloperProfile`, `ApiPlan`, `ApiPlanProduct`, `ApiSubscription`, `ApiPayment`, `ApiInvoice`, `ApiProviderEvent`, and `ApiUsageEvent` tables, their enum types, indexes, and foreign keys. It does not alter or delete existing product, grant, key, usage-window, or audit rows. Its only data backfill inserts a verified, grandfathered profile for each existing `DEVELOPER` user, using `ON CONFLICT DO NOTHING`.
+
+The migration has **not** been applied to production. Before an authorized rollout, reconcile the migration ledger against the deployed database, take and verify a restorable full database backup, and test the migration and rollback procedure against a production-like staging copy. A rollback must drop the newly added tables/types and therefore permanently removes any profiles, plans, subscriptions, payments, invoices, provider events, or detailed usage events written after rollout. Preserve an additional post-rollout backup before any rollback; do not treat schema rollback as data-preserving. Do not run `prisma migrate deploy` against production without explicit operator approval.
+
+### Runtime configuration and maintenance
+
+- `DATABASE_URL` is required for database access and the maintenance command.
+- `API_KEY_PEPPER` must be a server-only secret of at least 32 UTF-8 bytes.
+- Paid checkout and refunds remain mock-only. `API_PAYMENT_MODE=mock` enables the sandbox path; set `API_PAYMENT_WEBHOOK_SECRET` to a separate server-only secret of at least 32 UTF-8 bytes to authenticate mock webhook calls. Do not represent mock transactions as real charges or revenue.
+- Schedule `npm run api-platform:maintenance` at least daily after the migration is applied. It expires/cancels ended subscriptions, applies the configured Free-plan fallback where eligible, prunes detailed usage events and day windows older than 90 days, and prunes minute windows older than two days. The job reports affected row counts and exits unsuccessfully on database errors; monitor its exit status. Monthly quota counters are retained.
+- Configure and verify an active Free plan with active product entitlements before relying on Free-plan fallback. Without one, expired subscriptions are not silently granted new access.
+
 ## Limitations
 
 Usage and quota windows require PostgreSQL and the migration above. API management returns an explicit service error until that approved schema rollout exists. User status is currently represented by role and grant state, not an independent account lock. Admin permissions are scoped by product, not by a configurable per-account subset beyond the Super Admin-created account grant.

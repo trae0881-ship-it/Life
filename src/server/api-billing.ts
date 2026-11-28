@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { Prisma, type PrismaClient } from "../../generated/prisma/client";
+import { Prisma, type PrismaClient } from "../../generated/prisma/client.ts";
 import type { AuthUser } from "./auth-core.ts";
 import { constantTimeSecretMatch } from "./auth-core.ts";
 import { isSameOriginMutation } from "./same-origin.ts";

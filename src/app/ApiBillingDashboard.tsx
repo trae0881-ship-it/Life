@@ -256,6 +256,10 @@ export default function ApiBillingDashboard({ superAdmin = false }: { superAdmin
   const productName = (id: string) => products.find((product) => product.id === id)?.name ?? id;
 
   return <div className="super-admin-content">
+    <nav className="api-ecosystem-nav" aria-label="API platform navigation">
+      {superAdmin ? <><a href="/super-admin">Super Admin home</a><a href="/super-admin/api-products">Products</a><a href="/super-admin/developers">Developers</a><a href="/super-admin/api-analytics">Analytics</a></>
+        : <><a href="/developers">Developer portal</a><a href="/developers/dashboard">Products & keys</a><a href="/developers/analytics">Usage analytics</a><a href="/api/docs">API docs</a></>}
+    </nav>
     <p className="super-admin-eyebrow">API PLATFORM · BILLING</p>
     <h1>{superAdmin ? "API plans & billing" : "Plans & subscription"}</h1>
     <p className="super-admin-description">

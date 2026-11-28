@@ -33,9 +33,9 @@ test("Developer actions stay separate and link to the distinct Developer auth ro
   assert.match(section, /developer\.footer\.createAccount/);
 });
 
-test("footer describes the existing API access model and does not promise automatic Developer access", () => {
+test("Developer page describes verified API access and does not promise automatic Developer access", () => {
   assert.match(developers, /not a public developer platform/i);
-  assert.match(developers, /OAuth and external developer account registration are not available/i);
+  assert.match(developers, /Developer access requires Super Admin verification/i);
   assert.match(developerDashboard, /user\.role !== "DEVELOPER"/);
   assert.match(authCore, /role:\s*"USER"/);
   for (const language of languages) {

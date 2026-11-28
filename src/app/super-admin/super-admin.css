@@ -230,6 +230,9 @@
 .api-plan-card>strong{color:#675331;font:500 18px var(--serif)}
 .api-plan-card ul{padding-left:18px}
 .api-plan-card .api-billing-action{margin-top:auto}
+.api-ecosystem-nav{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 24px;padding-bottom:12px;border-bottom:1px solid #e5e3dc}
+.api-ecosystem-nav a{min-height:34px;display:inline-flex;align-items:center;padding:0 10px;border:1px solid #e7e5de;border-radius:3px;background:#fff;color:#655331;text-decoration:none;font-size:11px}
+.api-ecosystem-nav a:focus-visible{outline:2px solid #cba96d;outline-offset:2px}
 .blog-filter{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:14px;padding:15px;border:1px solid #e7e5de;background:#fff}
 .blog-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:18px 0}
 .blog-stats article{display:grid;gap:8px;min-height:84px;padding:14px;border:1px solid #e7e5de;border-radius:4px;background:#fff}
