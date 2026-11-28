@@ -46,6 +46,16 @@ enum ApiKeyStatus {
   REVOKED
 }
 
+enum ApiProductStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ACTIVE
+  REJECTED
+  INACTIVE
+  SUSPENDED
+}
+
 enum ApiUsageWindowType {
   MINUTE
   DAY
@@ -78,6 +88,7 @@ model User {
   grantedApiAdminPermissions ApiAdminPermission[] @relation("ApiAdminPermissionActor")
   apiKeyAuditLogs ApiKeyAuditLog[] @relation("ApiKeyAuditActor")
   apiPlatformAuditLogs ApiPlatformAuditLog[] @relation("ApiPlatformAuditActor")
+  apiProducts ApiProduct[] @relation("ApiProductDeveloper")
   apiUsageWindows ApiAccountUsageWindow[]
   kundaliDocument KundaliDocument?
   astrologyReadings SavedAstrologyReading[]
@@ -95,19 +106,27 @@ model ApiProduct {
   slug                  String @unique @db.VarChar(60)
   name                  String @db.VarChar(100)
   description           String @db.VarChar(500)
+  developerUserId       String?
+  category              String? @db.VarChar(60)
+  pricingModel          String? @db.VarChar(80)
   endpoints             String[] @default([])
   defaultRequestsPerMinute Int @default(30)
   defaultDailyQuota     Int @default(1000)
   defaultMonthlyQuota   Int @default(30000)
   enabled               Boolean @default(true)
+  status                ApiProductStatus @default(ACTIVE)
+  rejectionReason       String? @db.VarChar(1000)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  developer             User? @relation("ApiProductDeveloper", fields: [developerUserId], references: [id], onDelete: SetNull)
   accountGrants         ApiAccountGrant[]
   adminPermissions      ApiAdminPermission[]
   apiKeys               ApiKey[]
   accountUsageWindows  ApiAccountUsageWindow[]
 
   @@index([enabled, name])
+  @@index([developerUserId, status])
+  @@index([status, createdAt])
 }
 
 model ApiAccountGrant {

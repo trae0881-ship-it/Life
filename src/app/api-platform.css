@@ -32,4 +32,23 @@
 .api-platform-example{min-width:0;padding:13px;border:1px solid #e3e1da;border-radius:7px}
 .api-platform-example pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#222f3b;color:#f8f6f0;padding:12px;border-radius:6px;max-height:300px;overflow:auto}
 .api-platform-shell a:focus-visible,.api-platform-shell button:focus-visible,.api-platform-shell input:focus-visible,.api-platform-shell select:focus-visible,.api-platform-shell textarea:focus-visible{outline:3px solid #ad8c56;outline-offset:2px}
+.api-product-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin:20px 0}
+.api-product-summary article{display:grid;gap:8px;min-width:0;padding:15px;background:#fff;border:1px solid #e2e0d9;border-radius:9px}
+.api-product-summary span,.api-product-detail-grid span{color:#667173;font-size:12px}
+.api-product-summary strong{font-size:23px}
+.api-product-filter-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.api-product-filter-form label,.api-product-edit-form label{display:grid;gap:6px;color:#4f5b5e;font-weight:650}
+.api-product-filter-form input,.api-product-filter-form select,.api-product-edit-form input,.api-product-edit-form textarea{width:100%;min-height:38px;border:1px solid #c9ccc7;border-radius:6px;padding:8px;background:#fff;color:#202936;font:inherit}
+.api-product-filter-actions{grid-column:1/-1}
+.api-product-table{min-width:1900px}
+.api-product-row-actions{min-width:180px}
+.api-product-pagination{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px}
+.api-product-details h3{margin:22px 0 8px;font-size:16px}
+.api-product-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px;background:#f8f8f5;border:1px solid #e7e5df;border-radius:8px}
+.api-product-detail-grid>div{display:grid;gap:5px;min-width:0}
+.api-product-detail-grid code,.api-product-detail-grid strong{overflow-wrap:anywhere}
+.api-product-edit-form{margin-top:16px}
+.api-product-edit-form textarea{min-height:90px}
 @media(max-width:640px){.api-platform-header{align-items:flex-start;gap:10px;flex-direction:column}.api-platform-form{grid-template-columns:1fr}.api-platform-form .api-platform-wide{grid-column:auto}.api-platform-section{padding:14px}}
+@media(max-width:760px){.api-product-filter-form{grid-template-columns:repeat(2,minmax(0,1fr))}.api-product-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.api-product-filter-form,.api-product-detail-grid{grid-template-columns:1fr}.api-product-filter-actions{grid-column:auto}.api-product-pagination{align-items:flex-start;flex-direction:column}.api-product-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}

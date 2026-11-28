@@ -9,6 +9,8 @@ import {
   handleApiKey,
   handleApiKeyTest,
   handleApiKeys,
+  handleApiProduct,
+  handleApiProducts,
   handleApiUsageExport,
 } from "../src/server/api-platform.ts";
 
@@ -350,4 +352,335 @@ test("usage export includes non-secret usage fields and excludes digests and raw
   assert.match(report, /life_live_Key000000001_/);
   assert.equal(report.includes(digest(secret)), false);
   assert.equal(report.includes(secret), false);
+});
+
+function makeProductRepository(initialProducts = []) {
+  const state = { products: structuredClone(initialProducts), audit: [], queries: [], uniqueSlug: false };
+  const repository = {
+    apiProduct: {
+      async create({ data }) {
+        if (state.uniqueSlug || state.products.some((product) => product.slug === data.slug)) {
+          throw Object.assign(new Error("Unique constraint"), { code: "P2002" });
+        }
+        const product = {
+          id: "product-new",
+          defaultRequestsPerMinute: 30,
+          defaultDailyQuota: 1000,
+          defaultMonthlyQuota: 30000,
+          rejectionReason: null,
+          createdAt: new Date("2026-11-28T12:00:00.000Z"),
+          updatedAt: new Date("2026-11-28T12:00:00.000Z"),
+          ...data,
+        };
+        state.products.push(product);
+        return product;
+      },
+      async findUnique({ where }) {
+        const product = state.products.find((item) => item.id === where.id);
+        return product ? structuredClone(product) : null;
+      },
+      async findMany(args = {}) {
+        state.queries.push(args);
+        if (args.select) return state.products.map(({ id, name, createdAt }) => ({ id, name, createdAt }));
+        const ids = args.where?.id?.in;
+        if (ids) return ids.flatMap((id) => state.products.filter((product) => product.id === id));
+        return state.products.slice(args.skip ?? 0, (args.skip ?? 0) + (args.take ?? state.products.length));
+      },
+      async update({ where, data }) {
+        const product = state.products.find((item) => item.id === where.id);
+        if (!product) throw new Error("Missing product");
+        Object.assign(product, data, { updatedAt: new Date("2026-11-28T13:00:00.000Z") });
+        return product;
+      },
+      async updateMany({ where, data }) {
+        const product = state.products.find((item) => item.id === where.id && item.status === where.status);
+        if (!product) return { count: 0 };
+        Object.assign(product, data, { updatedAt: new Date("2026-11-28T13:00:00.000Z") });
+        return { count: 1 };
+      },
+      async count({ where } = {}) {
+        if (where?.OR || where?.category || where?.developerUserId || where?.createdAt) {
+          state.queries.push({ countWhere: where });
+          return 28;
+        }
+        if (where?.status === "ACTIVE") return 5;
+        if (where?.status === "PENDING_APPROVAL") return 3;
+        if (where?.status === "REJECTED") return 1;
+        if (where?.status === "INACTIVE") return 2;
+        return 12;
+      },
+    },
+    apiPlatformAuditLog: {
+      async create({ data }) { state.audit.push(data); return data; },
+      async findMany() { return state.audit.map((event, index) => ({ id: `audit-${index + 1}`, ...event, actor: { id: event.actorUserId, email: `${event.actorUserId}@example.test` } })); },
+    },
+    apiAccountUsageWindow: {
+      async groupBy({ by, where }) {
+        state.queries.push({ groupBy: by, usageWhere: where });
+        return state.products.map((product, index) => ({ productId: product.id, _sum: { requestCount: (index + 1) * 10 } }));
+      },
+      async aggregate() { return { _sum: { requestCount: 123 } }; },
+    },
+    user: {
+      async count() { return 4; },
+    },
+    async $transaction(callback) { return callback(repository); },
+  };
+  return { repository, state };
+}
+
+const productActor = (id, role = "DEVELOPER") => ({ id, email: `${id}@example.test`, role });
+const productRequest = (url, method, body) => new Request(url, {
+  method,
+  headers: { origin: "http://localhost", "content-type": "application/json" },
+  ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+});
+
+test("developer product creation binds ownership to the session and begins pending without activation", async () => {
+  const { repository, state } = makeProductRepository();
+  const response = await handleApiProducts(productRequest("http://localhost/api/platform/products", "POST", {
+    slug: "vedic-insights",
+    name: "Vedic Insights",
+    description: "Existing supported LIFE chart endpoints.",
+    category: "Astrology",
+    pricingModel: "Free",
+    endpoints: ["GET /api/health"],
+    status: "PENDING_APPROVAL",
+  }), productActor("developer-1"), dependencies(repository));
+  assert.equal(response.status, 201);
+  const { product } = await response.json();
+  assert.equal(product.developerUserId, "developer-1");
+  assert.equal(product.status, "PENDING_APPROVAL");
+  assert.equal(product.enabled, false);
+  assert.equal(product.approvalStatus, "PENDING");
+  assert.equal(state.audit[0].action, "PRODUCT_SUBMITTED");
+  assert.equal(state.audit[0].actorUserId, "developer-1");
+
+  const spoofedOwner = await handleApiProducts(productRequest("http://localhost/api/platform/products", "POST", {
+    slug: "forged-owner",
+    name: "Forged owner",
+    description: "Should not accept caller-supplied ownership.",
+    category: "Astrology",
+    pricingModel: "Free",
+    endpoints: ["GET /api/health"],
+    developerUserId: "developer-2",
+  }), productActor("developer-1"), dependencies(repository));
+  assert.equal(spoofedOwner.status, 422);
+});
+
+test("repeated product submissions with the same slug do not create duplicate products or audit events", async () => {
+  const { repository, state } = makeProductRepository();
+  const body = {
+    slug: "vedic-insights",
+    name: "Vedic Insights",
+    description: "Existing supported LIFE chart endpoints.",
+    category: "Astrology",
+    pricingModel: "Free",
+    endpoints: ["GET /api/health"],
+  };
+  const actor = productActor("developer-1");
+  const first = await handleApiProducts(productRequest("http://localhost/api/platform/products", "POST", body), actor, dependencies(repository));
+  const retry = await handleApiProducts(productRequest("http://localhost/api/platform/products", "POST", body), actor, dependencies(repository));
+  assert.equal(first.status, 201);
+  assert.equal(retry.status, 409);
+  assert.equal(state.products.length, 1);
+  assert.equal(state.audit.length, 1);
+});
+
+test("developers can edit only their own unapproved products and rejected edits resubmit for review", async () => {
+  const product = {
+    id: "product-1", slug: "vedic", name: "Vedic", description: "Old text", category: "Astrology",
+    pricingModel: "Free", endpoints: ["GET /api/health"], developerUserId: "developer-1",
+    enabled: false, status: "REJECTED", rejectionReason: "Clarify the scope.", defaultRequestsPerMinute: 30,
+    defaultDailyQuota: 1000, defaultMonthlyQuota: 30000,
+  };
+  const { repository, state } = makeProductRepository([product]);
+  const otherDeveloper = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { name: "Changed" }), "product-1", productActor("developer-2"), dependencies(repository));
+  assert.equal(otherDeveloper.status, 404);
+
+  const ownerUpdate = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { name: "Updated Vedic" }), "product-1", productActor("developer-1"), dependencies(repository));
+  assert.equal(ownerUpdate.status, 200);
+  const { product: updated } = await ownerUpdate.json();
+  assert.equal(updated.name, "Updated Vedic");
+  assert.equal(updated.status, "PENDING_APPROVAL");
+  assert.equal(updated.rejectionReason, null);
+  assert.equal(state.audit[0].action, "PRODUCT_RESUBMITTED");
+
+  const activated = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { enabled: true }), "product-1", productActor("developer-1"), dependencies(repository));
+  assert.equal(activated.status, 422);
+});
+
+test("developer drafts can be submitted without allowing the developer to activate them", async () => {
+  const { repository, state } = makeProductRepository([{
+    id: "product-draft", slug: "draft-api", name: "Draft API", description: "Draft",
+    category: "Astrology", pricingModel: "Free", endpoints: ["GET /api/health"],
+    developerUserId: "developer-1", enabled: false, status: "DRAFT", rejectionReason: null,
+    defaultRequestsPerMinute: 30, defaultDailyQuota: 1000, defaultMonthlyQuota: 30000,
+  }]);
+  const response = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-draft", "PATCH", {
+    status: "PENDING_APPROVAL",
+  }), "product-draft", productActor("developer-1"), dependencies(repository));
+  assert.equal(response.status, 200);
+  assert.equal(state.products[0].status, "PENDING_APPROVAL");
+  assert.equal(state.products[0].enabled, false);
+  assert.equal(state.audit[0].action, "PRODUCT_RESUBMITTED");
+});
+
+test("rejection requires a reason and rejected or suspended products need Super Admin review before activation", async () => {
+  const { repository, state } = makeProductRepository([{
+    id: "product-1", slug: "vedic", name: "Vedic", description: "Submitted", category: "Astrology",
+    pricingModel: "Free", endpoints: ["GET /api/health"], developerUserId: "developer-1",
+    enabled: false, status: "PENDING_APPROVAL", rejectionReason: null,
+    defaultRequestsPerMinute: 30, defaultDailyQuota: 1000, defaultMonthlyQuota: 30000,
+  }]);
+  const superAdmin = productActor("super-1", "SUPER_ADMIN");
+  const missingReason = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { action: "REJECT" }), "product-1", superAdmin, dependencies(repository));
+  assert.equal(missingReason.status, 422);
+  assert.equal((await missingReason.json()).code, "REJECTION_REASON_REQUIRED");
+
+  const rejected = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { action: "REJECT", reason: "Endpoint scope needs review." }), "product-1", superAdmin, dependencies(repository));
+  assert.equal(rejected.status, 200);
+  assert.equal(state.products[0].status, "REJECTED");
+  assert.equal(state.products[0].enabled, false);
+  assert.equal(state.audit[0].actorUserId, "super-1");
+
+  const directActivation = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { action: "ACTIVATE" }), "product-1", superAdmin, dependencies(repository));
+  assert.equal(directActivation.status, 409);
+
+  const approval = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { action: "APPROVE" }), "product-1", superAdmin, dependencies(repository));
+  assert.equal(approval.status, 200);
+  assert.equal(state.products[0].status, "APPROVED");
+  assert.equal(state.products[0].enabled, false);
+  const activation = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { action: "ACTIVATE" }), "product-1", superAdmin, dependencies(repository));
+  assert.equal(activation.status, 200);
+  assert.equal(state.products[0].status, "ACTIVE");
+  assert.equal(state.products[0].enabled, true);
+  assert.deepEqual(state.audit.map((event) => event.action), ["PRODUCT_REJECT", "PRODUCT_APPROVE", "PRODUCT_ACTIVATE"]);
+});
+
+test("concurrent review retries have one state transition and one audit event", async () => {
+  const { repository, state } = makeProductRepository([{
+    id: "product-1", slug: "vedic", name: "Vedic", description: "Submitted", category: "Astrology",
+    pricingModel: "Free", endpoints: ["GET /api/health"], developerUserId: "developer-1",
+    enabled: false, status: "PENDING_APPROVAL", rejectionReason: null,
+    defaultRequestsPerMinute: 30, defaultDailyQuota: 1000, defaultMonthlyQuota: 30000,
+  }]);
+  const request = () => productRequest("http://localhost/api/platform/products/product-1", "PATCH", { action: "APPROVE" });
+  const adminAttempt = await handleApiProduct(request(), "product-1", productActor("admin-1", "ADMIN"), dependencies(repository));
+  assert.equal(adminAttempt.status, 403);
+  const results = await Promise.all([
+    handleApiProduct(request(), "product-1", productActor("super-1", "SUPER_ADMIN"), dependencies(repository)),
+    handleApiProduct(request(), "product-1", productActor("super-1", "SUPER_ADMIN"), dependencies(repository)),
+  ]);
+  assert.deepEqual(results.map((result) => result.status).sort(), [200, 409]);
+  assert.equal(state.products[0].status, "APPROVED");
+  assert.deepEqual(state.audit.map((event) => event.action), ["PRODUCT_APPROVE"]);
+});
+
+test("suspended products require Super Admin review before returning to active", async () => {
+  const { repository, state } = makeProductRepository([{
+    id: "product-1", slug: "vedic", name: "Vedic", description: "Approved", category: "Astrology",
+    pricingModel: "Free", endpoints: ["GET /api/health"], developerUserId: "developer-1",
+    enabled: true, status: "ACTIVE", rejectionReason: null,
+    defaultRequestsPerMinute: 30, defaultDailyQuota: 1000, defaultMonthlyQuota: 30000,
+  }]);
+  const superAdmin = productActor("super-1", "SUPER_ADMIN");
+  const suspended = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { action: "SUSPEND" }), "product-1", superAdmin, dependencies(repository));
+  assert.equal(suspended.status, 200);
+  assert.equal(state.products[0].enabled, false);
+  const directActivation = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { action: "ACTIVATE" }), "product-1", superAdmin, dependencies(repository));
+  assert.equal(directActivation.status, 409);
+  const reviewed = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { action: "APPROVE" }), "product-1", superAdmin, dependencies(repository));
+  assert.equal(reviewed.status, 200);
+  const activated = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { action: "ACTIVATE" }), "product-1", superAdmin, dependencies(repository));
+  assert.equal(activated.status, 200);
+  assert.equal(state.products[0].status, "ACTIVE");
+  assert.deepEqual(state.audit.map((event) => event.action), ["PRODUCT_SUSPEND", "PRODUCT_APPROVE", "PRODUCT_ACTIVATE"]);
+});
+
+test("only Super Admin can use the database-backed inventory and its filters are server-paginated", async () => {
+  const { repository, state } = makeProductRepository([{
+    id: "product-1", slug: "vedic", name: "Vedic", description: "Existing product", developerUserId: "developer-1",
+    developer: { id: "developer-1", email: "developer@example.test", fullName: "Developer One" },
+    category: "Astrology", pricingModel: "Free", endpoints: ["GET /api/health"], enabled: false,
+    status: "PENDING_APPROVAL", rejectionReason: null, defaultRequestsPerMinute: 30,
+    defaultDailyQuota: 1000, defaultMonthlyQuota: 30000,
+    createdAt: new Date("2026-11-01T00:00:00.000Z"), updatedAt: new Date("2026-11-02T00:00:00.000Z"),
+  }]);
+  const forbidden = await handleApiProducts(new Request("http://localhost/api/platform/products?inventory=true"), productActor("admin-1", "ADMIN"), dependencies(repository));
+  assert.equal(forbidden.status, 403);
+
+  const request = new Request("http://localhost/api/platform/products?inventory=true&q=Developer%20One&category=Astrology&developerId=developer-1&approval=PENDING&createdFrom=2026-11-01&createdTo=2026-11-28&sort=name&order=asc&page=3&pageSize=10");
+  const response = await handleApiProducts(request, productActor("super-1", "SUPER_ADMIN"), dependencies(repository));
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.page, 3);
+  assert.equal(body.pageCount, 3);
+  assert.equal(body.summary.totalProducts, 12);
+  assert.equal(body.summary.activeProducts, 5);
+  assert.equal(body.summary.totalDevelopers, 4);
+  assert.equal(body.summary.totalApiRequests, 123);
+  assert.equal(body.platform.apiBasePath, "/api");
+  const query = state.queries.find((entry) => entry.countWhere);
+  assert.equal(query.countWhere.status, "PENDING_APPROVAL");
+  assert.equal(query.countWhere.category, "Astrology");
+  assert.equal(query.countWhere.developerUserId, "developer-1");
+  const pageQuery = state.queries.find((entry) => entry.take === 10);
+  assert.equal(pageQuery.skip, 20);
+  assert.equal(pageQuery.orderBy[0].name, "asc");
+});
+
+test("usage sorting uses non-overlapping monthly request totals", async () => {
+  const { repository } = makeProductRepository([
+    { id: "product-1", name: "Alpha", slug: "alpha", status: "ACTIVE", createdAt: new Date(), developerUserId: null },
+    { id: "product-2", name: "Beta", slug: "beta", status: "ACTIVE", createdAt: new Date(), developerUserId: null },
+  ]);
+  const response = await handleApiProducts(new Request("http://localhost/api/platform/products?inventory=true&sort=usage&order=desc&pageSize=10"), productActor("super-1", "SUPER_ADMIN"), dependencies(repository));
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.products.map((product) => product.id), ["product-2", "product-1"]);
+  assert.deepEqual(body.products.map((product) => product.totalRequests), [20, 10]);
+});
+
+test("developer product listings do not disclose another developer's identity, rejection feedback, or usage", async () => {
+  const { repository, state } = makeProductRepository([{
+    id: "product-foreign", slug: "active-api", name: "Active API", description: "Enabled product",
+    developerUserId: "developer-2", category: "Astrology", pricingModel: "Free",
+    endpoints: ["GET /api/health"], enabled: true, status: "ACTIVE", rejectionReason: "Private review note",
+    defaultRequestsPerMinute: 30, defaultDailyQuota: 1000, defaultMonthlyQuota: 30000,
+  }]);
+  const response = await handleApiProducts(new Request("http://localhost/api/platform/products"), productActor("developer-1"), dependencies(repository));
+  assert.equal(response.status, 200);
+  const { products } = await response.json();
+  assert.equal(products[0].developerUserId, null);
+  assert.equal(products[0].rejectionReason, null);
+  assert.equal(products[0].currentMonthRequests, null);
+  assert.match(JSON.stringify(products), /active-api/);
+  assert.equal(JSON.stringify(products).includes("developer-2"), false);
+  assert.equal(JSON.stringify(products).includes("Private review note"), false);
+  assert.equal(state.queries.some((entry) => entry.where?.OR?.some((filter) => filter.developerUserId === "developer-1")), true);
+});
+
+test("API product detail exposes audit and usage but never API key credentials", async () => {
+  const rawApiKey = "life_live_private_secret_that_must_never_appear";
+  const { repository, state } = makeProductRepository([{
+    id: "product-1", slug: "vedic", name: "Vedic", description: "Product", developerUserId: "developer-1",
+    developer: { id: "developer-1", email: "developer@example.test", fullName: "Developer One" },
+    category: "Astrology", pricingModel: "Free", endpoints: ["GET /api/health"], enabled: false,
+    status: "PENDING_APPROVAL", rejectionReason: null, defaultRequestsPerMinute: 30,
+    defaultDailyQuota: 1000, defaultMonthlyQuota: 30000, createdAt: new Date(), updatedAt: new Date(),
+  }]);
+  state.audit.push({
+    actorUserId: "super-1", action: "PRODUCT_APPROVE", targetType: "PRODUCT", targetId: "product-1",
+    details: { fromStatus: "PENDING_APPROVAL", toStatus: "APPROVED" }, createdAt: new Date(),
+  });
+  const response = await handleApiProduct(new Request("http://localhost/api/platform/products/product-1"), "product-1", productActor("super-1", "SUPER_ADMIN"), dependencies(repository));
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.currentMonthRequests, 10);
+  assert.equal(body.totalRequests, 10);
+  assert.equal(body.audit.length, 1);
+  assert.equal(body.audit[0].action, "PRODUCT_APPROVE");
+  assert.equal(JSON.stringify(body).includes(rawApiKey), false);
+  assert.equal(JSON.stringify(body).includes("digest"), false);
 });

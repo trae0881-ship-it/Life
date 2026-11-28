@@ -13,6 +13,8 @@ export const API_ENDPOINTS = [
 ] as const;
 
 type ApiEndpoint = (typeof API_ENDPOINTS)[number];
+const API_PRODUCT_STATUSES = ["DRAFT", "PENDING_APPROVAL", "APPROVED", "ACTIVE", "REJECTED", "INACTIVE", "SUSPENDED"] as const;
+type ApiProductStatus = (typeof API_PRODUCT_STATUSES)[number];
 type PlatformDependencies = { repository: () => PrismaClient; pepper?: string };
 type KeyRecord = {
   id: string;
@@ -79,6 +81,172 @@ function windowStarts(now: Date) {
   const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   return { minute, day, month };
+}
+
+function approvalStatus(status: ApiProductStatus) {
+  if (status === "DRAFT") return "NOT_SUBMITTED";
+  if (status === "PENDING_APPROVAL") return "PENDING";
+  if (status === "REJECTED") return "REJECTED";
+  return "APPROVED";
+}
+
+function isApiProductStatus(value: string): value is ApiProductStatus {
+  return (API_PRODUCT_STATUSES as readonly string[]).includes(value);
+}
+
+function parseIsoDate(value: string | null) {
+  if (value === null) return undefined;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? date : null;
+}
+
+async function productUsageById(repository: PrismaClient, productIds: string[], monthStart?: Date) {
+  if (!productIds.length) return new Map<string, number>();
+  const usage = await repository.apiAccountUsageWindow.groupBy({
+    by: ["productId"],
+    where: {
+      productId: { in: productIds },
+      windowType: "MONTH",
+      ...(monthStart ? { windowStart: monthStart } : {}),
+    },
+    _sum: { requestCount: true },
+  });
+  return new Map(usage.map((row) => [row.productId, row._sum.requestCount ?? 0]));
+}
+
+async function handleApiProductInventory(request: Request, repository: PrismaClient) {
+  const params = new URL(request.url).searchParams;
+  const query = params.get("q")?.trim() ?? "";
+  const category = params.get("category")?.trim() ?? "";
+  const developerId = params.get("developerId")?.trim() ?? "";
+  const status = params.get("status") ?? "ALL";
+  const approval = params.get("approval") ?? "ALL";
+  const sort = params.get("sort") ?? "createdAt";
+  const order = params.get("order") ?? "desc";
+  const from = parseIsoDate(params.get("createdFrom"));
+  const to = parseIsoDate(params.get("createdTo"));
+  const requestedPage = Number(params.get("page") ?? "1");
+  const pageSize = Number(params.get("pageSize") ?? "25");
+  if (query.length > 100 || category.length > 60 || developerId.length > 100
+    || (status !== "ALL" && !isApiProductStatus(status))
+    || !["ALL", "PENDING", "APPROVED", "REJECTED", "NOT_SUBMITTED"].includes(approval)
+    || !["name", "createdAt", "usage"].includes(sort) || !["asc", "desc"].includes(order)
+    || from === null || to === null || (from && to && from > to)
+    || !Number.isSafeInteger(requestedPage) || requestedPage < 1
+    || !Number.isSafeInteger(pageSize) || pageSize < 10 || pageSize > 100) {
+    return jsonError("Product inventory filters are invalid.", "INVALID_PRODUCT_QUERY", 422);
+  }
+
+  const where: Prisma.ApiProductWhereInput = {};
+  if (query) {
+    where.OR = [
+      { id: query },
+      { slug: { contains: query, mode: "insensitive" } },
+      { name: { contains: query, mode: "insensitive" } },
+      { developerUserId: query },
+      { developer: { is: { fullName: { contains: query, mode: "insensitive" } } } },
+      { developer: { is: { email: { contains: query, mode: "insensitive" } } } },
+    ];
+  }
+  if (category) where.category = category;
+  if (developerId) where.developerUserId = developerId;
+  const approvalFilter: Prisma.ApiProductWhereInput["status"] = approval === "PENDING"
+    ? "PENDING_APPROVAL"
+    : approval === "APPROVED"
+      ? { in: ["APPROVED", "ACTIVE", "INACTIVE", "SUSPENDED"] }
+      : approval === "REJECTED"
+        ? "REJECTED"
+        : approval === "NOT_SUBMITTED" ? "DRAFT" : undefined;
+  if (status !== "ALL" && approvalFilter) {
+    where.AND = [{ status: status as ApiProductStatus }, { status: approvalFilter }];
+  } else if (status !== "ALL") {
+    where.status = status as ApiProductStatus;
+  } else if (approvalFilter) {
+    where.status = approvalFilter;
+  }
+  if (from || to) {
+    where.createdAt = {
+      ...(from ? { gte: from } : {}),
+      ...(to ? { lt: new Date(to.getTime() + 24 * 60 * 60 * 1000) } : {}),
+    };
+  }
+
+  const matchingProducts = await repository.apiProduct.count({ where });
+  const pageCount = Math.ceil(matchingProducts / pageSize);
+  const page = pageCount ? Math.min(requestedPage, pageCount) : 1;
+  const skip = (page - 1) * pageSize;
+  const direction: Prisma.SortOrder = order === "asc" ? "asc" : "desc";
+  const monthStart = windowStarts(new Date()).month;
+  const cumulativeUsagePromise = repository.apiAccountUsageWindow.aggregate({
+    where: { windowType: "MONTH" },
+    _sum: { requestCount: true },
+  });
+  const summaryPromise = Promise.all([
+    repository.apiProduct.count(),
+    repository.apiProduct.count({ where: { status: "ACTIVE" } }),
+    repository.apiProduct.count({ where: { status: "PENDING_APPROVAL" } }),
+    repository.apiProduct.count({ where: { status: "REJECTED" } }),
+    repository.apiProduct.count({ where: { status: "INACTIVE" } }),
+    repository.user.count({ where: { role: "DEVELOPER" } }),
+  ]);
+  let pageProducts: Array<Record<string, unknown>>;
+  if (sort === "usage") {
+    const candidates = await repository.apiProduct.findMany({
+      where,
+      select: { id: true, name: true, createdAt: true },
+    });
+    const usage = await productUsageById(repository, candidates.map((product) => product.id));
+    candidates.sort((left, right) => {
+      const byUsage = (usage.get(left.id) ?? 0) - (usage.get(right.id) ?? 0);
+      if (byUsage) return order === "asc" ? byUsage : -byUsage;
+      const byName = left.name.localeCompare(right.name);
+      return byName || left.id.localeCompare(right.id);
+    });
+    const ids = candidates.slice(skip, skip + pageSize).map((product) => product.id);
+    const records = ids.length ? await repository.apiProduct.findMany({
+      where: { id: { in: ids } },
+      include: { developer: { select: { id: true, email: true, fullName: true } } },
+    }) : [];
+    const byId = new Map(records.map((product) => [product.id, product]));
+    pageProducts = ids.map((id) => byId.get(id)).filter((product): product is NonNullable<typeof product> => Boolean(product));
+  } else {
+    const records = await repository.apiProduct.findMany({
+      where,
+      skip,
+      take: pageSize,
+      orderBy: sort === "name" ? [{ name: direction }, { id: "asc" }] : [{ createdAt: direction }, { id: "asc" }],
+      include: { developer: { select: { id: true, email: true, fullName: true } } },
+    });
+    pageProducts = records;
+  }
+  const [total, active, pendingApproval, rejected, inactive, totalDevelopers] = await summaryPromise;
+  const [usage, currentMonthUsage, totalUsage] = await Promise.all([
+    productUsageById(repository, pageProducts.map((product) => String(product.id))),
+    productUsageById(repository, pageProducts.map((product) => String(product.id)), monthStart),
+    cumulativeUsagePromise,
+  ]);
+  return Response.json({
+    products: pageProducts.map((product) => ({
+      ...product,
+      approvalStatus: approvalStatus(product.status as ApiProductStatus),
+      totalRequests: usage.get(String(product.id)) ?? 0,
+      currentMonthRequests: currentMonthUsage.get(String(product.id)) ?? 0,
+    })),
+    page,
+    pageCount,
+    total: matchingProducts,
+    summary: {
+      totalProducts: total,
+      activeProducts: active,
+      pendingApproval,
+      rejectedProducts: rejected,
+      inactiveProducts: inactive,
+      totalDevelopers,
+      totalApiRequests: totalUsage._sum.requestCount ?? 0,
+    },
+    platform: { apiBasePath: "/api", apiVersion: "1.0.0", authenticationType: "Scoped API key", documentationPath: "/api/docs" },
+  }, { headers: noStore });
 }
 
 async function reserveUsage(repository: PrismaClient, key: KeyRecord, now: Date) {
@@ -273,50 +441,244 @@ export async function handleApiProducts(request: Request, actor: AuthUser, depen
   const repository = dependencies.repository();
   if (request.method === "GET") {
     if (!["DEVELOPER", "ADMIN", "SUPER_ADMIN"].includes(actor.role)) return jsonError("Developer or administrator access is required.", "FORBIDDEN", 403);
+    if (new URL(request.url).searchParams.get("inventory") === "true") {
+      if (actor.role !== "SUPER_ADMIN") return jsonError("Super Admin access is required.", "FORBIDDEN", 403);
+      return handleApiProductInventory(request, repository);
+    }
     const products = await repository.apiProduct.findMany({
-      where: actor.role === "SUPER_ADMIN" ? undefined : { enabled: true },
+      where: actor.role === "SUPER_ADMIN"
+        ? undefined
+        : actor.role === "DEVELOPER"
+          ? { OR: [{ enabled: true }, { developerUserId: actor.id }] }
+          : { enabled: true },
       orderBy: { name: "asc" },
     });
-    return Response.json({ products }, { headers: noStore });
+    const monthStart = windowStarts(new Date()).month;
+    const usage = await productUsageById(repository, products.map((product) => product.id), monthStart);
+    return Response.json({
+      products: products.map((product) => {
+        const ownerCanSeeMetadata = actor.role === "SUPER_ADMIN" || product.developerUserId === actor.id;
+        const { developerUserId, rejectionReason, ...publicProduct } = product;
+        return {
+          ...(ownerCanSeeMetadata ? product : { ...publicProduct, developerUserId: null, rejectionReason: null }),
+          approvalStatus: approvalStatus(product.status),
+          currentMonthRequests: ownerCanSeeMetadata ? usage.get(product.id) ?? 0 : null,
+        };
+      }),
+    }, { headers: noStore });
   }
-  if (actor.role !== "SUPER_ADMIN") return jsonError("Super Admin access is required.", "FORBIDDEN", 403);
+  if (actor.role !== "SUPER_ADMIN" && actor.role !== "DEVELOPER") return jsonError("Super Admin or Developer access is required.", "FORBIDDEN", 403);
   const body = await parseBody(request);
   if (!body || typeof body.slug !== "string" || !/^[a-z0-9-]{2,60}$/.test(body.slug)
     || typeof body.name !== "string" || !body.name.trim() || body.name.trim().length > 100
     || typeof body.description !== "string" || body.description.length > 500
-    || !Array.isArray(body.endpoints) || body.endpoints.length === 0 || !body.endpoints.every(parseEndpointScope)
-    || !within(body.defaultRequestsPerMinute, 1, 600) || !within(body.defaultDailyQuota, 1, 1_000_000)
-    || !within(body.defaultMonthlyQuota, 1, 10_000_000)) return jsonError("Product fields or limits are invalid.", "INVALID_PRODUCT", 422);
+    || !Array.isArray(body.endpoints) || body.endpoints.length === 0 || !body.endpoints.every(parseEndpointScope)) {
+    return jsonError("Product fields or endpoints are invalid.", "INVALID_PRODUCT", 422);
+  }
+  const category = body.category === undefined || body.category === null
+    ? null
+    : typeof body.category === "string" && body.category.trim().length > 0 && body.category.trim().length <= 60
+      ? body.category.trim()
+      : undefined;
+  const pricingModel = body.pricingModel === undefined || body.pricingModel === null
+    ? null
+    : typeof body.pricingModel === "string" && body.pricingModel.trim().length > 0 && body.pricingModel.trim().length <= 80
+      ? body.pricingModel.trim()
+      : undefined;
+  const allowedFields = actor.role === "SUPER_ADMIN"
+    ? ["slug", "name", "description", "endpoints", "category", "pricingModel", "defaultRequestsPerMinute", "defaultDailyQuota", "defaultMonthlyQuota"]
+    : ["slug", "name", "description", "endpoints", "category", "pricingModel", "status"];
+  if (Object.keys(body).some((key) => !allowedFields.includes(key))
+    || category === undefined || pricingModel === undefined
+    || (actor.role === "DEVELOPER" && (!category || !pricingModel
+      || (body.status !== undefined && body.status !== "DRAFT" && body.status !== "PENDING_APPROVAL")))
+    || (actor.role === "SUPER_ADMIN" && (!within(body.defaultRequestsPerMinute, 1, 600)
+      || !within(body.defaultDailyQuota, 1, 1_000_000) || !within(body.defaultMonthlyQuota, 1, 10_000_000)))) {
+    return jsonError("Product metadata or limits are invalid.", "INVALID_PRODUCT", 422);
+  }
+  const status: ApiProductStatus = actor.role === "SUPER_ADMIN"
+    ? "ACTIVE"
+    : body.status === "DRAFT" ? "DRAFT" : "PENDING_APPROVAL";
   try {
     const product = await repository.$transaction(async (transaction) => {
       const created = await transaction.apiProduct.create({ data: {
         slug: body.slug as string, name: (body.name as string).trim(), description: (body.description as string).trim(),
         endpoints: [...new Set(body.endpoints as string[])],
-        defaultRequestsPerMinute: body.defaultRequestsPerMinute as number,
-        defaultDailyQuota: body.defaultDailyQuota as number,
-        defaultMonthlyQuota: body.defaultMonthlyQuota as number,
+        category,
+        pricingModel,
+        developerUserId: actor.role === "DEVELOPER" ? actor.id : null,
+        status,
+        enabled: actor.role === "SUPER_ADMIN",
+        ...(actor.role === "SUPER_ADMIN" ? {
+          defaultRequestsPerMinute: body.defaultRequestsPerMinute as number,
+          defaultDailyQuota: body.defaultDailyQuota as number,
+          defaultMonthlyQuota: body.defaultMonthlyQuota as number,
+        } : {}),
       } });
-      await transaction.apiPlatformAuditLog.create({ data: { actorUserId: actor.id, action: "PRODUCT_CREATED", targetType: "PRODUCT", targetId: created.id, details: { slug: created.slug } } });
+      await transaction.apiPlatformAuditLog.create({
+        data: {
+          actorUserId: actor.id,
+          action: actor.role === "DEVELOPER" ? "PRODUCT_SUBMITTED" : "PRODUCT_CREATED",
+          targetType: "PRODUCT",
+          targetId: created.id,
+          details: { slug: created.slug, status: created.status, category: created.category, pricingModel: created.pricingModel },
+        },
+      });
       return created;
     });
-    return Response.json({ product }, { status: 201, headers: noStore });
+    return Response.json({ product: { ...product, approvalStatus: approvalStatus(product.status) } }, { status: 201, headers: noStore });
   } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      return jsonError("That product slug is already in use.", "PRODUCT_SLUG_EXISTS", 409);
+    }
     console.error("API product could not be created.", { errorType: error instanceof Error ? error.name : "UnknownError" });
-    return jsonError("Product could not be created; verify its unique slug and schema.", "PRODUCT_CREATE_FAILED", 409);
+    return jsonError("Product could not be created.", "PRODUCT_CREATE_FAILED", 503);
   }
 }
 
 export async function handleApiProduct(request: Request, productId: string, actor: AuthUser, dependencies: PlatformDependencies) {
   const repository = dependencies.repository();
-  if (actor.role !== "SUPER_ADMIN") return jsonError("Super Admin access is required.", "FORBIDDEN", 403);
   if (request.method === "GET") {
-    const product = await repository.apiProduct.findUnique({ where: { id: productId } });
-    return product ? Response.json({ product }, { headers: noStore }) : jsonError("API product was not found.", "PRODUCT_NOT_FOUND", 404);
+    if (actor.role !== "SUPER_ADMIN" && actor.role !== "DEVELOPER") return jsonError("Super Admin or Developer access is required.", "FORBIDDEN", 403);
+    const product = await repository.apiProduct.findUnique({
+      where: { id: productId },
+      include: { developer: { select: { id: true, email: true, fullName: true } } },
+    });
+    if (!product || (actor.role === "DEVELOPER" && product.developerUserId !== actor.id)) {
+      return jsonError("API product was not found.", "PRODUCT_NOT_FOUND", 404);
+    }
+    if (actor.role !== "SUPER_ADMIN") {
+      return Response.json({ product: { ...product, approvalStatus: approvalStatus(product.status) } }, { headers: noStore });
+    }
+    const monthStart = windowStarts(new Date()).month;
+    const [currentUsage, totalUsage, audit] = await Promise.all([
+      productUsageById(repository, [productId], monthStart),
+      productUsageById(repository, [productId]),
+      repository.apiPlatformAuditLog.findMany({
+        where: { targetType: "PRODUCT", targetId: productId },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: { id: true, action: true, details: true, createdAt: true, actor: { select: { id: true, email: true } } },
+      }),
+    ]);
+    return Response.json({
+      product: { ...product, approvalStatus: approvalStatus(product.status) },
+      totalRequests: totalUsage.get(productId) ?? 0,
+      currentMonthRequests: currentUsage.get(productId) ?? 0,
+      apiBasePath: "/api",
+      apiVersion: "1.0.0",
+      authenticationType: "Scoped API key",
+      documentationPath: "/api/docs",
+      audit,
+    }, { headers: noStore });
   }
+  if (actor.role !== "SUPER_ADMIN" && actor.role !== "DEVELOPER") return jsonError("Super Admin or Developer access is required.", "FORBIDDEN", 403);
   const body = await parseBody(request);
   if (!body) return jsonError("Product update body is invalid.", "INVALID_PRODUCT", 422);
   const current = await repository.apiProduct.findUnique({ where: { id: productId } });
-  if (!current) return jsonError("API product was not found.", "PRODUCT_NOT_FOUND", 404);
+  if (!current || (actor.role === "DEVELOPER" && current.developerUserId !== actor.id)) {
+    return jsonError("API product was not found.", "PRODUCT_NOT_FOUND", 404);
+  }
+  if (actor.role === "DEVELOPER") {
+    const editableStatuses: ApiProductStatus[] = ["DRAFT", "PENDING_APPROVAL", "REJECTED"];
+    if (!editableStatuses.includes(current.status)) return jsonError("Approved products must be changed by a Super Admin.", "PRODUCT_REVIEW_LOCKED", 409);
+    const allowedFields = ["name", "description", "endpoints", "category", "pricingModel", "status"];
+    if (Object.keys(body).some((key) => !allowedFields.includes(key))) return jsonError("Developers may edit only product metadata and supported endpoints.", "INVALID_PRODUCT", 422);
+    const update: Record<string, unknown> = {};
+    if (body.name !== undefined) {
+      if (typeof body.name !== "string" || !body.name.trim() || body.name.trim().length > 100) return jsonError("Product name is invalid.", "INVALID_PRODUCT", 422);
+      update.name = body.name.trim();
+    }
+    if (body.description !== undefined) {
+      if (typeof body.description !== "string" || body.description.length > 500) return jsonError("Product description is invalid.", "INVALID_PRODUCT", 422);
+      update.description = body.description.trim();
+    }
+    if (body.endpoints !== undefined) {
+      if (!Array.isArray(body.endpoints) || body.endpoints.length === 0 || !body.endpoints.every(parseEndpointScope)) return jsonError("Product endpoints are invalid.", "INVALID_PRODUCT", 422);
+      update.endpoints = [...new Set(body.endpoints as string[])];
+    }
+    if (body.category !== undefined) {
+      if (typeof body.category !== "string" || !body.category.trim() || body.category.trim().length > 60) return jsonError("Product category is invalid.", "INVALID_PRODUCT", 422);
+      update.category = body.category.trim();
+    }
+    if (body.pricingModel !== undefined) {
+      if (typeof body.pricingModel !== "string" || !body.pricingModel.trim() || body.pricingModel.trim().length > 80) return jsonError("Product pricing model is invalid.", "INVALID_PRODUCT", 422);
+      update.pricingModel = body.pricingModel.trim();
+    }
+    if (body.status !== undefined) {
+      if (body.status !== "DRAFT" && body.status !== "PENDING_APPROVAL") return jsonError("Developer product status is invalid.", "INVALID_PRODUCT", 422);
+      update.status = body.status;
+    }
+    if (!Object.keys(update).length) return jsonError("At least one editable product field is required.", "INVALID_PRODUCT", 422);
+    if (current.status === "REJECTED") {
+      update.status = "PENDING_APPROVAL";
+      update.rejectionReason = null;
+    }
+    const product = await repository.$transaction(async (transaction) => {
+      const updated = await transaction.apiProduct.update({ where: { id: productId }, data: update });
+      await transaction.apiPlatformAuditLog.create({
+        data: {
+          actorUserId: actor.id,
+          action: updated.status === "PENDING_APPROVAL" && current.status !== "PENDING_APPROVAL" ? "PRODUCT_RESUBMITTED" : "PRODUCT_UPDATED_BY_DEVELOPER",
+          targetType: "PRODUCT",
+          targetId: productId,
+          details: { changedFields: Object.keys(update), fromStatus: current.status, toStatus: updated.status },
+        },
+      });
+      return updated;
+    });
+    return Response.json({ product: { ...product, approvalStatus: approvalStatus(product.status) } }, { headers: noStore });
+  }
+
+  if (typeof body.action === "string") {
+    if (Object.keys(body).some((key) => !["action", "reason"].includes(key))) return jsonError("Product review actions cannot be combined with metadata changes.", "INVALID_PRODUCT", 422);
+    const action = body.action;
+    let status: ApiProductStatus;
+    let enabled = false;
+    let rejectionReason: string | null = null;
+    if (action === "APPROVE" && ["DRAFT", "PENDING_APPROVAL", "REJECTED", "SUSPENDED"].includes(current.status)) {
+      status = "APPROVED";
+    } else if (action === "REJECT" && current.status === "PENDING_APPROVAL") {
+      if (typeof body.reason !== "string" || !body.reason.trim() || body.reason.trim().length > 1000) {
+        return jsonError("A rejection reason is required and must be 1,000 characters or fewer.", "REJECTION_REASON_REQUIRED", 422);
+      }
+      status = "REJECTED";
+      rejectionReason = body.reason.trim();
+    } else if (action === "ACTIVATE" && ["APPROVED", "INACTIVE"].includes(current.status)) {
+      status = "ACTIVE";
+      enabled = true;
+    } else if (action === "DEACTIVATE" && current.status === "ACTIVE") {
+      status = "INACTIVE";
+    } else if (action === "SUSPEND" && ["APPROVED", "ACTIVE", "INACTIVE"].includes(current.status)) {
+      status = "SUSPENDED";
+    } else {
+      return jsonError("That product status transition is not allowed.", "INVALID_PRODUCT_TRANSITION", 409);
+    }
+    const product = await repository.$transaction(async (transaction) => {
+      const transition = await transaction.apiProduct.updateMany({
+        where: { id: productId, status: current.status },
+        data: { status, enabled, rejectionReason },
+      });
+      if (transition.count !== 1) return null;
+      const updated = await transaction.apiProduct.findUnique({ where: { id: productId } });
+      if (!updated) throw new Error("Updated API product could not be reloaded.");
+      await transaction.apiPlatformAuditLog.create({
+        data: {
+          actorUserId: actor.id,
+          action: `PRODUCT_${action}`,
+          targetType: "PRODUCT",
+          targetId: productId,
+          details: { fromStatus: current.status, toStatus: status, ...(rejectionReason ? { reason: rejectionReason } : {}) },
+        },
+      });
+      return updated;
+    });
+    if (!product) return jsonError("Product status changed before this action completed.", "INVALID_PRODUCT_TRANSITION", 409);
+    return Response.json({ product: { ...product, approvalStatus: approvalStatus(product.status) } }, { headers: noStore });
+  }
+
+  const allowedFields = ["name", "description", "endpoints", "defaultRequestsPerMinute", "defaultDailyQuota", "defaultMonthlyQuota", "enabled", "category", "pricingModel"];
+  if (Object.keys(body).some((key) => !allowedFields.includes(key))) return jsonError("Product update fields are invalid.", "INVALID_PRODUCT", 422);
   const update: Record<string, unknown> = {};
   if (body.name !== undefined) {
     if (typeof body.name !== "string" || !body.name.trim() || body.name.trim().length > 100) return jsonError("Product name is invalid.", "INVALID_PRODUCT", 422);
@@ -344,8 +706,24 @@ export async function handleApiProduct(request: Request, productId: string, acto
   }
   if (body.enabled !== undefined) {
     if (typeof body.enabled !== "boolean") return jsonError("Product status is invalid.", "INVALID_PRODUCT", 422);
-    update.enabled = body.enabled;
+    if (body.enabled) {
+      if (!["APPROVED", "ACTIVE", "INACTIVE"].includes(current.status)) return jsonError("Products must be approved before activation.", "PRODUCT_REVIEW_REQUIRED", 409);
+      update.enabled = true;
+      update.status = "ACTIVE";
+    } else if (current.status === "ACTIVE") {
+      update.enabled = false;
+      update.status = "INACTIVE";
+    }
   }
+  if (body.category !== undefined) {
+    if (body.category !== null && (typeof body.category !== "string" || !body.category.trim() || body.category.trim().length > 60)) return jsonError("Product category is invalid.", "INVALID_PRODUCT", 422);
+    update.category = typeof body.category === "string" ? body.category.trim() : null;
+  }
+  if (body.pricingModel !== undefined) {
+    if (body.pricingModel !== null && (typeof body.pricingModel !== "string" || !body.pricingModel.trim() || body.pricingModel.trim().length > 80)) return jsonError("Product pricing model is invalid.", "INVALID_PRODUCT", 422);
+    update.pricingModel = typeof body.pricingModel === "string" ? body.pricingModel.trim() : null;
+  }
+  if (!Object.keys(update).length) return jsonError("At least one product field is required.", "INVALID_PRODUCT", 422);
   const next = { ...current, ...update } as typeof current;
   const [grants, adminPermissions, keys] = await Promise.all([
     repository.apiAccountGrant.findMany({ where: { productId } }),
@@ -363,10 +741,18 @@ export async function handleApiProduct(request: Request, productId: string, acto
   }
   const product = await repository.$transaction(async (transaction) => {
     const updated = await transaction.apiProduct.update({ where: { id: productId }, data: update });
-    await transaction.apiPlatformAuditLog.create({ data: { actorUserId: actor.id, action: "PRODUCT_UPDATED", targetType: "PRODUCT", targetId: productId, details: { changedFields: Object.keys(update) } } });
+    await transaction.apiPlatformAuditLog.create({
+      data: {
+        actorUserId: actor.id,
+        action: "PRODUCT_UPDATED",
+        targetType: "PRODUCT",
+        targetId: productId,
+        details: { changedFields: Object.keys(update), fromStatus: current.status, toStatus: updated.status },
+      },
+    });
     return updated;
   });
-  return Response.json({ product }, { headers: noStore });
+  return Response.json({ product: { ...product, approvalStatus: approvalStatus(product.status) } }, { headers: noStore });
 }
 
 export async function handleApiAccounts(request: Request, actor: AuthUser, dependencies: PlatformDependencies) {

@@ -25,6 +25,7 @@ export const REQUIRED_MIGRATIONS = [
   "20261126160000_seo_management",
   "20261127140000_kundali_report_management",
   "20261128120000_personal_dashboard_activity",
+  "20261128150000_api_product_management",
 ] as const;
 
 const SENSITIVE_TABLES = new Set([

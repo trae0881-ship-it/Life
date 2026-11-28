@@ -363,6 +363,7 @@ export default function SuperAdminDashboard({ email, userId }: { email: string; 
           <a href="/super-admin/seo">{t("superAdmin.seoManagement")}</a>
           <a href="/super-admin/blogs">Blog Management</a>
           <a href="/super-admin/api">API Management</a>
+          <a href="/super-admin/api-products">API Products</a>
           <a href="/super-admin/database">Database Center</a>
           <a href="/admin/scripts">Head / body scripts</a>
         </nav>

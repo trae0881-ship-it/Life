@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Role = "DEVELOPER" | "ADMIN" | "SUPER_ADMIN";
-type Product = { id: string; slug: string; name: string; description: string; endpoints: string[]; defaultRequestsPerMinute: number; defaultDailyQuota: number; defaultMonthlyQuota: number; enabled: boolean };
+type ProductStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "ACTIVE" | "REJECTED" | "INACTIVE" | "SUSPENDED";
+type Product = {
+  id: string; slug: string; name: string; description: string; endpoints: string[];
+  defaultRequestsPerMinute: number; defaultDailyQuota: number; defaultMonthlyQuota: number;
+  enabled: boolean; developerUserId: string | null; category: string | null; pricingModel: string | null;
+  status: ProductStatus; approvalStatus: string; rejectionReason: string | null; currentMonthRequests: number | null;
+};
 type Account = { id: string; email: string; fullName: string | null };
 type Grant = { id: string; accountUserId: string; productId: string; scopes: string[]; requestsPerMinute: number; dailyQuota: number; monthlyQuota: number; enabled: boolean; account: Account; product: Product };
 type AdminPermission = { id: string; adminUserId: string; productId: string; scopes: string[]; maxRequestsPerMinute: number; maxDailyQuota: number; maxMonthlyQuota: number; canManageAccess: boolean; enabled: boolean; admin: Account; product: Product };
@@ -53,7 +59,11 @@ export default function ApiPlatformDashboard({ role, userId, email }: { role: Ro
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [oneTimeSecret, setOneTimeSecret] = useState("");
-  const [productDraft, setProductDraft] = useState({ slug: "", name: "", description: "", endpoints: ["GET /api/health", "GET /api/developer/test"], rpm: "30", daily: "1000", monthly: "30000" });
+  const [productDraft, setProductDraft] = useState({
+    slug: "", name: "", description: "", category: "", pricingModel: "",
+    endpoints: ["GET /api/health", "GET /api/developer/test"], rpm: "30", daily: "1000", monthly: "30000",
+    status: "PENDING_APPROVAL" as "DRAFT" | "PENDING_APPROVAL",
+  });
   const [editingProductId, setEditingProductId] = useState("");
   const [grantDraft, setGrantDraft] = useState({ accountUserId: "", productId: "", scopes: [] as string[], rpm: "30", daily: "1000", monthly: "30000", enabled: true });
   const [permissionDraft, setPermissionDraft] = useState({ adminUserId: "", productId: "", scopes: [] as string[], rpm: "30", daily: "1000", monthly: "30000", canManageAccess: true, enabled: true });
@@ -181,14 +191,31 @@ export default function ApiPlatformDashboard({ role, userId, email }: { role: Ro
   async function createProduct(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); setError("");
     try {
-      await submitJson(editingProductId ? `/api/platform/products/${editingProductId}` : "/api/platform/products", editingProductId ? "PATCH" : "POST", {
-        slug: productDraft.slug, name: productDraft.name, description: productDraft.description,
-        endpoints: productDraft.endpoints, defaultRequestsPerMinute: Number(productDraft.rpm),
-        defaultDailyQuota: Number(productDraft.daily), defaultMonthlyQuota: Number(productDraft.monthly),
-      });
-      setNotice(editingProductId ? "API product updated." : "API product created.");
+      const metadata = {
+        name: productDraft.name, description: productDraft.description, endpoints: productDraft.endpoints,
+        category: productDraft.category || null, pricingModel: productDraft.pricingModel || null,
+      };
+      const body = editingProductId
+        ? isSuperAdmin
+          ? {
+            ...metadata, defaultRequestsPerMinute: Number(productDraft.rpm),
+            defaultDailyQuota: Number(productDraft.daily), defaultMonthlyQuota: Number(productDraft.monthly),
+          }
+          : { ...metadata, status: productDraft.status }
+        : isSuperAdmin
+          ? {
+            ...metadata, slug: productDraft.slug, defaultRequestsPerMinute: Number(productDraft.rpm),
+            defaultDailyQuota: Number(productDraft.daily), defaultMonthlyQuota: Number(productDraft.monthly),
+          }
+          : { ...metadata, slug: productDraft.slug, status: productDraft.status };
+      await submitJson(editingProductId ? `/api/platform/products/${editingProductId}` : "/api/platform/products", editingProductId ? "PATCH" : "POST", body);
+      setNotice(editingProductId ? "API product updated." : isSuperAdmin ? "API product created." : productDraft.status === "DRAFT" ? "Product draft saved." : "Product submitted for Super Admin review.");
       setEditingProductId("");
-      setProductDraft({ slug: "", name: "", description: "", endpoints: ["GET /api/health", "GET /api/developer/test"], rpm: "30", daily: "1000", monthly: "30000" });
+      setProductDraft({
+        slug: "", name: "", description: "", category: "", pricingModel: "",
+        endpoints: ["GET /api/health", "GET /api/developer/test"], rpm: "30", daily: "1000", monthly: "30000",
+        status: "PENDING_APPROVAL",
+      });
       await load();
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Product could not be saved."); }
     finally { setSaving(false); }
@@ -231,17 +258,18 @@ export default function ApiPlatformDashboard({ role, userId, email }: { role: Ro
       {notice && <p className="api-platform-note" role="status">{notice}</p>}
       {oneTimeSecret && <section className="api-platform-alert" aria-label="One-time API key secret"><strong>Copy this secret now. It cannot be retrieved again.</strong><p><code>{oneTimeSecret}</code></p><button className="api-platform-button secondary" type="button" onClick={() => void navigator.clipboard.writeText(oneTimeSecret)}>Copy key</button></section>}
 
-      <section className="api-platform-section"><h2>API products</h2>{loading ? <p aria-live="polite">Loading products…</p> : products.length === 0 ? <p>No API products are configured. A Super Admin must enable a product and grant developer access.</p> : <div className="api-platform-table-wrap"><table className="api-platform-table"><thead><tr><th>Product</th><th>Description</th><th>Allowed endpoints</th><th>Default limits</th><th>Status</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td>{product.name}<br /><code>{product.slug}</code></td><td>{product.description}</td><td>{product.endpoints.map((endpoint) => <div key={endpoint}><code>{endpoint}</code></div>)}</td><td>{product.defaultRequestsPerMinute}/min · {product.defaultDailyQuota}/day · {product.defaultMonthlyQuota}/month</td><td>{product.enabled ? "Enabled" : "Disabled"}{isSuperAdmin && <div className="api-platform-actions"><button className="api-platform-button secondary" type="button" onClick={() => { setEditingProductId(product.id); setProductDraft({ slug: product.slug, name: product.name, description: product.description, endpoints: [...product.endpoints], rpm: String(product.defaultRequestsPerMinute), daily: String(product.defaultDailyQuota), monthly: String(product.defaultMonthlyQuota) }); }}>{editingProductId === product.id ? "Editing" : "Edit"}</button><button className="api-platform-button secondary" type="button" onClick={async () => { try { await submitJson(`/api/platform/products/${product.id}`, "PATCH", { enabled: !product.enabled }); await load(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Product update failed."); } }}>{product.enabled ? "Disable" : "Enable"}</button></div>}</td></tr>)}</tbody></table></div>}</section>
+      <section className="api-platform-section"><h2>API products</h2>{loading ? <p aria-live="polite">Loading products…</p> : products.length === 0 ? <p>No API products are configured. You can submit an API product for Super Admin review below.</p> : <div className="api-platform-table-wrap"><table className="api-platform-table"><thead><tr><th>Product</th><th>Description</th><th>Allowed endpoints</th><th>Default limits</th><th>Status / approval</th><th>Current-month requests</th><th>Actions</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td>{product.name}<br /><code>{product.slug}</code>{product.category && <><br />{product.category}</>}</td><td>{product.description}{product.developerUserId === userId && product.rejectionReason && <p className="api-platform-error">Review feedback: {product.rejectionReason}</p>}</td><td>{product.endpoints.map((endpoint) => <div key={endpoint}><code>{endpoint}</code></div>)}</td><td>{product.defaultRequestsPerMinute}/min · {product.defaultDailyQuota}/day · {product.defaultMonthlyQuota}/month</td><td>{product.status.replaceAll("_", " ")} · {product.approvalStatus.replaceAll("_", " ")}</td><td>{product.currentMonthRequests === null ? "—" : product.currentMonthRequests.toLocaleString()}</td><td><div className="api-platform-actions">{isSuperAdmin && <><button className="api-platform-button secondary" type="button" onClick={() => { setEditingProductId(product.id); setProductDraft({ slug: product.slug, name: product.name, description: product.description, category: product.category ?? "", pricingModel: product.pricingModel ?? "", endpoints: [...product.endpoints], rpm: String(product.defaultRequestsPerMinute), daily: String(product.defaultDailyQuota), monthly: String(product.defaultMonthlyQuota), status: "PENDING_APPROVAL" }); }}>{editingProductId === product.id ? "Editing" : "Edit"}</button>{product.status === "ACTIVE" ? <button className="api-platform-button secondary" type="button" onClick={async () => { try { await submitJson(`/api/platform/products/${product.id}`, "PATCH", { action: "DEACTIVATE" }); await load(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Product update failed."); } }}>Deactivate</button> : product.status === "APPROVED" || product.status === "INACTIVE" ? <button className="api-platform-button secondary" type="button" onClick={async () => { try { await submitJson(`/api/platform/products/${product.id}`, "PATCH", { action: "ACTIVATE" }); await load(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Product update failed."); } }}>Activate</button> : null}</>}{role === "DEVELOPER" && product.developerUserId === userId && ["DRAFT", "PENDING_APPROVAL", "REJECTED"].includes(product.status) && <button className="api-platform-button secondary" type="button" onClick={() => { setEditingProductId(product.id); setProductDraft({ slug: product.slug, name: product.name, description: product.description, category: product.category ?? "", pricingModel: product.pricingModel ?? "", endpoints: [...product.endpoints], rpm: String(product.defaultRequestsPerMinute), daily: String(product.defaultDailyQuota), monthly: String(product.defaultMonthlyQuota), status: product.status === "DRAFT" ? "DRAFT" : "PENDING_APPROVAL" }); }}>Edit submission</button>}</div></td></tr>)}</tbody></table></div>}</section>
 
-      {isSuperAdmin && <section className="api-platform-section"><h2>{editingProductId ? "Edit API product" : "Create API product"}</h2><form className="api-platform-form" onSubmit={createProduct}>
+      {(isSuperAdmin || role === "DEVELOPER") && <section className="api-platform-section"><h2>{editingProductId ? "Edit API product" : isSuperAdmin ? "Create API product" : "Register an API product"}</h2><form className="api-platform-form" onSubmit={createProduct}>
         <label>Slug<input required maxLength={60} pattern="[a-z0-9-]{2,60}" disabled={Boolean(editingProductId)} value={productDraft.slug} onChange={(e) => setProductDraft({ ...productDraft, slug: e.target.value })} /></label>
         <label>Name<input required maxLength={100} value={productDraft.name} onChange={(e) => setProductDraft({ ...productDraft, name: e.target.value })} /></label>
         <label className="api-platform-wide">Description<input required maxLength={500} value={productDraft.description} onChange={(e) => setProductDraft({ ...productDraft, description: e.target.value })} /></label>
+        <label>Category<input required={role === "DEVELOPER"} maxLength={60} value={productDraft.category} onChange={(e) => setProductDraft({ ...productDraft, category: e.target.value })} /></label>
+        <label>Pricing model<input required={role === "DEVELOPER"} maxLength={80} value={productDraft.pricingModel} onChange={(e) => setProductDraft({ ...productDraft, pricingModel: e.target.value })} /><small>Informational only; LIFE does not process payments.</small></label>
         <ProductScopes scopes={productDraft.endpoints} onChange={(value) => setProductDraft({ ...productDraft, endpoints: value })} />
-        <label>Requests / minute<input type="number" min="1" max="600" value={productDraft.rpm} onChange={(e) => setProductDraft({ ...productDraft, rpm: e.target.value })} /></label>
-        <label>Daily quota<input type="number" min="1" max="1000000" value={productDraft.daily} onChange={(e) => setProductDraft({ ...productDraft, daily: e.target.value })} /></label>
-        <label>Monthly quota<input type="number" min="1" max="10000000" value={productDraft.monthly} onChange={(e) => setProductDraft({ ...productDraft, monthly: e.target.value })} /></label>
-        <div className="api-platform-actions api-platform-wide"><button className="api-platform-button" disabled={saving}>{editingProductId ? "Save product" : "Create product"}</button>{editingProductId && <button className="api-platform-button secondary" type="button" onClick={() => { setEditingProductId(""); setProductDraft({ slug: "", name: "", description: "", endpoints: ["GET /api/health", "GET /api/developer/test"], rpm: "30", daily: "1000", monthly: "30000" }); }}>Cancel editing</button>}</div>
+        {isSuperAdmin && <><label>Requests / minute<input type="number" min="1" max="600" value={productDraft.rpm} onChange={(e) => setProductDraft({ ...productDraft, rpm: e.target.value })} /></label><label>Daily quota<input type="number" min="1" max="1000000" value={productDraft.daily} onChange={(e) => setProductDraft({ ...productDraft, daily: e.target.value })} /></label><label>Monthly quota<input type="number" min="1" max="10000000" value={productDraft.monthly} onChange={(e) => setProductDraft({ ...productDraft, monthly: e.target.value })} /></label></>}
+        {!isSuperAdmin && <label>Submission status<select value={productDraft.status} onChange={(e) => setProductDraft({ ...productDraft, status: e.target.value as "DRAFT" | "PENDING_APPROVAL" })}><option value="PENDING_APPROVAL">Submit for review</option><option value="DRAFT">Save as draft</option></select></label>}
+        <div className="api-platform-actions api-platform-wide"><button className="api-platform-button" disabled={saving}>{editingProductId ? "Save product" : isSuperAdmin ? "Create product" : productDraft.status === "DRAFT" ? "Save draft" : "Submit for review"}</button>{editingProductId && <button className="api-platform-button secondary" type="button" onClick={() => { setEditingProductId(""); setProductDraft({ slug: "", name: "", description: "", category: "", pricingModel: "", endpoints: ["GET /api/health", "GET /api/developer/test"], rpm: "30", daily: "1000", monthly: "30000", status: "PENDING_APPROVAL" }); }}>Cancel editing</button>}</div>
       </form></section>}
 
       {isSuperAdmin && <section className="api-platform-section"><h2>Assign developer API access</h2><form className="api-platform-form" onSubmit={assignGrant}>
