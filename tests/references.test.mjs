@@ -58,8 +58,7 @@ test("provided source URLs are valid HTTP(S), and omitted metadata remains optio
   assert.match(page, /reference\.accessed_at \?\? "Not applicable or not recorded"/);
 });
 
-test("each feature-to-source relationship points to a declared feature and registry entry", () => {
-  const registryIds = new Set(referenceRegistry.map((reference) => reference.id));
+test("technical references remain available without being embedded in the Kundali report", () => {
   const featureIds = new Set(Object.keys(referenceFeatures));
   for (const reference of referenceRegistry) {
     assert.ok(reference.used_by.length > 0, `${reference.id} must describe its use`);
@@ -67,10 +66,9 @@ test("each feature-to-source relationship points to a declared feature and regis
   }
   assert.ok(Object.keys(referenceFeatures).length > 0);
   assert.match(sourceLinks, /getReferencesByIds/);
-  const idsInCitations = [...chartStudio.matchAll(/ids=\{\[([^\]]+)\]\}/g)]
-    .flatMap((match) => [...match[1].matchAll(/"([^"]+)"/g)].map((id) => id[1]));
-  assert.ok(idsInCitations.length > 0);
-  for (const id of idsInCitations) assert.ok(registryIds.has(id), `citation ID ${id} exists`);
+  assert.ok(referenceRegistry.every((reference) => reference.used_by.every((feature) => featureIds.has(feature))));
+  assert.doesNotMatch(chartStudio, /<ReferenceLinks|SourceDetails/);
+  assert.match(page, /referenceRegistry\.filter/);
 });
 
 test("audit-sensitive references preserve verification and licensing caveats", () => {
@@ -95,14 +93,20 @@ test("public references route renders all categories, labels unverified sources 
   assert.match(page, /No research source is currently used to validate astrology as a predictive science/);
 });
 
-test("reference promotions are hidden from homepage and footer while contextual citations remain", () => {
+test("reference details stay separate from the normal home and report views", () => {
   assert.doesNotMatch(home, /Review LIFE’s references, sources and verification scope/);
   assert.doesNotMatch(globalFooter, /href="\/references"/);
   assert.doesNotMatch(home, /Visit the LIFE journal/);
   assert.doesNotMatch(globalFooter, /href="\/blogs"/);
-  assert.match(chartStudio, /<ReferenceLinks title="Calculation and data sources"/);
-  assert.match(chartStudio, /<ReferenceLinks title="Calculation conventions"/);
-  assert.match(chartStudio, /<ReferenceLinks title="Kundli classification sources"/);
-  assert.match(readFileSync(new URL("../src/app/LocationSearch.tsx", import.meta.url), "utf8"), /href="\/references#geonames-cities500"/);
-  assert.match(readFileSync(new URL("../src/app/remedies/page.tsx", import.meta.url), "utf8"), /href="\/references#life-remedy-attributions-pending"/);
+  assert.match(page, /References &amp; Sources/);
+  assert.doesNotMatch(readFileSync(new URL("../src/app/LocationSearch.tsx", import.meta.url), "utf8"), /href="\/references/);
+  assert.doesNotMatch(readFileSync(new URL("../src/app/remedies/page.tsx", import.meta.url), "utf8"), /href="\/references/);
+});
+
+test("birth and chart copy omits technical source and calculation guidance", () => {
+  const language = readFileSync(new URL("../src/presentation/language.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(chartStudio, /<ReferenceLinks|SourceDetails|form\.emptyNoSamples/);
+  assert.doesNotMatch(language, /"form\.(timeZoneHelp|placeHelp|coordinatesHelp|chartNeedsDetails|emptyHelp)": "[^"]*(?:IANA|verified|calculation|dataset|source)/i);
+  assert.match(language, /"house\.lagnaChartLabel": "जन्म लग्न कुंडली"/);
+  assert.match(language, /"house\.moonChartLabel": "चंद्र कुंडली"/);
 });

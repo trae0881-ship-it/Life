@@ -43,7 +43,7 @@ export default function KundliChart({ chart, language, referenceSign, chartTitle
       <button type="button" aria-pressed={layout === "south"} onClick={() => setLayout("south")}>{t("chart.south")}</button>
     </div>
     <div className="kundli-wrap">
-      {layout === "north" ? <svg viewBox="0 0 400 400" className="kundli" role="img" aria-label={`${t("chart.northAria")}, ${orientationSign} ${chartTitle ?? t("chart.rising")}`}>
+      {layout === "north" ? <svg viewBox="0 0 400 400" className="kundli" role="img" aria-label={`${t("chart.northAria")}, ${orientationSign} ${chartTitle ?? t("house.lagnaChartLabel")}`}>
         <rect x="5" y="5" width="390" height="390" fill="#fbf8f1" stroke="#cbbd9f" strokeWidth="1.5" />
         <path d="M5 5L395 395M395 5L5 395M200 5L395 200L200 395L5 200Z M5 5L200 200L395 5M5 395L200 200L395 395" fill="none" stroke="#cbbd9f" strokeWidth="1.5" />
         {signsByHouse.map(({ sign, house, planets: occupants, isLagna }, index) => {
@@ -55,8 +55,8 @@ export default function KundliChart({ chart, language, referenceSign, chartTitle
           </g>;
         })}
         <text x="200" y="194" textAnchor="middle" className="chart-center">LIFE</text>
-        <text x="200" y="211" textAnchor="middle" className="chart-center-small">{chartTitle ?? "D1 RĀŚI"}</text>
-      </svg> : <div className="south-kundli" role="img" aria-label={`${t("chart.southAria")}, ${orientationSign} ${referenceSign ? t("house.reference") : t("chart.rising")}`}>
+        <text x="200" y="211" textAnchor="middle" className="chart-center-small">{chartTitle ?? t("house.lagnaChartLabel")}</text>
+      </svg> : <div className="south-kundli" role="img" aria-label={`${t("chart.southAria")}, ${orientationSign} ${referenceSign ? t("house.reference") : t("house.lagnaChartLabel")}`}>
         {southSignSlots.map((sign, index) => {
           if (!sign) return <div aria-hidden="true" className="south-cell south-empty" key={`empty-${index}`} />;
           const placement = placementBySign.get(sign)!;
@@ -68,17 +68,14 @@ export default function KundliChart({ chart, language, referenceSign, chartTitle
             <span>{occupants.map((planet) => `${shortNames[planet.name] ?? planet.name.slice(0, 2)}${planet.motion === "Retrograde" ? "℞" : ""}`).join(" · ") || "—"}</span>
           </div>;
         })}
-        <div className="south-center"><b>{orientationSign} {referenceSign ? t("house.reference") : t("chart.rising")}</b><span>{chartTitle ?? "D1 RĀŚI"}</span><small>{t("chart.south")} · {t("chart.fixedLayout")}</small></div>
+        <div className="south-center"><b>{orientationSign} {referenceSign ? t("house.reference") : t("chart.rising")}</b><span>{chartTitle ?? t("house.lagnaChartLabel")}</span><small>{t("chart.south")}</small></div>
       </div>}
     </div>
     <div className="chart-legend" aria-label={t("chart.planetLegend")}>
       <span><i className="legend-dot lagna" /> {referenceSign ? t("house.referenceLegend") : t("chart.lagnaLegend")}</span>
       <span><i className="legend-dot planet" /> {t("chart.planetLegend")}</span>
       <span>℞ {t("chart.retrogradeLegend")}</span>
-      {referenceSign ? <span>{t("chart.moonHouseLegend")}</span> : <span>{chart.settings.houseSystem} {t("chart.cuspsSeparate")}</span>}
     </div>
     <div className="kundli-planet-legend">{chart.planets.map((planet) => <span key={planet.name}><b>{shortNames[planet.name] ?? planet.name.slice(0, 2)}</b> {planet.name}{planet.motion === "Retrograde" ? " ℞" : ""}</span>)}</div>
-    <p className="receipt-note">{referenceSign ? t("chart.moonSamePlacements") : t("chart.samePlacements")}</p>
-    <p className="term-note">{referenceSign ? t("chart.moonReferenceGuide") : r("results.houseSystemGuide")}</p>
   </div>;
 }

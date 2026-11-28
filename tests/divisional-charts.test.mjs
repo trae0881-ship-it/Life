@@ -157,30 +157,26 @@ test("every divisional chart has distinct localized calculation and limitation e
   assert.match(explanations.get("D60:en").birthTimeSensitivity, /D60/i);
 });
 
-test("divisional UI source defines one navigable section and immediate birth report for D1-D60", () => {
+test("divisional UI keeps D1-D60 placements navigable without embedded calculation notes", () => {
   const source = readFileSync(new URL("../src/app/DivisionalChartSections.tsx", import.meta.url), "utf8");
   assert.match(source, /id={`division-D\$\{division\}`}/);
   assert.match(source, /key=\{`\$\{chart\.provenance\.resultHash\}-D\$\{division\}`\}/);
-  assert.match(source, /<BirthDetailsReport[^>]*division=\{division\}/);
-  assert.match(source, /getDivisionalChartExplanation/);
-  assert.match(source, /<section className="divisional-explanation"/);
   assert.match(source, /row\.house \?\? "—"/);
   assert.match(source, /Array\.from\(\{ length: 60 \}/);
   assert.match(source, /hasUsableChartProvenance/);
   assert.match(source, /<DivisionalTimeline[^>]*metadata=\{metadata\}/);
   assert.match(source, /<DivisionalTimeline[^>]*dasha=\{chart\.vimshottariDasha\}/);
+  assert.match(source, /division === 1 && <DivisionalTimeline/);
   assert.match(source, /divisionalChartNumbers\.map\(\(division\)/);
-  assert.match(source, /<p className="result-guide divisional-timeline-limit">\{t\("timeline\.noRule"\)\}<\/p>/);
   assert.match(source, /href=\{`#division-D\$\{division\}`\}/);
+  assert.match(source, /t\("results\.sign"\)/);
+  assert.doesNotMatch(source, /BirthDetailsReport|divisional-explanation|provenanceVerified|vargaNotIndependentlyVerified|chartFactsFirst|customConvention/);
   const timelineSource = readFileSync(new URL("../src/app/DivisionalTimeline.tsx", import.meta.url), "utf8");
   assert.match(timelineSource, /t\("timeline\.title"\)/);
   assert.match(timelineSource, /metadata\.id/);
-  assert.match(timelineSource, /not-evaluated/);
   assert.match(timelineSource, /currentAge/);
   assert.match(timelineSource, /timeline-month-grid/);
   assert.match(timelineSource, /timeline-calendar/);
-  assert.match(timelineSource, /timeline-time-control/);
-  assert.match(timelineSource, /traditionalGuidance/);
   assert.match(timelineSource, /analyzeTimelinePeriod/);
   assert.match(timelineSource, /timeline-period-card/);
   assert.match(timelineSource, /open && selectedDateInRange \? buildTimeline/);
@@ -191,15 +187,12 @@ test("divisional UI source defines one navigable section and immediate birth rep
   assert.match(timelineSource, /timelineAgeMarkers\(chart\.input\.localDate\)/);
   assert.match(timelineSource, /aria-pressed=\{selectedAge === age\}/);
   assert.match(timelineSource, /setSelectedDate\(chart\.input\.localDate\)/);
-  assert.doesNotMatch(timelineSource, /No chart or Vimshottari Dasha was supplied/);
-  assert.match(timelineSource, /dashaEvidence\.length > 0/);
+  assert.match(timelineSource, /analysis\.dashaEvidence\.length/);
+  assert.doesNotMatch(timelineSource, /t\("timeline\.(why|method|status|traditionalGuidance)|timeline-(evidence-details|classification-badge|time-control)|not-evaluated/);
   const timelineCalculation = readFileSync(new URL("../src/calculation/life-timeline.ts", import.meta.url), "utf8");
   assert.match(timelineCalculation, /export function timelineAgeMarkers/);
   assert.match(timelineCalculation, /Array\.from\(\{ length: 80 \}/);
-  const timelineIds = divisionalChartMetadata.map(({ id }) => `timeline-${id}`);
-  assert.equal(timelineIds.length, 60);
-  assert.equal(new Set(timelineIds).size, 60);
-  assert.deepEqual(timelineIds, Array.from({ length: 60 }, (_, index) => `timeline-D${index + 1}`));
+  assert.deepEqual(["D1"].map((id) => `timeline-${id}`), ["timeline-D1"]);
 });
 
 test("D1-D60 validation matrix has one row per chart and no independent verification claim", () => {

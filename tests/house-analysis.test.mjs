@@ -89,14 +89,15 @@ test("selected calculated profile supplies Moon, cusp, Chalit, and aspect data w
   assert.equal(planetsFromMoon(otherChart.planets, otherMoon?.sign)?.find((planet) => planet.name === "Moon")?.house, 1);
 });
 
-test("dashboard includes localized dedicated Moon, Bhava Chalit, and Drishti surfaces", async () => {
+test("dashboard keeps localized Moon, house-placement, and aspect views without methodology notes", async () => {
   const { readFileSync } = await import("node:fs");
   const source = readFileSync(new URL("../src/app/HouseAnalysisSections.tsx", import.meta.url), "utf8");
   const page = readFileSync(new URL("../src/app/ChartStudioWorkspace.tsx", import.meta.url), "utf8");
   assert.match(page, /<HouseAnalysisSections chart=\{chart\} language=\{language\}/);
-  assert.match(source, /chart\.input\.fullName \|\| chart\.input\.birthPlace/);
   assert.match(source, /id="chandra-kundli"/);
   assert.match(source, /id="bhava-chalit"/);
-  assert.match(source, /id="bhava-madhya-drishti"/);
-  assert.match(source, /planetaryAspects\.convention/);
+  assert.match(source, /id="planetary-aspects"/);
+  assert.match(source, /buildHouseAnalysis\(chart\.houses, chart\.planets, chart\.settings\.houseSystem\)/);
+  assert.match(source, /listParashariAspects\(chart\.planetaryAspects, chart\.planets, chart\.ascendant\.sign\)/);
+  assert.doesNotMatch(source, /house\.(moonDescription|chalitDescription|midpointDescription|aspectLimit)/);
 });

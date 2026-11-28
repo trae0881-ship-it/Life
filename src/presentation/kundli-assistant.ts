@@ -5,6 +5,7 @@ import { languages, translate, type Language } from "./language.ts";
 import { calculateMarriageTiming, type MarriageTimingChart } from "./marriage-timing.ts";
 import { formatMarriageAnswer } from "./assistant-answer-format.ts";
 import { calculateTransits } from "../calculation/events.ts";
+import { assistantTopicForSection, divisionalSection, type AssistantReportSection } from "./assistant-section-context.ts";
 
 export type AssistantTopic =
   | "basics"
@@ -236,6 +237,7 @@ export function answerKundliQuestion(
   query: string,
   language: Language,
   at = new Date(),
+  sectionKey?: AssistantReportSection,
 ): AssistantAnswer {
   const normalizedQuery = normalizedQuestion(query);
   const popularQuestion = assistantQuestionCatalog.find((item) =>
@@ -243,7 +245,11 @@ export function answerKundliQuestion(
       normalizedQuestion(translate(candidateLanguage, `assistant.popular.${item.id}`)) === normalizedQuery,
     ),
   );
-  const topic = popularQuestion?.topic ?? (Object.hasOwn(topicKeys, query) ? query as AssistantTopic : inferTopic(query));
+  const inferredTopic = Object.hasOwn(topicKeys, query) ? query as AssistantTopic : inferTopic(query);
+  const topic = popularQuestion?.topic ?? (
+    inferredTopic === "interpretation" ? assistantTopicForSection(sectionKey) ?? inferredTopic
+      : inferredTopic ?? assistantTopicForSection(sectionKey)
+  );
   const promptKey = popularQuestion ? `assistant.popular.${popularQuestion.id}` : undefined;
   const followUpIds = topic ? followUps[topic] ?? [] : [];
   const answer: AssistantAnswer = {
@@ -554,8 +560,13 @@ export function answerKundliQuestion(
   }
 
   if (topic === "vargas") {
-    const requested = /\bd\s*10\b|dashamsha|दशमांश/i.test(query) ? ["D10"]
-      : /\bd\s*9\b|navamsa|नवांश/i.test(query) ? ["D9"] : ["D1", "D9", "D10"];
+    const explicitDivision = query.match(/\bd\s*(\d{1,2})\b/i)?.[1];
+    const requestedDivision = explicitDivision && Number(explicitDivision) >= 1 && Number(explicitDivision) <= 60
+      ? `D${Number(explicitDivision)}`
+      : /dashamsha|दशमांश/i.test(query) ? "D10"
+        : /navamsa|नवांश/i.test(query) ? "D9"
+          : divisionalSection(sectionKey);
+    const requested = requestedDivision ? [requestedDivision] : ["D1", "D9", "D10"];
     const evidence = requested.flatMap((division) => {
       const rows = division === "D1"
         ? chart.planets.map((planet) => `${planet.name}: ${planet.sign}, house ${planet.house}`)

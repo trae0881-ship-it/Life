@@ -114,14 +114,12 @@ test("house significators are the planets that signify that house", () => {
   assert.deepEqual(house7.signifiedBy.sort(), ["Ketu", "Rahu", "Sun", "Venus"]);
 });
 
-test("KP report exposes calculation conventions and per-rule significator evidence", () => {
+test("KP report keeps its tables and print action without embedded calculation notes", () => {
   const workspace = readFileSync(new URL("../src/app/ChartStudioWorkspace.tsx", import.meta.url), "utf8");
-  assert.match(workspace, /KP calculation rules and how to read this report/);
-  assert.match(workspace, /Object\.entries\(chart\.kp\.convention\)/);
-  assert.match(workspace, /Planetary significator evidence/);
-  assert.match(workspace, /starLordOccupied/);
-  assert.match(workspace, /dispositorOwned/);
+  assert.match(workspace, /chart\.kp\.planets\.map/);
+  assert.match(workspace, /chart\.kp\.cusps\.map/);
   assert.match(workspace, /printReport\("kp"\)/);
+  assert.doesNotMatch(workspace, /KP calculation rules and how to read this report|Object\.entries\(chart\.kp\.convention\)|Planetary significator evidence/);
 });
 
 test("rejects malformed inputs", () => {

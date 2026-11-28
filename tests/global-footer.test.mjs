@@ -13,8 +13,8 @@ test("root layout renders one shared, accessible footer for all App Router pages
   assert.match(layout, /<GlobalFooter\s*\/>/);
   assert.match(footer, /<footer className="global-footer">/);
   assert.match(footer, /aria-label="Global footer navigation"/);
-  assert.match(footer, /href="\/api\/docs"/);
-  assert.match(footer, /href="\/developers"/);
+  assert.doesNotMatch(footer, /href="\/api\/docs"|href="\/developers"|Local astronomical calculations|AGPL-3\.0-or-later/);
+  assert.match(footer, /Personalized Jyotish insights for life's important moments/);
   assert.match(footer, /href="\/#about"/);
   assert.match(footer, /href="\/#contact"/);
   assert.doesNotMatch(footer, /href="\/blogs"|href="\/references"/);

@@ -15,30 +15,30 @@ type Props = {
 const copy: Record<Language, Record<string, string>> = {
   en: {
     placeholder: "Search a city or populated place",
-    hint: "Choose a result to fill the birthplace, coordinates and timezone. Search uses the bundled GeoNames populated-places dataset; smaller localities may be absent.",
+    hint: "Choose a suggestion to fill in the birthplace.",
     loading: "Searching places…",
-    empty: "No matching places. Try a nearby larger city, or enter verified location details manually.",
-    error: "Place search is unavailable. You can enter verified location details manually.",
+    empty: "No matching places. Try a nearby city or enter the location details manually.",
+    error: "Place search is unavailable. You can enter the location details manually.",
     results: "Matching places",
     ambiguous: "Several places match. Choose the correct region and country.",
     selected: "Selected place:",
   },
   hi: {
     placeholder: "शहर या आबादी वाला स्थान खोजें",
-    hint: "जन्मस्थान, निर्देशांक और समय क्षेत्र भरने के लिए परिणाम चुनें। खोज में GeoNames के शामिल आबादी वाले स्थानों का स्थानीय डेटासेट है; छोटे स्थान उपलब्ध न भी हों।",
+    hint: "जन्मस्थान भरने के लिए कोई सुझाव चुनें।",
     loading: "स्थान खोजे जा रहे हैं…",
-    empty: "कोई मेल नहीं मिला। पास का बड़ा शहर खोजें या सत्यापित स्थान विवरण स्वयं भरें।",
-    error: "स्थान खोज उपलब्ध नहीं है। सत्यापित स्थान विवरण स्वयं भर सकते हैं।",
+    empty: "कोई मेल नहीं मिला। पास का शहर खोजें या स्थान का विवरण स्वयं भरें।",
+    error: "स्थान खोज उपलब्ध नहीं है। स्थान का विवरण स्वयं भर सकते हैं।",
     results: "मेल खाते स्थान",
     ambiguous: "कई स्थान मेल खाते हैं। सही क्षेत्र और देश चुनें।",
     selected: "चुना गया स्थान:",
   },
   hinglish: {
     placeholder: "City ya populated place search karein",
-    hint: "Birthplace, coordinates aur timezone fill karne ke liye result select karein. Search bundled GeoNames populated-places dataset use karta hai; chhoti localities list mein na hon.",
+    hint: "Birthplace bharne ke liye koi suggestion select karein.",
     loading: "Places search ho rahe hain…",
-    empty: "Koi matching place nahi mila. Paas ka bada city search karein ya verified location details manually bharein.",
-    error: "Place search available nahi hai. Verified location details manually bhar sakte hain.",
+    empty: "Koi matching place nahi mila. Paas ka city search karein ya location details manually bharein.",
+    error: "Place search available nahi hai. Location details manually bhar sakte hain.",
     results: "Matching places",
     ambiguous: "Kai places match hue hain. Sahi region aur country select karein.",
     selected: "Selected place:",
@@ -127,7 +127,6 @@ export default function LocationSearch({ language, onSelect, selectionVersion }:
         />
       </label>
       <small id="birthplace-search-hint" className="field-hint">{text.hint}</small>
-      <a className="location-search-source" href="/references#geonames-cities500">Dataset source and attribution: GeoNames</a>
       <div id="birthplace-search-status" className="location-search-status" aria-live="polite" role="status">
         {loading && text.loading}
         {!loading && failed && <span role="alert">{text.error}</span>}

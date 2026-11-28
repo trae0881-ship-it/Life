@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { languages } from "../src/presentation/language.ts";
 import { remedyCatalog, remedyCategories, remedyProblems, sortRemedies, priceTiers, localized } from "../src/presentation/remedies.ts";
 
@@ -37,4 +38,13 @@ test("remedy records do not claim fabricated sources or guaranteed outcomes", ()
     assert.doesNotMatch(content, /will cure|guarantees? (marriage|employment|wealth)|supernatural power/);
     assert.match(content, /not independently verified|independently verified nahi|स्वतंत्र रूप से सत्यापित नहीं/);
   }
+});
+
+test("remedy report keeps useful practices and safety details without internal status", () => {
+  const page = readFileSync(new URL("../src/app/remedies/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /evaluatePersonalizedRemedies/);
+  assert.match(page, /localized\(remedy\.purpose, language\)/);
+  assert.match(page, /localized\(remedy\.steps, language\)/);
+  assert.match(page, /localized\(remedy\.safety, language\)/);
+  assert.doesNotMatch(page, /recommendation\.(sourceStatus|confidence|applicableFactors)|provenance verified|calculationVersion|ruleSetVersion|remedy\.evidence|remedy\.chartFactors|href="\/references/);
 });

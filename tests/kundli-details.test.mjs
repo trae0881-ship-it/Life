@@ -36,7 +36,7 @@ test("Kundli detail projection exposes calculated, entered, and derived birth fa
   assert.deepEqual(field(details, "naam"), { id: "naam", value: "Test name", secondary: null, source: "user" });
   assert.deepEqual(field(details, "lagna"), { id: "lagna", value: "Cancer", secondary: null, source: "calculated" });
   assert.deepEqual(field(details, "dashaBalance"), {
-    id: "dashaBalance", value: "Rahu", secondary: "8.250|365.2425", source: "calculated",
+    id: "dashaBalance", value: "Rahu", secondary: "8.3", source: "calculated",
   });
   assert.deepEqual(field(details, "tithi"), { id: "tithi", value: "Shukla Panchami", secondary: null, source: "calculated" });
   assert.deepEqual(field(details, "nakshatra"), { id: "nakshatra", value: "Rohini", secondary: null, source: "calculated" });

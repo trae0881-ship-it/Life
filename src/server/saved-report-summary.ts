@@ -18,6 +18,8 @@ export type SavedReportSummary = {
   calculationStatus: "saved-snapshot" | "profile-changed";
   availableSections: string[];
   calculationConvention: string[];
+  reportType: "VEDIC" | "KP" | "COMBINED";
+  availableChartCount: number;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -51,6 +53,21 @@ function calculationConvention(result: Record<string, unknown>): string[] {
     .filter((value): value is string => typeof value === "string" && value.length > 0);
 }
 
+export function reportTypeForResult(result: unknown): SavedReportSummary["reportType"] {
+  if (!isRecord(result)) return "VEDIC";
+  return isRecord(result.kp) ? "COMBINED" : "VEDIC";
+}
+
+export function availableChartCountForResult(result: unknown): number {
+  if (!isRecord(result)) return 0;
+  const hasRashi = Array.isArray(result.planets) && result.planets.length > 0;
+  const divisions = isRecord(result.divisionalCharts)
+    ? Object.entries(result.divisionalCharts).filter(([division, rows]) =>
+      division !== "D1" && Array.isArray(rows) && rows.length > 0).length
+    : 0;
+  return Number(hasRashi) + divisions;
+}
+
 export function savedReportSummary(data: ReportData): SavedReportSummary {
   const snapshot = isRecord(data.inputSnapshot) ? data.inputSnapshot : {};
   const result = isRecord(data.result) ? data.result : {};
@@ -61,5 +78,7 @@ export function savedReportSummary(data: ReportData): SavedReportSummary {
     calculationStatus: profileChanged ? "profile-changed" : "saved-snapshot",
     availableSections: availableSections(result),
     calculationConvention: calculationConvention(result),
+    reportType: reportTypeForResult(result),
+    availableChartCount: availableChartCountForResult(result),
   };
 }

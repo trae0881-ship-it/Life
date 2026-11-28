@@ -8,6 +8,7 @@ import { getPrisma } from "@/server/db";
 import { hasCurrentTermsAcceptance } from "@/server/legal-acceptance";
 import { ownedRecordWhere } from "@/server/ownership";
 import { chartMatchesBirthProfile } from "@/server/assistant-question-validation";
+import { isAssistantReportSection, type AssistantReportSection } from "@/presentation/assistant-section-context";
 import { checkRateLimit } from "@/server/rate-limit";
 import { jsonError, isSameOriginMutation, readJson, RequestBodyError } from "@/server/http";
 
@@ -24,6 +25,8 @@ function questionResponse(record: {
   question: string;
   questionId: string | null;
   topic: string | null;
+  sectionKey: string | null;
+  sectionLabel: string | null;
   answer: unknown;
   answerStatus: string;
   createdAt: Date;
@@ -37,6 +40,8 @@ function questionResponse(record: {
     question: record.question,
     questionId: record.questionId,
     topic: record.topic,
+    sectionKey: record.sectionKey,
+    sectionLabel: record.sectionLabel,
     answer: record.answer,
     answerStatus: record.answerStatus,
     createdAt: record.createdAt,
@@ -74,11 +79,15 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const search = params.get("search")?.trim() ?? "";
     const topic = params.get("topic") ?? "";
+    const sectionKey = params.get("sectionKey");
+    const savedChartId = params.get("savedChartId");
     const cursor = params.get("cursor");
     const from = params.get("from");
     const to = params.get("to");
     if (search.length > 100) return jsonError("Search text must be at most 100 characters.", 422, "INVALID_SEARCH");
     if (topic && !questionTopics.includes(topic as typeof questionTopics[number])) return jsonError("Unsupported topic filter.", 422, "INVALID_TOPIC");
+    if (sectionKey !== null && !isAssistantReportSection(sectionKey)) return jsonError("Unsupported report section.", 422, "INVALID_SECTION");
+    if (savedChartId !== null && (!savedChartId || savedChartId.length > 100)) return jsonError("Invalid report filter.", 422, "INVALID_REPORT");
     if (!validDateFilter(from) || !validDateFilter(to) || (from && to && from > to)) {
       return jsonError("Enter a valid date range.", 422, "INVALID_DATE_RANGE");
     }
@@ -94,6 +103,8 @@ export async function GET(request: NextRequest) {
       where: {
         userId: user.id,
         ...(topic ? { topic } : {}),
+        ...(sectionKey ? { sectionKey } : {}),
+        ...(savedChartId ? { savedChartId } : {}),
         ...(search ? { question: { contains: search, mode: "insensitive" } } : {}),
         ...((from || to) ? { createdAt: {
           ...(from ? { gte: new Date(`${from}T00:00:00.000Z`) } : {}),
@@ -104,7 +115,7 @@ export async function GET(request: NextRequest) {
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       take: PAGE_SIZE + 1,
       select: {
-        id: true, profileId: true, question: true, questionId: true, topic: true,
+        id: true, profileId: true, question: true, questionId: true, topic: true, sectionKey: true, sectionLabel: true,
         answer: true, answerStatus: true, createdAt: true,
         answeredAt: true,
         profile: { select: { label: true } },
@@ -124,7 +135,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   if (!isSameOriginMutation(request)) return jsonError("Request origin is not allowed.", 403, "INVALID_ORIGIN");
   let currentRequestId = "";
-  let submitted: { profileId: string; savedChartId: string; question: string; questionId: string | null } | null = null;
+  let submitted: { profileId: string | null; savedChartId: string; question: string; questionId: string | null; sectionKey: AssistantReportSection | null; sectionLabel: string | null } | null = null;
   try {
     const auth = await requireAcceptedUser(request);
     if (auth.response) return auth.response;
@@ -138,73 +149,91 @@ export async function POST(request: NextRequest) {
     }
     const body = await readJson(request, 8_000);
     if (!body
-      || typeof body.profileId !== "string" || body.profileId.length > 100
+      || (body.profileId !== undefined && body.profileId !== null && (typeof body.profileId !== "string" || body.profileId.length > 100))
       || typeof body.savedChartId !== "string" || body.savedChartId.length > 100
       || typeof body.requestId !== "string" || !requestIdPattern.test(body.requestId)
       || typeof body.question !== "string" || body.question.trim().length < 1 || body.question.trim().length > 500
       || typeof body.language !== "string" || !languages.includes(body.language as typeof languages[number])
-      || (body.questionId !== undefined && (typeof body.questionId !== "string" || !assistantQuestionCatalog.some((item) => item.id === body.questionId)))) {
-      return jsonError("Choose an owned birth profile and saved chart, and enter a question up to 500 characters.", 422, "INVALID_QUESTION");
+      || (body.questionId !== undefined && (typeof body.questionId !== "string" || !assistantQuestionCatalog.some((item) => item.id === body.questionId)))
+      || (body.sectionKey !== undefined && !isAssistantReportSection(body.sectionKey))
+      || (body.sectionLabel !== undefined && (typeof body.sectionLabel !== "string" || body.sectionLabel.trim().length < 1 || body.sectionLabel.trim().length > 100))) {
+      return jsonError("Choose an owned saved chart and enter a question up to 500 characters.", 422, "INVALID_QUESTION");
     }
     currentRequestId = body.requestId;
     submitted = {
-      profileId: body.profileId,
+      profileId: typeof body.profileId === "string" ? body.profileId : null,
       savedChartId: body.savedChartId,
       question: body.question.trim(),
       questionId: typeof body.questionId === "string" ? body.questionId : null,
+      sectionKey: isAssistantReportSection(body.sectionKey) ? body.sectionKey : null,
+      sectionLabel: typeof body.sectionLabel === "string" ? body.sectionLabel.trim().replace(/\s+/g, " ") : null,
     };
     const prisma = getPrisma();
     const previous = await prisma.kundliQuestion.findFirst({
       where: { userId: user.id, requestId: body.requestId },
       select: {
         id: true, profileId: true, savedChartId: true, question: true, questionId: true, topic: true,
-        answer: true, answerStatus: true, createdAt: true,
+        sectionKey: true, sectionLabel: true, answer: true, answerStatus: true, createdAt: true,
         answeredAt: true,
         profile: { select: { label: true } },
       },
     });
     if (previous) {
-      if (previous.profileId !== submitted.profileId || previous.savedChartId !== submitted.savedChartId
-        || previous.question !== submitted.question || previous.questionId !== submitted.questionId) {
+      if ((submitted.profileId && previous.profileId !== submitted.profileId) || previous.savedChartId !== submitted.savedChartId
+        || previous.question !== submitted.question || previous.questionId !== submitted.questionId
+        || previous.sectionKey !== submitted.sectionKey || previous.sectionLabel !== submitted.sectionLabel) {
         return jsonError("This request identifier was already used for a different question.", 409, "REQUEST_ID_CONFLICT");
       }
       return NextResponse.json({ question: questionResponse(previous) }, { headers: { "Cache-Control": "no-store" } });
     }
 
-    const profile = await prisma.birthProfile.findFirst({
-      where: ownedRecordWhere(user.id, body.profileId),
-      select: { id: true, label: true, localDate: true, localTime: true, timeZone: true, latitude: true, longitude: true },
-    });
-    if (!profile) return jsonError("Birth profile not found.", 404, "PROFILE_NOT_FOUND");
     const savedChart = await prisma.savedChart.findFirst({
-      where: { id: body.savedChartId, userId: user.id, profileId: profile.id },
-      select: { id: true, result: true, resultHash: true },
+      where: {
+        id: body.savedChartId,
+        userId: user.id,
+        ...(submitted.profileId ? { profileId: submitted.profileId } : {}),
+      },
+      select: { id: true, profileId: true, result: true, resultHash: true },
     });
-    if (!savedChart) return jsonError("Select a saved chart belonging to this birth profile.", 404, "CHART_NOT_FOUND");
+    if (!savedChart) return jsonError("Saved chart not found.", 404, "CHART_NOT_FOUND");
     if (!isAssistantChart(savedChart.result)) return jsonError("The saved chart is incomplete and cannot support an answer.", 422, "CHART_UNAVAILABLE");
-    if (!chartMatchesBirthProfile(savedChart.result.input, profile)) {
+    const profile = savedChart.profileId
+      ? await prisma.birthProfile.findFirst({
+        where: ownedRecordWhere(user.id, savedChart.profileId),
+        select: { id: true, label: true, localDate: true, localTime: true, timeZone: true, latitude: true, longitude: true },
+      })
+      : null;
+    if (submitted.profileId && (!profile || !chartMatchesBirthProfile(savedChart.result.input, profile))) {
       return jsonError("The saved chart birth details do not match this profile.", 409, "PROFILE_CHART_MISMATCH");
     }
 
     const query = typeof body.questionId === "string" ? body.questionId : body.question.trim();
-    const answer = answerKundliQuestion(savedChart.result, query, body.language as typeof languages[number]);
+    const answer = answerKundliQuestion(
+      savedChart.result,
+      query,
+      body.language as typeof languages[number],
+      new Date(),
+      submitted.sectionKey ?? undefined,
+    );
     const safeAnswer = { ...answer, provenance: null };
     const record = await prisma.kundliQuestion.create({
       data: {
         userId: user.id,
-        profileId: profile.id,
+        profileId: savedChart.profileId,
         savedChartId: savedChart.id,
         requestId: body.requestId,
         question: body.question.trim(),
         questionId: typeof body.questionId === "string" ? body.questionId : null,
         topic: answer.topic,
+        sectionKey: submitted.sectionKey,
+        sectionLabel: submitted.sectionLabel,
         answer: JSON.parse(JSON.stringify(safeAnswer)),
         answerStatus: answer.status,
         chartResultHash: savedChart.resultHash,
         answeredAt: new Date(),
       },
       select: {
-        id: true, profileId: true, question: true, questionId: true, topic: true,
+        id: true, profileId: true, question: true, questionId: true, topic: true, sectionKey: true, sectionLabel: true,
         answer: true, answerStatus: true, createdAt: true,
         answeredAt: true,
         profile: { select: { label: true } },
@@ -227,9 +256,10 @@ export async function POST(request: NextRequest) {
             profile: { select: { label: true } },
           },
         });
-        if (record && submitted && record.profileId === submitted.profileId
+        if (record && submitted && (!submitted.profileId || record.profileId === submitted.profileId)
           && record.savedChartId === submitted.savedChartId
-          && record.question === submitted.question && record.questionId === submitted.questionId) {
+          && record.question === submitted.question && record.questionId === submitted.questionId
+          && record.sectionKey === submitted.sectionKey && record.sectionLabel === submitted.sectionLabel) {
           return NextResponse.json({ question: questionResponse(record) }, { headers: { "Cache-Control": "no-store" } });
         }
         if (record) return jsonError("This request identifier was already used for a different question.", 409, "REQUEST_ID_CONFLICT");

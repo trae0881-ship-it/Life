@@ -163,8 +163,9 @@ test("Developer documentation matches real route files and OpenAPI contract stru
   assert.ok(LIFE_OPENAPI.paths["/api/charts"].post.responses["429"]);
 });
 
-test("developer portal, interactive docs, blog public routes and protected management APIs are present", () => {
-  assert.match(source("src/app/GlobalFooter.tsx"), /href="\/developers"/);
+test("developer portal and API docs remain available without normal-user footer links", () => {
+  const footer = source("src/app/GlobalFooter.tsx");
+  assert.doesNotMatch(footer, /href="\/developers"|href="\/api\/docs"/);
   assert.ok(existsSync(new URL("../src/app/developers/page.tsx", import.meta.url)));
   assert.ok(existsSync(new URL("../src/app/api/docs/page.tsx", import.meta.url)));
   assert.ok(existsSync(new URL("../src/app/api/openapi.json/route.ts", import.meta.url)));

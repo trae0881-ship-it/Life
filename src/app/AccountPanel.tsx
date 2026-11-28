@@ -2,7 +2,6 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { translate, type Language } from "@/presentation/language";
-import { savedReportSettingsChanged } from "@/presentation/saved-report";
 import { isRestorableSavedChartResult } from "@/presentation/saved-chart-validation";
 import { CURRENT_TERMS_VERSION } from "@/legal/terms";
 
@@ -375,27 +374,14 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
       <div className="account-records">
         <b>{t("account.savedCharts")}</b>
         {charts.map((item) => {
-          const selectedProfile = profiles.find((profile) => profile.id === item.profileId && profile.id === selectedProfileId);
-          const activeChartMatchesProfile = Boolean(chart && selectedProfile
-            && chart.input.localDate === selectedProfile.localDate
-            && chart.input.localTime === selectedProfile.localTime
-            && chart.input.timeZone === selectedProfile.timeZone
-            && chart.input.latitude === selectedProfile.latitude
-            && chart.input.longitude === selectedProfile.longitude);
-          const settingsChanged = activeChartMatchesProfile && chart
-            ? savedReportSettingsChanged(item.calculationConvention, chart.settings)
-            : false;
           const reportStatus = item.calculationStatus === "profile-changed"
             ? t("account.reportProfileChanged")
-            : settingsChanged === true
-              ? t("account.reportSettingsChanged")
-              : t("account.reportSavedSnapshot");
+            : t("account.reportSavedSnapshot");
           return <div className="account-record account-report-record" key={item.id}>
             <button type="button" disabled={busy} onClick={() => void loadSavedChart(item.id)}>
               {item.title}
               <small>{new Date(item.createdAt).toLocaleDateString()} · {t("account.reportProfile")}: {item.profileLabel ?? t("account.noProfileLink")}</small>
               <small>{t("account.reportBirthDate")}: {item.birthDate ?? t("results.unknown")}</small>
-              <small>{t("account.reportSettings")}: {item.calculationConvention.join(" · ") || t("results.unknown")}</small>
               <small>{reportStatus}</small>
               <small>{t("account.reportSections")}: {item.availableSections.map((section) => t(`account.reportSection.${section}`)).join(" · ") || t("results.unknown")}</small>
             </button>

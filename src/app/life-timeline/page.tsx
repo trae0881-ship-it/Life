@@ -39,7 +39,7 @@ export default function LifeTimelinePage() {
 
   return <main className="timeline-page">
     <header className="timeline-header">
-      <a href="/" className="timeline-back">LIFE · Jyotish Workbench</a>
+      <a href="/" className="timeline-back">LIFE · Jyotish</a>
       <div className="section-index">{t("timeline.planningView")}</div>
       <h1>{t("timeline.standaloneTitle")}</h1>
       <p>{t("timeline.standaloneIntro")}</p>
@@ -47,7 +47,6 @@ export default function LifeTimelinePage() {
     <section className="card timeline-card">
       <label className="field-label" htmlFor="timeline-birth-date">{t("timeline.birthRequired")}</label>
       <input id="timeline-birth-date" type="date" value={birthDate} min="1800-01-01" max="2399-12-31" onChange={(event) => { setBirthDate(event.target.value); setSelectedDate(event.target.value); }} />
-      <p className="term-note">{t("timeline.standaloneLimit")}</p>
       {range && <div className="timeline-summary"><span>{t("timeline.start")}: {range.start}</span><span>{t("timeline.80thBirthday")}: {range.end}</span>{currentAge !== null && <span>{t("timeline.selectedAge")}: {currentAge}</span>}</div>}
       <div className="timeline-controls">
         <label>{t("timeline.view")} <select value={view} onChange={(event) => setView(event.target.value as TimelineView)}><option value="yearly">{t("timeline.yearly")}</option><option value="monthly">{t("timeline.monthly")}</option><option value="daily">{t("timeline.daily")}</option></select></label>
@@ -59,17 +58,11 @@ export default function LifeTimelinePage() {
       {!birthDate && <p role="status">{t("timeline.enterBirthDate")}</p>}
       {birthDate && !range && <p role="alert">{t("timeline.invalidBirthDate")}</p>}
       {birthDate && range && selectedDate && !selectedDateInRange && <p role="alert">{t("timeline.dateOutOfRange")}</p>}
-      {periods.length > 0 && <div className="timeline-period-list" aria-label={t("timeline.periodAnalysis")}>
+      {periods.length > 0 && <div className="timeline-period-list" aria-label={t("timeline.lifeStages")}>
         {periods.map((period) => <article className="timeline-period-card" key={`${period.start}-${period.end}`}>
           <div className="timeline-period-heading"><div><strong>{view === "yearly" ? `${t("timeline.age")} ${period.label}` : period.label}</strong><span>{period.start} → {period.end}</span></div>
-            <span className="timeline-classification-badge" data-classification="not-evaluated">{t("timeline.classification.not-evaluated")}</span>
           </div>
           <p>{t("timeline.age")}: {period.age}{period.ageAtEnd !== period.age ? `–${period.ageAtEnd}` : ""}</p>
-          <details><summary>{t("timeline.why")}</summary><div className="timeline-evidence-details">
-            <p>{t("timeline.explanation.incomplete")}</p>
-            <p>{t("timeline.standaloneDashaMissing")}</p>
-            <p>{t("timeline.transitNotUsed")}</p>
-          </div></details>
         </article>)}
       </div>}
     </section>

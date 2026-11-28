@@ -145,3 +145,12 @@ test("the bundled gazetteer performs a real offline lookup with populated coordi
   assert.ok(result.totalMatches > 0);
   assert.ok(result.matches.some((place) => place.name === "New York City" && place.timeZone === "America/New_York"));
 });
+
+test("birthplace UI keeps searchable suggestions and selection without exposing dataset notes", () => {
+  const component = readFileSync(new URL("../src/app/LocationSearch.tsx", import.meta.url), "utf8");
+  assert.match(component, /fetch\(`\/api\/locations\?/);
+  assert.match(component, /<ul id="birthplace-results" role="listbox"/);
+  assert.match(component, /onClick=\{\(\) => selectPlace\(place\)\}/);
+  assert.match(component, /onSelect\(place\)/);
+  assert.doesNotMatch(component, /GeoNames|dataset|verified location|source attribution/i);
+});

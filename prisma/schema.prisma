@@ -14,6 +14,12 @@ enum UserRole {
   SUPER_ADMIN
 }
 
+enum AstrologyReportType {
+  VEDIC
+  KP
+  COMBINED
+}
+
 enum BlogPostStatus {
   DRAFT
   PUBLISHED
@@ -376,6 +382,8 @@ model SavedChart {
   userId           String
   profileId        String?
   title            String
+  reportType       AstrologyReportType @default(VEDIC)
+  availableChartCount Int              @default(0)
   engineVersion    String
   ephemerisManifest String
   ruleSetVersion   String
@@ -389,6 +397,7 @@ model SavedChart {
   questions        KundliQuestion[]
 
   @@index([userId, createdAt])
+  @@index([userId, reportType, createdAt])
   @@index([resultHash])
 }
 
@@ -401,6 +410,8 @@ model KundliQuestion {
   question        String       @db.VarChar(500)
   questionId      String?
   topic           String?
+  sectionKey      String?      @db.VarChar(60)
+  sectionLabel    String?      @db.VarChar(100)
   answer          Json
   answerStatus    String
   chartResultHash String
@@ -414,6 +425,7 @@ model KundliQuestion {
   @@unique([userId, requestId])
   @@index([userId, createdAt])
   @@index([userId, topic, createdAt])
+  @@index([userId, savedChartId, sectionKey, createdAt])
 }
 
 model SavedAstrologyReading {
@@ -499,6 +511,8 @@ enum SuperAdminAccessAction {
   USER_FILTERED_READ
   USER_ROLE_CHANGED
   BOOTSTRAP_SUPER_ADMIN
+  KUNDALI_REPORT_LIST_READ
+  KUNDALI_REPORT_DETAIL_READ
 }
 
 model SuperAdminAccessLog {

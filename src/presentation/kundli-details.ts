@@ -46,7 +46,6 @@ export function getKundliDetails(result: unknown): KundliDetail[] {
   const input = record(chart?.input);
   const ascendant = record(chart?.ascendant);
   const dasha = record(chart?.vimshottariDasha);
-  const dashaConvention = record(dasha?.convention);
   const panchanga = record(chart?.panchanga);
   const tithi = record(panchanga?.tithi);
   const nakshatra = record(panchanga?.nakshatra);
@@ -68,7 +67,6 @@ export function getKundliDetails(result: unknown): KundliDetail[] {
   const varna = getMoonSignVarna(moonSign);
   const dashaLord = stringValue(dasha?.startingMahadasha);
   const balanceYears = finiteNumber(dasha?.remainingMahadashaBalanceYears);
-  const yearDays = finiteNumber(dashaConvention?.yearDays);
   const sunriseTime = sunrise && typeof sunrise === "object" && sunrise.status === "calculated" ? stringValue(sunrise.localTime) : null;
   const sunriseZone = stringValue(riseSet?.timeZone);
   const ishtakaalStatus = stringValue(ishtakaal?.status);
@@ -83,7 +81,7 @@ export function getKundliDetails(result: unknown): KundliDetail[] {
     {
       id: "dashaBalance",
       value: dashaLord,
-      secondary: balanceYears === null ? null : `${balanceYears.toFixed(3)}|${yearDays ?? ""}`,
+      secondary: balanceYears === null ? null : balanceYears.toFixed(1),
       source: "calculated",
     },
     {

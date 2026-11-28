@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ageOnDate, buildTimeline, daysInMonth, timelineAgeMarkers, timelineDate, timelineRange, weekdayIndex, type TimelineView } from "@/calculation/life-timeline";
-import { analyzeTimelinePeriod, personalizeDashaEvidence, type DashaTimelineData } from "@/calculation/period-analysis";
+import { analyzeTimelinePeriod, type DashaTimelineData } from "@/calculation/period-analysis";
 import type { DivisionalChartMetadata } from "@/calculation/divisional-metadata";
-import { hasUsableChartProvenance } from "@/presentation/chart-provenance";
 import { translate, type Language } from "@/presentation/language";
 
 type TimelineChart = {
@@ -35,12 +34,10 @@ function todayInTimeZone(timeZone: string): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-export default function DivisionalTimeline({ chart, dasha, metadata, convention, purpose, chartName, language }: {
+export default function DivisionalTimeline({ chart, dasha, metadata, chartName, language }: {
   chart: TimelineChart;
   dasha?: DashaTimelineData;
   metadata: DivisionalChartMetadata;
-  convention: string;
-  purpose: string;
   chartName: string;
   language: Language;
 }) {
@@ -48,7 +45,6 @@ export default function DivisionalTimeline({ chart, dasha, metadata, convention,
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<TimelineView>("yearly");
   const [selectedDate, setSelectedDate] = useState(chart.input.localDate);
-  const [selectedTime, setSelectedTime] = useState(chart.input.localTime || "12:00");
   const range = useMemo(() => timelineRange(chart.input.localDate), [chart.input.localDate]);
   useEffect(() => {
     setSelectedDate(chart.input.localDate);
@@ -62,6 +58,7 @@ export default function DivisionalTimeline({ chart, dasha, metadata, convention,
     () => periods.map((period) => analyzeTimelinePeriod(period, chart.input.timeZone, dasha)),
     [chart.input.timeZone, dasha, periods],
   );
+  const dashaAvailable = Boolean(dasha?.mahadashas?.length);
   const today = todayInTimeZone(chart.input.timeZone);
   const currentAge = today >= chart.input.localDate
     ? ageOnDate(chart.input.localDate, today)
@@ -69,7 +66,6 @@ export default function DivisionalTimeline({ chart, dasha, metadata, convention,
   const selectedAge = selectedDateInRange
     ? ageOnDate(chart.input.localDate, selectedDate)
     : null;
-  const provenanceValid = hasUsableChartProvenance(chart);
   const selectedParts = selectedDate.split("-").map(Number);
   const selectedYear = selectedParts[0];
   const selectedMonth = selectedParts[1] - 1;
@@ -78,7 +74,6 @@ export default function DivisionalTimeline({ chart, dasha, metadata, convention,
   const firstWeekday = weekdayIndex(timelineDate(selectedYear, selectedMonth, 1));
   const formatDashaInstant = (instant: string) => new Intl.DateTimeFormat(language === "hi" ? "hi-IN" : language === "hinglish" ? "en-IN" : "en", {
     dateStyle: "medium",
-    timeStyle: "short",
     timeZone: chart.input.timeZone,
   }).format(new Date(instant));
   const years = Array.from({ length: Number(range.end.slice(0, 4)) - Number(range.start.slice(0, 4)) + 1 }, (_, index) => Number(range.start.slice(0, 4)) + index);
@@ -100,8 +95,8 @@ export default function DivisionalTimeline({ chart, dasha, metadata, convention,
   return <section className="divisional-timeline" id={`timeline-${metadata.id}`} aria-labelledby={`timeline-title-${metadata.id}`} data-chart-id={metadata.id}>
     <div className="timeline-visible-summary">
       <div>
-        <h3 id={`timeline-title-${metadata.id}`}>{t("timeline.title")} · {metadata.id} {chartName}</h3>
-        <span>{purpose}</span>
+        <h3 id={`timeline-title-${metadata.id}`}>{t("timeline.title")}</h3>
+        <span>{chartName}</span>
       </div>
       <div className="timeline-summary">
         <span>{t("timeline.range")}: {range.start} → {range.end}</span>
@@ -121,16 +116,9 @@ export default function DivisionalTimeline({ chart, dasha, metadata, convention,
     <details className="timeline-details" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>{t("timeline.openDetails")}</summary>
       {open && <div className="divisional-timeline-body">
-      <div className="timeline-chart-identity">
-        <strong>{metadata.id} · {chartName}</strong>
-        <span>{purpose}</span>
-        <span>{metadata.cannotEstablish}</span>
-      </div>
       <div className="timeline-summary">
-        <span>{t("timeline.profile")}: {chart.input.fullName || chart.input.birthPlace || t("results.unknown")}</span>
         <span>{t("timeline.currentAge")}: {currentAge ?? t("timeline.ageUnavailable")}</span>
         <span>{t("timeline.selectedAge")}: {selectedAge ?? t("timeline.ageUnavailable")}</span>
-        <span>{t("timeline.status")}: {provenanceValid ? chart.provenance.status : t("results.provenanceUnavailable")}</span>
       </div>
       <div className="timeline-controls">
         <label>{t("timeline.year")} <select value={selectedYear} onChange={(event) => setDateSafely(Number(event.target.value), selectedMonth, selectedDay)}>
@@ -184,19 +172,6 @@ export default function DivisionalTimeline({ chart, dasha, metadata, convention,
       <div className="timeline-day-detail">
         <strong>{new Intl.DateTimeFormat(language === "hi" ? "hi-IN" : "en", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${selectedDate}T00:00:00Z`))}</strong>
         <span>{t("timeline.selectedAge")}: {selectedAge ?? t("timeline.ageUnavailable")} · {metadata.id} {metadata.name}</span>
-        <span>{t("timeline.profile")}: {chart.input.fullName || chart.input.birthPlace || t("results.unknown")}</span>
-      </div>
-      <div className="timeline-time-control">
-        <label>{t("timeline.time")} <input type="time" value={selectedTime} onChange={(event) => setSelectedTime(event.target.value)} /></label>
-        <span>{t("timeline.timezone")}: {chart.input.timeZone}</span>
-        <small>{t("timeline.clockOnly")}</small>
-      </div>
-      <p className="timeline-astro-warning">{t("timeline.traditionalGuidance")}</p>
-      <p className="timeline-method">{t("timeline.method")}: {convention}</p>
-      <div className="timeline-legend" aria-label={t("timeline.legend")}>
-        {(["favorable", "challenging", "mixed", "neutral", "not-evaluated"] as const).map((classification) =>
-          <span key={classification}>{t(`timeline.classification.${classification}`)}</span>,
-        )}
       </div>
       {!selectedDateInRange && <p role="alert" className="timeline-analysis-note">{t("timeline.dateOutOfRange")}</p>}
       <div className="timeline-period-list" aria-label={t("timeline.periodAnalysis")}>
@@ -208,52 +183,17 @@ export default function DivisionalTimeline({ chart, dasha, metadata, convention,
                 <strong>{view === "yearly" ? `${t("timeline.age")} ${period.label}` : period.label}</strong>
                 <span>{period.start} → {period.end}</span>
               </div>
-              <span className="timeline-classification-badge" data-classification={analysis.classification}>
-                {t(`timeline.classification.${analysis.classification}`)}
-              </span>
             </div>
             <p>{t("timeline.age")}: {period.age}{period.ageAtEnd !== period.age ? `–${period.ageAtEnd}` : ""}</p>
-            {analysis.dashaEvidence.length > 0 && <details>
-              <summary>{t("timeline.why")}</summary>
-              <div className="timeline-evidence-details">
-                <div>
-                  <strong>{t("timeline.dashaEvidence")}</strong>
-                  <ul>{analysis.dashaEvidence.map((item) => {
-                        const context = personalizeDashaEvidence(
-                          item,
-                          chart.input.localDate,
-                          chart.input.timeZone,
-                          metadata.id === "D1" ? {
-                            planets: chart.planets,
-                            houses: chart.houses,
-                            dignity: chart.planetaryDignity,
-                          } : null,
-                        );
-                        const age = context.ageAtStart === null
-                          ? t("dasha.ageUnavailable")
-                          : `${context.ageAtStart}${context.ageAtEnd !== null && context.ageAtEnd !== context.ageAtStart ? `–${context.ageAtEnd}` : ""}`;
-                        return <li className="timeline-dasha-item" key={`${item.level}-${item.lord}-${item.start}`}>
-                          <strong>{t(`timeline.dashaLevel.${item.level.toLocaleLowerCase()}`)}: {item.lord}</strong>
-                          <span>{formatDashaInstant(item.start)} → {formatDashaInstant(item.end)} ({chart.input.timeZone})</span>
-                          <span>{t("dasha.periodStatus")}: {t(`dasha.status.${context.periodStatus}`)} · {t("dasha.periodAge")}: {age}</span>
-                          {metadata.id === "D1"
-                            ? <div className="timeline-natal-context">
-                              {context.natalPlacement
-                                ? <>
-                                  <span>{t("dasha.natalPlacement")}: {context.natalPlacement.sign} · {t("results.house")} {context.natalPlacement.house}{context.natalPlacement.motion === "Retrograde" ? ` · ${t("status.retrograde")}` : ""}</span>
-                                  <span>{t("dasha.houseLordships")}: {context.houseLordships.length ? context.houseLordships.join(", ") : t("results.unknown")}</span>
-                                  {context.dignity && <span>{t("dasha.planetaryCondition")}: {context.dignity.dignity} · {context.dignity.sign}</span>}
-                                  {context.sameSignPlanets.length > 0 && <span>{t("dasha.sameSignPlanets")}: {context.sameSignPlanets.join(", ")}</span>}
-                                </>
-                                : <span>{t("dasha.natalPlacementUnavailable")}</span>}
-                              <small>{t("dasha.directionUnavailable")}</small>
-                            </div>
-                            : <small>{t("dasha.chartRuleUnavailable")}</small>}
-                        </li>;
-                    })}</ul>
-                </div>
-              </div>
-            </details>}
+            <div className="timeline-dasha-periods">
+              <strong>{t("timeline.dashaPeriods")}</strong>
+              {analysis.dashaEvidence.length
+                ? <ul>{analysis.dashaEvidence.map((item) => <li key={`${item.level}-${item.lord}-${item.start}`}>
+                  <span>{t(`timeline.dashaLevel.${item.level.toLocaleLowerCase()}`)}: {item.lord}</span>
+                  <span>{formatDashaInstant(item.start)} → {formatDashaInstant(item.end)}</span>
+                </li>)}</ul>
+                : <p>{t(dashaAvailable ? "timeline.noDashaPeriods" : "timeline.dashaUnavailable")}</p>}
+            </div>
           </article>;
         })}
       </div>

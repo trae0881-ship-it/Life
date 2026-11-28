@@ -118,14 +118,14 @@ export default function HomepageSections({ language }: { language: Language }) {
     <div className="homepage">
       <section className="home-hero" id="home" aria-labelledby="home-title">
         <div className="home-hero-copy">
-          <p className="home-eyebrow"><span /> A considered Jyotish workbench</p>
-          <h1 id="home-title">Read the sky.<br /><em>See the calculation.</em></h1>
-          <p className="home-hero-intro">Explore a Vedic birth chart with local astronomical calculations, documented conventions and results you can inspect.</p>
+          <p className="home-eyebrow"><span /> A thoughtful Jyotish companion</p>
+          <h1 id="home-title">Discover your chart.<br /><em>Explore your path.</em></h1>
+          <p className="home-hero-intro">Explore your Vedic birth chart, planetary placements, and personalized traditional readings.</p>
           <div className="home-actions">
             <a className="home-button home-button-primary" href="/studio#birth-form">Generate My Kundli <span aria-hidden="true">↗</span></a>
             <a className="home-button home-button-secondary" href="#astrology">Explore Astrology <span aria-hidden="true">↓</span></a>
           </div>
-          <p className="home-quiet-note">Birth details stay in your control. Calculations use the local engine and bundled ephemeris data.</p>
+          <p className="home-quiet-note">Your birth details help create a personal Kundali experience.</p>
         </div>
         <CosmicSolarSystem />
       </section>
@@ -155,8 +155,8 @@ export default function HomepageSections({ language }: { language: Language }) {
       </section>
 
       <section className="home-section home-steps-section" aria-labelledby="steps-title">
-        <div className="home-section-heading"><div><p className="home-eyebrow">A SIMPLE PLACE TO START</p><h2 id="steps-title">How it works</h2></div><p>From birth details to a transparent calculation, in three steps.</p></div>
-        <ol className="home-steps"><li><span>01</span><h3>Enter birth details</h3><p>Provide date, time and location. Choose a gazetteer result or enter verified coordinates and timezone manually.</p></li><li><span>02</span><h3>Choose conventions</h3><p>Select a supported ayanamsa, house system and node mode before calculating.</p></li><li><span>03</span><h3>Inspect your results</h3><p>Review chart placements, divisional charts and the calculation receipt with its settings and limitations.</p></li></ol>
+        <div className="home-section-heading"><div><p className="home-eyebrow">A SIMPLE PLACE TO START</p><h2 id="steps-title">How it works</h2></div><p>From birth details to your personalized Kundali, in three steps.</p></div>
+        <ol className="home-steps"><li><span>01</span><h3>Enter birth details</h3><p>Provide your date, time, and birthplace to begin.</p></li><li><span>02</span><h3>Explore your Kundali</h3><p>View your Lagna, Rashi, Nakshatra, and planetary placements.</p></li><li><span>03</span><h3>Read your report</h3><p>Explore divisional charts, personalized analysis, and Dasha periods.</p></li></ol>
       </section>
 
       <section className="home-section home-blog-section" id="blog" aria-labelledby="blog-title">
@@ -165,7 +165,7 @@ export default function HomepageSections({ language }: { language: Language }) {
       </section>
 
       <section className="home-about-section" id="about" aria-labelledby="about-title">
-        <div className="about-mark" aria-hidden="true">✳</div><div><p className="home-eyebrow">ABOUT LIFE</p><h2 id="about-title">A workbench, not a black box.</h2><p>LIFE is a Jyotish workbench that calculates astronomical chart data with local application code and provides traditional astrology interpretations from documented rules. Inspect calculation settings, source data and stated limitations alongside your results.</p><p>It is an informational tool—not professional advice or a promise of future outcomes. Some calculations have internal tests but do not yet have independent reference validation.</p></div>
+        <div className="about-mark" aria-hidden="true">✳</div><div><p className="home-eyebrow">ABOUT LIFE</p><h2 id="about-title">A Kundali made easy to explore.</h2><p>LIFE brings traditional Jyotish chart details and personalized interpretations together in one place.</p><p>Astrology offers a traditional perspective, not a guarantee of future events or a substitute for professional advice.</p></div>
       </section>
 
       <section className="home-section home-faq-section" aria-labelledby="home-faq-title"><div className="home-section-heading"><div><p className="home-eyebrow">GOOD TO KNOW</p><h2 id="home-faq-title">Frequently asked questions</h2></div><a href="#faq">Browse all questions ↓</a></div><AstrologyFaq language={language} /></section>

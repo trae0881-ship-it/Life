@@ -34,7 +34,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const record = await getPrisma().kundliQuestion.findFirst({
       where: ownedRecordWhere(auth.user!.id, questionId),
       select: {
-        id: true, profileId: true, question: true, questionId: true, topic: true,
+        id: true, profileId: true, question: true, questionId: true, topic: true, sectionKey: true, sectionLabel: true,
         answer: true, answerStatus: true, createdAt: true,
         answeredAt: true,
         profile: { select: { label: true } },
@@ -48,6 +48,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       question: record.question,
       questionId: record.questionId,
       topic: record.topic,
+      sectionKey: record.sectionKey,
+      sectionLabel: record.sectionLabel,
       answer: record.answer,
       answerStatus: record.answerStatus,
       createdAt: record.createdAt,

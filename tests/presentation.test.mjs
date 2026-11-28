@@ -38,12 +38,11 @@ test("personalization requires calculated chart provenance", () => {
   assert.equal(hasUsableChartProvenance({ input: { utc: "2026-01-01T00:00:00.000Z", timeZone: "Asia/Kolkata" }, provenance: { status: "fixture", resultHash: "hash", engineVersion: "local" } }), false);
 });
 
-test("public answer pages show applicable source citations without exposing internal rule IDs", () => {
+test("public reports omit source panels and internal rule IDs", () => {
   const page = readFileSync(new URL("../src/app/marriage-timing/page.tsx", import.meta.url), "utf8");
   const sourceDetails = readFileSync(new URL("../src/app/SourceDetails.tsx", import.meta.url), "utf8");
   const interpretation = readFileSync(new URL("../src/app/InterpretationPanel.tsx", import.meta.url), "utf8");
-  assert.match(page, /marriageTimingSourcesForResult/);
-  assert.match(page, /<SourceDetails sources=/);
+  assert.doesNotMatch(page, /marriageTimingSourcesForResult|<SourceDetails/);
   assert.doesNotMatch(sourceDetails, /source\.ruleIds|Rules:/);
   assert.match(sourceDetails, /rel="noopener noreferrer"/);
   assert.doesNotMatch(interpretation, /ruleSource|sourceEnglish/);

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { calculateMarriageTiming, marriageTimingSourcesForResult } from "../src/presentation/marriage-timing.ts";
 import { marriageTimingSources } from "../src/presentation/marriage-timing-sources.ts";
 import { formatMarriageAnswer } from "../src/presentation/assistant-answer-format.ts";
@@ -160,4 +161,12 @@ test("marriage answer formatter refuses to invent a date when evidence is insuff
     assert.equal(answer.timing, null);
     assert.doesNotMatch(answer.explanation, /\b20(?:\s+January|\s+जनवरी)?\s+2028\b|\b2028-01-01\b/);
   }
+});
+
+test("marriage report presents date periods without technical evidence or methodology panels", () => {
+  const page = readFileSync(new URL("../src/app/marriage-timing/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /calculateMarriageTiming\(chart\)/);
+  assert.match(page, /candidate_windows/);
+  assert.match(page, /supporting_dasha_periods/);
+  assert.doesNotMatch(page, /SourceDetails|marriageTimingSourcesForResult|result\.kp_evidence|contradictory_evidence|t\.method|t\.limitations/);
 });
