@@ -8,6 +8,7 @@ import { validateChartInput } from "@/server/birth-validation";
 import { requireRole } from "@/server/auth";
 import { withApiKeyAccess } from "@/server/api-platform";
 import { getPrisma } from "@/server/db";
+import { logDatabaseServiceError } from "@/server/database-error-logging";
 import { availableChartCountForResult, divisionalChartCountForResult, reportTypeForResult } from "@/server/saved-report-summary";
 import { ownedRecordData } from "@/server/ownership";
 
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
             availableChartCount: saved.availableChartCount,
           }, { headers: { "Cache-Control": "no-store" } });
         } catch (error) {
-          console.error("Generated Kundali could not be saved.", { errorType: error instanceof Error ? error.name : "UnknownError" });
+          logDatabaseServiceError("Kundali report save", error);
           return jsonError("Kundali calculation completed, but the report could not be saved. Please try again.", "REPORT_SAVE_FAILED", 503);
         }
       }

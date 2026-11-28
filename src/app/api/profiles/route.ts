@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/server/auth";
 import { validateBirthRecord } from "@/server/birth-validation";
 import { getPrisma } from "@/server/db";
+import { logDatabaseServiceError } from "@/server/database-error-logging";
 import { jsonError, isSameOriginMutation, readJson, RequestBodyError } from "@/server/http";
 import { InputError } from "@/calculation/time";
 import { ownedRecordData, ownedRecordWhere } from "@/server/ownership";
@@ -29,7 +30,8 @@ export async function GET(request: NextRequest) {
       select: { id: true, label: true, birthPlace: true, localDate: true, localTime: true, timeZone: true, latitude: true, longitude: true, birthTimeAccuracy: true, createdAt: true, updatedAt: true },
     });
     return NextResponse.json({ profiles }, { headers: { "Cache-Control": "no-store" } });
-  } catch {
+  } catch (error) {
+    logDatabaseServiceError("Birth profile list load", error);
     return jsonError("Profile storage is temporarily unavailable.", 503, "DATABASE_UNAVAILABLE");
   }
 }
@@ -50,6 +52,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof RequestBodyError) return jsonError(error.message, error.status, error.status === 400 ? "INVALID_JSON" : "PAYLOAD_TOO_LARGE");
     if (error instanceof InputError) return jsonError(error.message, 422, error.code);
+    logDatabaseServiceError("Birth profile save", error);
     return jsonError("Profile storage is temporarily unavailable.", 503, "DATABASE_UNAVAILABLE");
   }
 }

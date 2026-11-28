@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/server/auth";
 import { getPrisma } from "@/server/db";
+import { logDatabaseServiceError } from "@/server/database-error-logging";
 import { jsonError, isSameOriginMutation, readJson, RequestBodyError } from "@/server/http";
 import { ownedRecordWhere } from "@/server/ownership";
 import { isRestorableSavedChartResult } from "@/presentation/saved-chart-validation";
@@ -36,7 +37,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       data: { lastViewedAt: new Date() },
     });
     return NextResponse.json({ chart }, { headers: { "Cache-Control": "no-store" } });
-  } catch {
+  } catch (error) {
+    logDatabaseServiceError("Saved Kundali report reopen", error);
     return jsonError("Saved-chart storage is temporarily unavailable.", 503, "DATABASE_UNAVAILABLE");
   }
 }
@@ -87,6 +89,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ chart }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof RequestBodyError) return jsonError(error.message, error.status, error.status === 400 ? "INVALID_JSON" : "PAYLOAD_TOO_LARGE");
+    logDatabaseServiceError("Saved Kundali report update", error);
     return jsonError("Saved-chart storage is temporarily unavailable.", 503, "DATABASE_UNAVAILABLE");
   }
 }
@@ -100,7 +103,8 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const deleted = await getPrisma().savedChart.deleteMany({ where: ownedRecordWhere(user.id, chartId) });
     if (!deleted.count) return jsonError("Saved chart not found.", 404, "NOT_FOUND");
     return NextResponse.json({ deleted: true });
-  } catch {
+  } catch (error) {
+    logDatabaseServiceError("Saved Kundali report delete", error);
     return jsonError("Saved-chart storage is temporarily unavailable.", 503, "DATABASE_UNAVAILABLE");
   }
 }

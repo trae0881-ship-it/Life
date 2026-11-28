@@ -4,6 +4,7 @@ import { engineHealth } from "@/calculation/health";
 import { InputError, type BirthInput } from "@/calculation/time";
 import { getUserFromRequest } from "@/server/auth";
 import { getPrisma } from "@/server/db";
+import { logDatabaseServiceError } from "@/server/database-error-logging";
 import { jsonError, isSameOriginMutation, readJson, RequestBodyError } from "@/server/http";
 import { ownedRecordData, ownedRecordWhere } from "@/server/ownership";
 import { availableChartCountForResult, divisionalChartCountForResult, reportTypeForResult, savedReportSummary } from "@/server/saved-report-summary";
@@ -68,7 +69,8 @@ export async function GET(request: NextRequest) {
       total,
       pageCount: Math.ceil(total / PAGE_SIZE),
     }, { headers: { "Cache-Control": "no-store" } });
-  } catch {
+  } catch (error) {
+    logDatabaseServiceError("Saved Kundali history load", error);
     return jsonError("Saved-chart storage is temporarily unavailable.", 503, "DATABASE_UNAVAILABLE");
   }
 }
@@ -133,6 +135,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof InputError) return jsonError(error.message, 422, error.code);
     if (error instanceof UnsupportedEphemerisDateError) return jsonError(error.message, 422, "UNSUPPORTED_EPHEMERIS_DATE");
     if (error instanceof UnsupportedHouseCalculationError) return jsonError(error.message, 422, "UNSUPPORTED_HOUSE_SYSTEM");
+    logDatabaseServiceError("Saved Kundali report creation", error);
     return jsonError("Saved-chart storage is temporarily unavailable.", 503, "DATABASE_UNAVAILABLE");
   }
 }
