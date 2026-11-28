@@ -22,6 +22,14 @@ import {
   type NumerologySystem,
   type LoShuMode,
 } from "@/calculation/numerology";
+import {
+  calculateCheiroBirthNumber,
+  calculateCheiroNameNumber,
+  CHEIRO_REVISED_METHOD_ID,
+  type CheiroBirthNumberResult,
+  type CheiroNameResult,
+  type CheiroWordResult,
+} from "@/calculation/cheiro-revised";
 import { createTarotReading, drawTarotCards, TAROT_CARDS, TAROT_SPREADS, TAROT_TOPICS, type TarotCardId, type TarotSpread, type TarotTopic } from "@/calculation/tarot";
 import {
   createNameRecommendations,
@@ -37,6 +45,111 @@ import "./astrology-services.css";
 type Service = "ank-jyotish" | "tarot";
 type SavedReading = { id: string; title: string; payload: Record<string, unknown>; createdAt: string };
 type TarotSelection = { id: TarotCardId | ""; reversed: boolean };
+type CheiroReportPayload = CheiroNameResult & {
+  readingType: "cheiro-revised-report";
+  title: string;
+  originalName: string;
+  dateOfBirth: string;
+  birthNumber: CheiroBirthNumberResult;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isCheiroWord(value: unknown): value is CheiroWordResult {
+  if (!isRecord(value) || typeof value.inputWord !== "string" || typeof value.normalizedWord !== "string"
+    || !Number.isInteger(value.rawTotal) || !Number.isInteger(value.root) || !Array.isArray(value.letterBreakdown)) return false;
+  return value.letterBreakdown.every((entry) => isRecord(entry)
+    && typeof entry.letter === "string"
+    && Number.isInteger(entry.value));
+}
+
+function isCheiroReportPayload(value: Record<string, unknown>): value is Record<string, unknown> & CheiroReportPayload {
+  const birthNumber = value.birthNumber;
+  return value.readingType === "cheiro-revised-report"
+    && value.methodId === CHEIRO_REVISED_METHOD_ID
+    && value.methodVersion === 1
+    && value.sourceEdition === "Complete Edition, Revised"
+    && value.copyrightYear === 1959
+    && value.printingYear === null
+    && typeof value.title === "string"
+    && typeof value.originalName === "string"
+    && typeof value.dateOfBirth === "string"
+    && Array.isArray(value.words)
+    && value.words.every(isCheiroWord)
+    && Number.isInteger(value.compoundNameNumber)
+    && Number.isInteger(value.nameRoot)
+    && isRecord(birthNumber)
+    && birthNumber.concept === "cheiro-birth-number"
+    && Number.isInteger(birthNumber.dayOfMonth)
+    && Number.isInteger(birthNumber.birthNumber);
+}
+
+function getBirthDayOfMonth(value: string): number | null {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const dmy = /^(\d{2})-(\d{2})-(\d{4})$/.exec(value);
+  if (!iso && !dmy) return null;
+  const year = iso ? Number(iso[1]) : Number(dmy![3]);
+  const month = iso ? Number(iso[2]) : Number(dmy![2]);
+  const day = iso ? Number(iso[3]) : Number(dmy![1]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (year < 1800 || year > 2399
+    || date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day) return null;
+  return day;
+}
+
+function downloadJson(payload: object, filename: string): void {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function CheiroResultView({ report, language }: { report: CheiroReportPayload; language: NumerologyLanguage }) {
+  const hindi = language === "hi";
+  return <>
+    <div className="cheiro-meta">
+      <p><strong>{hindi ? "नाम" : "Name"}:</strong> {report.originalName}</p>
+      <p><strong>{hindi ? "जन्म तिथि" : "Date of birth"}:</strong> {report.dateOfBirth}</p>
+      <p><strong>{hindi ? "जन्मांक (केवल माह का दिन)" : "Birth Number (day of month only)"}:</strong> {report.birthNumber.birthNumber} <span>({report.birthNumber.dayOfMonth})</span></p>
+    </div>
+    <div className="cheiro-number-grid">
+      <article><span>{hindi ? "संयुक्त नाम संख्या" : "Compound name number"}</span><strong>{report.compoundNameNumber}</strong></article>
+      <article><span>{hindi ? "सहायक मूलांक" : "Auxiliary reduced root"}</span><strong>{report.nameRoot}</strong></article>
+      <article><span>{hindi ? "शब्द" : "Name words"}</span><strong>{report.words.length}</strong></article>
+    </div>
+    <div className="cheiro-table-scroll">
+      <table className="cheiro-table" aria-label={hindi ? "शब्द-दर-शब्द नाम गणना" : "Word-by-word name calculation"}>
+        <thead><tr>
+          <th scope="col">{hindi ? "शब्द" : "Word"}</th>
+          <th scope="col">{hindi ? "अक्षर मान" : "Letter values"}</th>
+          <th scope="col">{hindi ? "कुल" : "Raw total"}</th>
+          <th scope="col">{hindi ? "मूल" : "Root"}</th>
+        </tr></thead>
+        <tbody>{report.words.map((word, index) => <tr key={`${word.normalizedWord}-${index}`}>
+          <th scope="row">{word.inputWord}</th>
+          <td>{word.letterBreakdown.map((item) => `${item.letter}=${item.value}`).join(" · ")}</td>
+          <td>{word.rawTotal}</td>
+          <td>{word.root}</td>
+        </tr>)}</tbody>
+      </table>
+    </div>
+    <p className="service-disclaimer">
+      {hindi
+        ? "नाम की गणना Cheiro के संशोधित संस्करण की अक्षर-सारणी से प्रत्येक शब्द के लिए अलग की जाती है। जन्मांक केवल जन्म के महीने के दिन से निकलता है।"
+        : "Name values use the Complete Edition, Revised mapping, calculated separately for each word. The Birth Number uses the day of the month only."}
+    </p>
+    <p className="cheiro-source">
+      {hindi ? "स्रोत संस्करण" : "Source edition"}: Complete Edition, Revised (©1959). {hindi ? "निरीक्षित प्रति में मुद्रण वर्ष की पुष्टि नहीं हुई।" : "Printing year not identified in the inspected copy."}
+    </p>
+  </>;
+}
 
 async function responseJson(response: Response) {
   const body = await response.json().catch(() => null);
@@ -49,6 +162,7 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [comparisonName, setComparisonName] = useState("");
   const [numerologySystem, setNumerologySystem] = useState<NumerologySystem>("pythagorean");
+  const [numerologyMethod, setNumerologyMethod] = useState<"life" | "cheiro-revised">("life");
   const [loShuMode, setLoShuMode] = useState<LoShuMode>("dob-only");
   const [reportLanguage, setReportLanguage] = useState<NumerologyLanguage>("en");
   const [keepMasterNumbers, setKeepMasterNumbers] = useState(false);
@@ -75,13 +189,40 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
 
   const requiredCards = spread === "single" ? 1 : 3;
   const ankReport = useMemo(() => {
-    if (service !== "ank-jyotish" || !name.trim() || !dateOfBirth) return null;
+    if (service !== "ank-jyotish" || numerologyMethod !== "life" || !name.trim() || !dateOfBirth) return null;
     try {
       return createNumerologyReport({ name, dateOfBirth, comparisonName, system:numerologySystem, loShuMode, language:reportLanguage, keepMasterNumbers });
     } catch {
       return null;
     }
-  }, [service, name, dateOfBirth, comparisonName, numerologySystem, loShuMode, reportLanguage, keepMasterNumbers]);
+  }, [service, numerologyMethod, name, dateOfBirth, comparisonName, numerologySystem, loShuMode, reportLanguage, keepMasterNumbers]);
+  const cheiroCalculation = useMemo<{ report: CheiroReportPayload | null; error: string }>(() => {
+    if (service !== "ank-jyotish" || numerologyMethod !== "cheiro-revised") return { report: null, error: "" };
+    if (!name && !dateOfBirth) return { report: null, error: "" };
+    if (!name) return { report: null, error: "Enter a name to calculate the Cheiro Revised Edition result." };
+    if (!dateOfBirth) return { report: null, error: "Enter a valid date of birth to calculate the Birth Number." };
+    const dayOfMonth = getBirthDayOfMonth(dateOfBirth);
+    if (dayOfMonth === null) return { report: null, error: "Enter a valid date of birth in DD-MM-YYYY or YYYY-MM-DD format." };
+    try {
+      const nameResult = calculateCheiroNameNumber(name);
+      return {
+        report: {
+          readingType: "cheiro-revised-report",
+          title: "Cheiro Revised Edition Numerology",
+          ...nameResult,
+          originalName: name,
+          dateOfBirth,
+          birthNumber: calculateCheiroBirthNumber(dayOfMonth),
+        },
+        error: "",
+      };
+    } catch (calculationError) {
+      return {
+        report: null,
+        error: calculationError instanceof Error ? calculationError.message : "The Cheiro result could not be calculated.",
+      };
+    }
+  }, [service, numerologyMethod, name, dateOfBirth]);
   const mobileAnalysis = useMemo(() => {
     if (service !== "ank-jyotish" || !mobileNumber || !dateOfBirth) return null;
     try { return analyzeMobileNumber(mobileCountryCode,mobileNumber,dateOfBirth); } catch { return null; }
@@ -205,7 +346,9 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
       return null;
     }
   }, [service, selections, requiredCards, spread, topic]);
-  const report = service === "ank-jyotish" ? ankReport : tarotReport;
+  const report = service === "ank-jyotish"
+    ? numerologyMethod === "cheiro-revised" ? cheiroCalculation.report : ankReport
+    : tarotReport;
 
   useEffect(() => {
     let active = true;
@@ -298,11 +441,13 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
       {service === "ank-jyotish" && <section className="service-panel" aria-labelledby="ank-form-title">
         <div className="service-panel-heading"><div><p className="service-eyebrow">01 / YOUR DETAILS</p><h2 id="ank-form-title">Create your numerology report</h2></div></div>
         <div className="service-form-grid">
-          <label>Full name <input autoComplete="name" maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="Enter an Indian or Latin name" /></label>
+          <label>Full name <input autoComplete="name" maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder={numerologyMethod === "cheiro-revised" ? "ASCII letters; one space between words" : "Enter an Indian or Latin name"} /></label>
           <label>Date of birth <input type="text" inputMode="numeric" maxLength={10} value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} placeholder="DD-MM-YYYY" /></label>
+          <label>Calculation method <select value={numerologyMethod} onChange={(event) => setNumerologyMethod(event.target.value as "life" | "cheiro-revised")}><option value="life">LIFE Numerology</option><option value="cheiro-revised">Cheiro Revised Edition</option></select></label>
+          <label>Report language <select value={reportLanguage} onChange={(event) => setReportLanguage(event.target.value as NumerologyLanguage)}><option value="en">English</option><option value="hi">हिन्दी</option></select></label>
+          {numerologyMethod === "life" && <>
           <label>Name system <select value={numerologySystem} onChange={(event) => setNumerologySystem(event.target.value as NumerologySystem)}><option value="pythagorean">Pythagorean</option><option value="chaldean">Chaldean</option></select></label>
           <label>Lo Shu grid mode <select value={loShuMode} onChange={(event) => setLoShuMode(event.target.value as LoShuMode)}><option value="dob-only">Traditional DOB-only</option><option value="indian-extended">Indian extended (Moolank + Bhagyank)</option></select></label>
-          <label>Report language <select value={reportLanguage} onChange={(event) => setReportLanguage(event.target.value as NumerologyLanguage)}><option value="en">English</option><option value="hi">हिन्दी</option></select></label>
           <label>Master numbers <select value={keepMasterNumbers ? "keep" : "reduce"} onChange={(event) => setKeepMasterNumbers(event.target.value === "keep")}><option value="reduce">Reduce 11/22/33 normally</option><option value="keep">Keep 11/22/33 when applicable</option></select></label>
           <label className="service-form-wide">Compare name (optional) <input maxLength={100} value={comparisonName} onChange={(event) => setComparisonName(event.target.value)} placeholder="Name compatibility uses number comparison, not a score" /></label>
           <label>Country code <input maxLength={4} value={mobileCountryCode} onChange={(event)=>setMobileCountryCode(event.target.value)} placeholder="91" /></label>
@@ -318,8 +463,11 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
             <label>Historical month <input type="number" min="1" max="12" value={historicalMonth} onChange={(event)=>setHistoricalMonth(event.target.value)} /></label>
           </>}
           {dateReportError && <p className="service-alert" role="alert">{dateReportError}</p>}
+          </>}
         </div>
-        {!ankReport && <p className="service-empty">Enter a valid name and date of birth to generate the report. Names currently support Latin alphabet characters.</p>}
+        {numerologyMethod === "life" && !ankReport && <p className="service-empty">Enter a valid name and date of birth to generate the report. Names currently support Latin alphabet characters.</p>}
+        {numerologyMethod === "cheiro-revised" && cheiroCalculation.error && <p className="service-alert" role="alert">{cheiroCalculation.error}</p>}
+        {numerologyMethod === "cheiro-revised" && !cheiroCalculation.report && !cheiroCalculation.error && <p className="service-empty">Enter a name and date of birth to calculate your Cheiro result. Cheiro names accept ASCII letters with one space between words.</p>}
         {ankReport && <section className="service-report" id="numerology-report" aria-live="polite">
           <div className="service-panel-heading"><div><p className="service-eyebrow">02 / DETERMINISTIC REPORT</p><h2>{ankReport.title}</h2></div><span className="service-chip">{numerologySystem.toUpperCase()} MAPPING</span></div>
           <div className="service-number-grid"><div><span>Moolank</span><strong>{ankReport.date.moolank}</strong></div><div><span>Bhagyank</span><strong>{ankReport.date.bhagyank}</strong></div><div><span>Name number</span><strong>{ankReport.nameAnalysis.expression.reduced}</strong></div></div>
@@ -511,6 +659,18 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
             }}>Export JSON</button>
           </div>
         </section>}
+        {cheiroCalculation.report && <section className="service-report" id="cheiro-report" aria-live="polite">
+          <div className="service-panel-heading"><div><p className="service-eyebrow">02 / CHEIRO REVISED EDITION</p><h2>{cheiroCalculation.report.title}</h2></div><span className="service-chip">METHOD VERSION 1</span></div>
+          <CheiroResultView report={cheiroCalculation.report} language={reportLanguage} />
+          <p className="report-export-note">Use the browser print dialog to save this report as a PDF. Printing runs locally on this device.</p>
+          <div className="service-actions">
+            <button className="service-primary" type="button" disabled={busy} onClick={() => void saveReport()}>{busy ? "Saving…" : "Save report to my account"} ↗</button>
+            <button className="service-secondary" type="button" onClick={() => printReport("cheiro-report")}>Print / save as PDF</button>
+            <button className="service-secondary" type="button" onClick={() => {
+              if (cheiroCalculation.report) downloadJson(cheiroCalculation.report, "cheiro-revised-edition.json");
+            }}>Export JSON</button>
+          </div>
+        </section>}
       </section>}
 
       {service === "tarot" && <section className="service-panel" aria-labelledby="tarot-form-title">
@@ -544,16 +704,21 @@ export default function AstrologyServiceWorkspace({ service }: { service: Servic
         {loadingHistory ? <p role="status">Loading your saved readings…</p> : history.length === 0 ? <p className="service-empty">No saved {title} readings yet. Create and save a report to see it here.</p> : <div className="service-history-list">
           {history.map((item) => <article key={item.id}>
             <div><h3>{item.title}</h3><small>{new Date(item.createdAt).toLocaleString()}</small>
+              {service === "ank-jyotish" && isCheiroReportPayload(item.payload) && <p>Cheiro Revised Edition · {item.payload.originalName} · Birth Number {item.payload.birthNumber.birthNumber}</p>}
               {service === "ank-jyotish" && Array.isArray(item.payload.sections) && <p>{item.payload.sections.length} interpretation sections</p>}
               {service === "tarot" && Array.isArray(item.payload.cards) && <p>{(item.payload.cards as { name?: string; orientation?: string }[]).map((card) => `${card.name ?? "Card"} · ${card.orientation ?? ""}`).join(" / ")}</p>}
             </div><button className="service-secondary" type="button" disabled={busy} onClick={() => setReading(item.payload)}>Open</button><button className="service-delete" type="button" disabled={busy} onClick={() => void deleteReport(item.id)}>Delete</button>
           </article>)}
         </div>}
-        {reading && <article className="service-history-detail" id="saved-service-report"><div className="service-actions"><button className="service-text-button" type="button" onClick={() => setReading(null)}>Close report</button><button className="service-secondary" type="button" onClick={() => printReport("saved-service-report")}>Print / save as PDF</button></div><h3>{String(reading.title ?? "Saved reading")}</h3>
-          {Array.isArray(reading.sections) && (reading.sections as { title?: string; value?: string; interpretation?: string }[]).map((section, index) => <p key={`${section.title}-${index}`}><strong>{section.title}: {section.value}</strong> — {section.interpretation}</p>)}
-          {Array.isArray(reading.cards) && (reading.cards as { position?: string; name?: string; orientation?: string; meaning?: string }[]).map((card, index) => <p key={`${card.name}-${index}`}><strong>{card.position}: {card.name} ({card.orientation})</strong> — {card.meaning}</p>)}
-          {typeof reading.interpretation === "string" && <p>{reading.interpretation}</p>}
-          {typeof reading.disclaimer === "string" && <p className="service-disclaimer">{reading.disclaimer}</p>}
+        {reading && <article className="service-history-detail" id="saved-service-report"><div className="service-actions"><button className="service-text-button" type="button" onClick={() => setReading(null)}>Close report</button><button className="service-secondary" type="button" onClick={() => printReport("saved-service-report")}>Print / save as PDF</button>{isCheiroReportPayload(reading) && <button className="service-secondary" type="button" onClick={() => downloadJson(reading, "cheiro-revised-saved-report.json")}>Export JSON</button>}</div><h3>{String(reading.title ?? "Saved reading")}</h3>
+          {isCheiroReportPayload(reading)
+            ? <CheiroResultView report={reading} language={reportLanguage} />
+            : <>
+              {Array.isArray(reading.sections) && (reading.sections as { title?: string; value?: string; interpretation?: string }[]).map((section, index) => <p key={`${section.title}-${index}`}><strong>{section.title}: {section.value}</strong> — {section.interpretation}</p>)}
+              {Array.isArray(reading.cards) && (reading.cards as { position?: string; name?: string; orientation?: string; meaning?: string }[]).map((card, index) => <p key={`${card.name}-${index}`}><strong>{card.position}: {card.name} ({card.orientation})</strong> — {card.meaning}</p>)}
+              {typeof reading.interpretation === "string" && <p>{reading.interpretation}</p>}
+              {typeof reading.disclaimer === "string" && <p className="service-disclaimer">{reading.disclaimer}</p>}
+            </>}
         </article>}
       </section>
       <footer className="service-footer"><span>DETERMINISTIC RULES · LOCAL KNOWLEDGE · NO AI PROVIDERS</span><a href="/dashboard">Return to dashboard ↑</a></footer>
