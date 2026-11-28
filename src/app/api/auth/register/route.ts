@@ -18,6 +18,9 @@ export async function POST(request: NextRequest) {
     if (body.termsVersion !== CURRENT_TERMS_VERSION || body.acceptedTerms !== true) {
       return jsonError("Accept the current Terms & Conditions to create an account.", 422, "TERMS_ACCEPTANCE_REQUIRED");
     }
+    if (body.portal !== undefined && body.portal !== "developer") {
+      return jsonError("The registration portal is invalid.", 400, "INVALID_INPUT");
+    }
     const { user, token, expiresAt } = await registerAccountWithSession({
       fullName: body.fullName,
       email: body.email,
@@ -25,6 +28,7 @@ export async function POST(request: NextRequest) {
       confirmPassword: body.confirmPassword,
       termsVersion: CURRENT_TERMS_VERSION,
       acceptedTerms: true,
+      developerRequest: body.portal === "developer",
     }, getPrisma());
     return NextResponse.json({ user }, { status: 201, headers: { "Set-Cookie": sessionCookie(token, expiresAt), "Cache-Control": "no-store" } });
   } catch (error) {

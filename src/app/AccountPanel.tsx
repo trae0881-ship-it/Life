@@ -173,7 +173,7 @@ export default function AccountPanel({ chart, profileDraft, onLoadProfile, onLoa
           acceptedTerms: form.get("acceptedTerms") === "on",
           termsVersion: mode === "register" ? CURRENT_TERMS_VERSION : undefined,
           rememberMe: mode === "login" && showRememberMe ? form.getAll("rememberMe").includes("true") : undefined,
-          portal: mode === "login" && authPortal === "developer" ? "developer" : undefined,
+          portal: authPortal === "developer" ? "developer" : undefined,
         }),
       });
       const result = await response.json();

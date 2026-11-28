@@ -249,7 +249,7 @@ export default function ApiPlatformDashboard({ role, userId, email }: { role: Ro
   const grantProduct = products.find((product) => product.id === grantDraft.productId);
   const permissionProduct = products.find((product) => product.id === permissionDraft.productId);
   return <main className="api-platform-shell">
-    <header className="api-platform-header"><a href="/">✳ LIFE</a><nav className="api-platform-links" aria-label="API platform navigation"><a href="/developers">Developer portal</a><a href="/api/docs">API documentation</a><a href="/">Home</a></nav></header>
+    <header className="api-platform-header"><a href="/">✳ LIFE</a><nav className="api-platform-links" aria-label="API platform navigation"><a href="/developers">Developer portal</a>{role === "DEVELOPER" && <><a href="/developers/analytics">Usage analytics</a><a href="/developers/subscription">Plans & billing</a></>}<a href="/api/docs">API documentation</a><a href="/">Home</a></nav></header>
     <div className="api-platform-content">
       <p className="super-admin-eyebrow">LIFE · API ACCESS</p>
       <h1>{role === "DEVELOPER" ? "Developer dashboard" : "API management"}</h1>

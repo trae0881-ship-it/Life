@@ -14,6 +14,6 @@ export default async function DeveloperSignupPage() {
   const destination = "/developers/dashboard";
   const user = await getCurrentUser();
   if (user?.role === "DEVELOPER") redirect("/developers/dashboard");
-  if (user) redirect("/developers?access=approval-required");
+  if (user) redirect("/developers");
   return <LoginExperience returnTo={destination} initialMode="register" portal="developer" />;
 }

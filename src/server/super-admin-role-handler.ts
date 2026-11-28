@@ -2,7 +2,7 @@ import type { UserRole } from "./auth-core.ts";
 import { isSameOriginMutation } from "./same-origin.ts";
 import { readJson, RequestBodyError } from "./request-body.ts";
 
-const ASSIGNABLE_ROLES = ["USER", "DEVELOPER", "ADMIN"] as const;
+const ASSIGNABLE_ROLES = ["USER", "ADMIN"] as const;
 
 type Authorization = {
   status: 200 | 401 | 403;
@@ -75,6 +75,7 @@ export async function handleSuperAdminRoleChange(
       });
       if (!target) return { kind: "missing" as const };
       if (target.role === "SUPER_ADMIN") return { kind: "protected" as const };
+      if (target.role === "DEVELOPER") return { kind: "developer-managed" as const };
       const toRole = body.role as typeof ASSIGNABLE_ROLES[number];
       if (target.role === toRole) return { kind: "unchanged" as const, role: target.role };
 
@@ -100,6 +101,7 @@ export async function handleSuperAdminRoleChange(
 
     if (outcome.kind === "missing") return jsonError("Account not found.", 404, "NOT_FOUND");
     if (outcome.kind === "protected") return jsonError("SUPER_ADMIN accounts cannot be changed through user management.", 403, "SUPER_ADMIN_PROTECTED");
+    if (outcome.kind === "developer-managed") return jsonError("Manage Developer accounts through the Developer verification workflow.", 409, "DEVELOPER_WORKFLOW_REQUIRED");
     return Response.json({ userId, role: outcome.role }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof RequestBodyError) return jsonError(error.message, error.status, error.status === 400 ? "INVALID_JSON" : "PAYLOAD_TOO_LARGE");

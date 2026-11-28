@@ -506,6 +506,10 @@ test("developers can edit only their own unapproved products and rejected edits 
   assert.equal(updated.rejectionReason, null);
   assert.equal(state.audit[0].action, "PRODUCT_RESUBMITTED");
 
+  const retry = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { name: "Updated Vedic" }), "product-1", productActor("developer-1"), dependencies(repository));
+  assert.equal(retry.status, 200);
+  assert.equal(state.audit.length, 1);
+
   const activated = await handleApiProduct(productRequest("http://localhost/api/platform/products/product-1", "PATCH", { enabled: true }), "product-1", productActor("developer-1"), dependencies(repository));
   assert.equal(activated.status, 422);
 });

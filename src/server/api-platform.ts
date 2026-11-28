@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { Prisma, PrismaClient } from "../../generated/prisma/client";
 import type { AuthUser, UserRole } from "./auth-core.ts";
 import { readJson, RequestBodyError } from "./request-body.ts";
@@ -30,12 +30,22 @@ type KeyRecord = {
   status: "ACTIVE" | "DISABLED" | "REVOKED";
   expiresAt: Date | null;
   lastUsedAt: Date | null;
-  owner: { role: UserRole };
+  owner: {
+    role: UserRole;
+    apiDeveloperProfile: { status: "PENDING" | "VERIFIED" | "REJECTED" | "SUSPENDED"; grandfathered: boolean } | null;
+    apiSubscriptions?: {
+      planId: string;
+      plan: {
+        status: string;
+        products: { productId: string; requestsPerMinute: number; dailyQuota: number; monthlyQuota: number }[];
+      };
+    }[];
+  };
   product: { enabled: boolean; endpoints: string[] };
   accountGrant: { enabled: boolean; scopes: string[]; requestsPerMinute: number; dailyQuota: number; monthlyQuota: number };
 };
 type KeyAuthResult =
-  | { kind: "key"; key: Pick<KeyRecord, "id" | "keyId" | "ownerUserId" | "productId" | "scopes" | "requestsPerMinute" | "dailyQuota" | "monthlyQuota">; remaining: { key: { minute: number; day: number; month: number }; account: { minute: number; day: number; month: number } }; limits: { account: { minute: number; day: number; month: number } }; windows: ReturnType<typeof windowStarts> }
+  | { kind: "key"; key: Pick<KeyRecord, "id" | "keyId" | "ownerUserId" | "productId" | "scopes" | "requestsPerMinute" | "dailyQuota" | "monthlyQuota"> & { planId: string | null }; remaining: { key: { minute: number; day: number; month: number }; account: { minute: number; day: number; month: number } }; limits: { account: { minute: number; day: number; month: number } }; windows: ReturnType<typeof windowStarts> }
   | { kind: "session" }
   | { kind: "denied"; response: Response };
 
@@ -49,6 +59,43 @@ const within = (value: unknown, min: number, max: number): value is number =>
 
 function digestApiKey(secret: string, pepper: string) {
   return createHmac("sha256", pepper).update(secret).digest("hex");
+}
+
+async function recordApiUsageEvent(
+  repository: PrismaClient,
+  key: Pick<KeyRecord, "id" | "ownerUserId" | "productId">,
+  endpoint: ApiEndpoint,
+  statusCode: number,
+  responseTimeMs: number,
+  planId: string | null = null,
+) {
+  await repository.apiUsageEvent.create({
+    data: {
+      requestId: randomUUID(),
+      apiKeyId: key.id,
+      developerUserId: key.ownerUserId,
+      productId: key.productId,
+      planId,
+      endpoint,
+      statusCode,
+      responseTimeMs: Math.max(0, Math.min(2_147_483_647, Math.round(responseTimeMs))),
+    },
+  });
+}
+
+async function recordDeniedApiUsage(
+  repository: PrismaClient,
+  key: Pick<KeyRecord, "id" | "ownerUserId" | "productId">,
+  endpoint: ApiEndpoint,
+  statusCode: number,
+) {
+  try {
+    await recordApiUsageEvent(repository, key, endpoint, statusCode, 0);
+  } catch (error) {
+    console.error("Denied API-key request could not be recorded for usage analytics.", {
+      errorType: error instanceof Error ? error.name : "UnknownError",
+    });
+  }
 }
 
 function validPepper(pepper: string | undefined): pepper is string {
@@ -92,6 +139,16 @@ function approvalStatus(status: ApiProductStatus) {
 
 function isApiProductStatus(value: string): value is ApiProductStatus {
   return (API_PRODUCT_STATUSES as readonly string[]).includes(value);
+}
+
+function hasProductChanges(current: object, update: Record<string, unknown>) {
+  return Object.entries(update).some(([key, value]) => {
+    const previous = Reflect.get(current, key);
+    if (Array.isArray(previous) && Array.isArray(value)) {
+      return previous.length !== value.length || previous.some((item, index) => item !== value[index]);
+    }
+    return !Object.is(previous, value);
+  });
 }
 
 function parseIsoDate(value: string | null) {
@@ -315,7 +372,21 @@ export async function authenticateApiKey(request: Request, scope: ApiEndpoint, d
     const key = await repository.apiKey.findUnique({
       where: { keyId },
       include: {
-        owner: { select: { role: true } },
+        owner: {
+          select: {
+            role: true,
+            apiDeveloperProfile: { select: { status: true, grandfathered: true } },
+            apiSubscriptions: {
+              where: { status: "ACTIVE", OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: now } }] },
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: {
+                planId: true,
+                plan: { select: { status: true, products: { select: { productId: true, requestsPerMinute: true, dailyQuota: true, monthlyQuota: true } } } },
+              },
+            },
+          },
+        },
         product: { select: { enabled: true, endpoints: true } },
         accountGrant: { select: { enabled: true, scopes: true, requestsPerMinute: true, dailyQuota: true, monthlyQuota: true } },
       },
@@ -323,20 +394,53 @@ export async function authenticateApiKey(request: Request, scope: ApiEndpoint, d
     if (!key || !constantTimeDigestMatch(key.digest, digestApiKey(secret, dependencies.pepper))) {
       return { kind: "denied", response: jsonError("API key is invalid.", "INVALID_API_KEY", 401) };
     }
-    if (key.status !== "ACTIVE") return { kind: "denied", response: jsonError("API key is not active.", "API_KEY_INACTIVE", 401) };
-    if (key.owner.role !== "DEVELOPER") return { kind: "denied", response: jsonError("The API account is no longer authorized.", "API_ACCOUNT_UNAUTHORIZED", 403) };
-    if (key.expiresAt && key.expiresAt <= now) return { kind: "denied", response: jsonError("API key has expired.", "API_KEY_EXPIRED", 401) };
-    if (!key.product.enabled || !key.accountGrant.enabled) return { kind: "denied", response: jsonError("API access has been disabled.", "API_ACCESS_DISABLED", 403) };
+    if (key.status !== "ACTIVE") {
+      await recordDeniedApiUsage(repository, key, scope, 401);
+      return { kind: "denied", response: jsonError("API key is not active.", "API_KEY_INACTIVE", 401) };
+    }
+    if (key.owner.role !== "DEVELOPER") {
+      await recordDeniedApiUsage(repository, key, scope, 403);
+      return { kind: "denied", response: jsonError("The API account is no longer authorized.", "API_ACCOUNT_UNAUTHORIZED", 403) };
+    }
+    if (key.owner.apiDeveloperProfile?.status !== "VERIFIED") {
+      await recordDeniedApiUsage(repository, key, scope, 403);
+      return { kind: "denied", response: jsonError("Verified Developer access is required.", "DEVELOPER_NOT_VERIFIED", 403) };
+    }
+    const subscription = key.owner.apiSubscriptions?.[0];
+    if (!key.owner.apiDeveloperProfile.grandfathered && !subscription) {
+      await recordDeniedApiUsage(repository, key, scope, 403);
+      return { kind: "denied", response: jsonError("An active API subscription is required.", "SUBSCRIPTION_REQUIRED", 403) };
+    }
+    if (!key.owner.apiDeveloperProfile.grandfathered && subscription) {
+      const entitlement = subscription.plan.products.find((item) => item.productId === key.productId);
+      if (subscription.plan.status !== "ACTIVE" || !entitlement
+        || key.requestsPerMinute > entitlement.requestsPerMinute
+        || key.dailyQuota > entitlement.dailyQuota || key.monthlyQuota > entitlement.monthlyQuota) {
+        await recordDeniedApiUsage(repository, key, scope, 403);
+        return { kind: "denied", response: jsonError("The active plan does not include this product or quota.", "SUBSCRIPTION_PRODUCT_UNAVAILABLE", 403) };
+      }
+    }
+    if (key.expiresAt && key.expiresAt <= now) {
+      await recordDeniedApiUsage(repository, key, scope, 401);
+      return { kind: "denied", response: jsonError("API key has expired.", "API_KEY_EXPIRED", 401) };
+    }
+    if (!key.product.enabled || !key.accountGrant.enabled) {
+      await recordDeniedApiUsage(repository, key, scope, 403);
+      return { kind: "denied", response: jsonError("API access has been disabled.", "API_ACCESS_DISABLED", 403) };
+    }
     if (!isSubset(key.scopes, key.accountGrant.scopes)
       || key.requestsPerMinute > key.accountGrant.requestsPerMinute
       || key.dailyQuota > key.accountGrant.dailyQuota || key.monthlyQuota > key.accountGrant.monthlyQuota) {
+      await recordDeniedApiUsage(repository, key, scope, 403);
       return { kind: "denied", response: jsonError("API key exceeds the current account grant.", "API_GRANT_CHANGED", 403) };
     }
     if (!key.scopes.includes(scope) || !key.product.endpoints.includes(scope)) {
+      await recordDeniedApiUsage(repository, key, scope, 403);
       return { kind: "denied", response: jsonError("This API key does not have permission for the endpoint.", "INSUFFICIENT_SCOPE", 403) };
     }
     const quota = await reserveUsage(repository, key, now);
     if ("error" in quota && typeof quota.error === "string") {
+      await recordDeniedApiUsage(repository, key, scope, 429);
       return { kind: "denied", response: Response.json({ error: "API quota exceeded.", code: "QUOTA_EXCEEDED", quota: quota.error }, { status: 429, headers: { ...noStore, "Retry-After": quota.error.endsWith("minute") ? "60" : "3600" } }) };
     }
     if (!("remaining" in quota) || !quota.remaining) throw new Error("API quota reservation did not return remaining quota.");
@@ -347,6 +451,7 @@ export async function authenticateApiKey(request: Request, scope: ApiEndpoint, d
         keyId: key.keyId,
         ownerUserId: key.ownerUserId,
         productId: key.productId,
+        planId: key.owner.apiSubscriptions?.[0]?.planId ?? null,
         scopes: key.scopes,
         requestsPerMinute: key.requestsPerMinute,
         dailyQuota: key.dailyQuota,
@@ -368,25 +473,51 @@ export async function withApiKeyAccess(
   dependencies: PlatformDependencies,
   handler: (authentication: Exclude<KeyAuthResult, { kind: "denied" }>) => Promise<Response>,
 ) {
+  const startedAt = performance.now();
   const authentication = await authenticateApiKey(request, scope, dependencies);
   if (authentication.kind === "denied") return authentication.response;
+  let response: Response;
   try {
-    const response = await handler(authentication);
-    if (authentication.kind === "key") {
-      await dependencies.repository().apiKeyUsageWindow.updateMany({
-        where: { apiKeyId: authentication.key.id, windowStart: { in: Object.values(authentication.windows) } },
-        data: { errorCount: { increment: response.status >= 400 ? 1 : 0 } },
-      });
-      await dependencies.repository().apiAccountUsageWindow.updateMany({
-        where: { accountUserId: authentication.key.ownerUserId, productId: authentication.key.productId, windowStart: { in: Object.values(authentication.windows) } },
-        data: { errorCount: { increment: response.status >= 400 ? 1 : 0 } },
-      });
-    }
-    return response;
+    response = await handler(authentication);
   } catch (error) {
     console.error("API-key-protected request could not complete.", { errorType: error instanceof Error ? error.name : "UnknownError" });
-    return jsonError("API request could not be completed.", "API_REQUEST_FAILED", 500);
+    response = jsonError("API request could not be completed.", "API_REQUEST_FAILED", 500);
   }
+  if (authentication.kind === "key") {
+    const repository = dependencies.repository();
+    const errorCount = response.status >= 400 ? 1 : 0;
+    try {
+      await Promise.all([
+        repository.apiKeyUsageWindow.updateMany({
+          where: { apiKeyId: authentication.key.id, windowStart: { in: Object.values(authentication.windows) } },
+          data: { errorCount: { increment: errorCount } },
+        }),
+        repository.apiAccountUsageWindow.updateMany({
+          where: { accountUserId: authentication.key.ownerUserId, productId: authentication.key.productId, windowStart: { in: Object.values(authentication.windows) } },
+          data: { errorCount: { increment: errorCount } },
+        }),
+      ]);
+    } catch (error) {
+      console.error("API-key usage counters could not be updated.", {
+        errorType: error instanceof Error ? error.name : "UnknownError",
+      });
+    }
+    try {
+      await recordApiUsageEvent(
+        repository,
+        authentication.key,
+        scope,
+        response.status,
+        performance.now() - startedAt,
+        authentication.key.planId,
+      );
+    } catch (error) {
+      console.error("API-key request could not be recorded for usage analytics.", {
+        errorType: error instanceof Error ? error.name : "UnknownError",
+      });
+    }
+  }
+  return response;
 }
 
 async function parseBody(request: Request) {
@@ -404,7 +535,7 @@ function safeKey(key: Record<string, unknown>) {
 }
 
 function keyStillAuthorized(key: {
-  owner: { role: string };
+  owner: { role: string; apiDeveloperProfile?: { status: string } | null };
   product: { enabled: boolean; endpoints: string[] };
   accountGrant: { enabled: boolean; scopes: string[]; requestsPerMinute: number; dailyQuota: number; monthlyQuota: number };
   scopes: string[];
@@ -413,6 +544,7 @@ function keyStillAuthorized(key: {
   monthlyQuota: number;
 }) {
   return key.owner.role === "DEVELOPER"
+    && key.owner.apiDeveloperProfile?.status === "VERIFIED"
     && key.product.enabled
     && key.accountGrant.enabled
     && isSubset(key.scopes, key.accountGrant.scopes)
@@ -435,6 +567,14 @@ async function actorCanManageProduct(repository: PrismaClient, actor: AuthUser, 
   return permission?.enabled && permission.canManageAccess
     ? { allowed: true, scopes: permission.scopes, rpm: permission.maxRequestsPerMinute, daily: permission.maxDailyQuota, monthly: permission.maxMonthlyQuota }
     : { allowed: false, scopes: [], rpm: 0, daily: 0, monthly: 0 };
+}
+
+async function verifiedDeveloper(repository: PrismaClient, userId: string) {
+  const profile = await repository.apiDeveloperProfile.findUnique({
+    where: { userId },
+    select: { status: true },
+  });
+  return profile?.status === "VERIFIED";
 }
 
 export async function handleApiProducts(request: Request, actor: AuthUser, dependencies: PlatformDependencies) {
@@ -468,6 +608,9 @@ export async function handleApiProducts(request: Request, actor: AuthUser, depen
     }, { headers: noStore });
   }
   if (actor.role !== "SUPER_ADMIN" && actor.role !== "DEVELOPER") return jsonError("Super Admin or Developer access is required.", "FORBIDDEN", 403);
+  if (actor.role === "DEVELOPER" && !(await verifiedDeveloper(repository, actor.id))) {
+    return jsonError("Verified Developer access is required to manage products.", "DEVELOPER_NOT_VERIFIED", 403);
+  }
   const body = await parseBody(request);
   if (!body || typeof body.slug !== "string" || !/^[a-z0-9-]{2,60}$/.test(body.slug)
     || typeof body.name !== "string" || !body.name.trim() || body.name.trim().length > 100
@@ -573,6 +716,9 @@ export async function handleApiProduct(request: Request, productId: string, acto
     }, { headers: noStore });
   }
   if (actor.role !== "SUPER_ADMIN" && actor.role !== "DEVELOPER") return jsonError("Super Admin or Developer access is required.", "FORBIDDEN", 403);
+  if (actor.role === "DEVELOPER" && !(await verifiedDeveloper(repository, actor.id))) {
+    return jsonError("Verified Developer access is required to manage products.", "DEVELOPER_NOT_VERIFIED", 403);
+  }
   const body = await parseBody(request);
   if (!body) return jsonError("Product update body is invalid.", "INVALID_PRODUCT", 422);
   const current = await repository.apiProduct.findUnique({ where: { id: productId } });
@@ -613,6 +759,9 @@ export async function handleApiProduct(request: Request, productId: string, acto
     if (current.status === "REJECTED") {
       update.status = "PENDING_APPROVAL";
       update.rejectionReason = null;
+    }
+    if (!hasProductChanges(current, update)) {
+      return Response.json({ product: { ...current, approvalStatus: approvalStatus(current.status) } }, { headers: noStore });
     }
     const product = await repository.$transaction(async (transaction) => {
       const updated = await transaction.apiProduct.update({ where: { id: productId }, data: update });
@@ -724,6 +873,9 @@ export async function handleApiProduct(request: Request, productId: string, acto
     update.pricingModel = typeof body.pricingModel === "string" ? body.pricingModel.trim() : null;
   }
   if (!Object.keys(update).length) return jsonError("At least one product field is required.", "INVALID_PRODUCT", 422);
+  if (!hasProductChanges(current, update)) {
+    return Response.json({ product: { ...current, approvalStatus: approvalStatus(current.status) } }, { headers: noStore });
+  }
   const next = { ...current, ...update } as typeof current;
   const [grants, adminPermissions, keys] = await Promise.all([
     repository.apiAccountGrant.findMany({ where: { productId } }),
@@ -879,7 +1031,7 @@ export async function handleApiAdminPermissions(request: Request, actor: AuthUse
 }
 
 async function keyVisibleToActor(repository: PrismaClient, actor: AuthUser, keyId: string) {
-  const key = await repository.apiKey.findUnique({ where: { keyId }, include: { owner: { select: { role: true } }, product: true, accountGrant: true } });
+  const key = await repository.apiKey.findUnique({ where: { keyId }, include: { owner: { select: { role: true, apiDeveloperProfile: { select: { status: true } } } }, product: true, accountGrant: true } });
   if (!key) return null;
   if (actor.role === "SUPER_ADMIN") return key;
   if (actor.role === "DEVELOPER" && key.ownerUserId === actor.id) return key;
@@ -943,6 +1095,9 @@ export async function handleApiKeys(request: Request, actor: AuthUser, dependenc
   }
 
   if (!["DEVELOPER", "ADMIN", "SUPER_ADMIN"].includes(actor.role)) return jsonError("Developer or administrator access is required.", "FORBIDDEN", 403);
+  if (actor.role === "DEVELOPER" && !(await verifiedDeveloper(repository, actor.id))) {
+    return jsonError("Verified Developer access is required to manage API keys.", "DEVELOPER_NOT_VERIFIED", 403);
+  }
   const body = await parseBody(request);
   if (!body || typeof body.ownerUserId !== "string" || typeof body.productId !== "string"
     || typeof body.label !== "string" || !body.label.trim() || body.label.trim().length > 100
@@ -1124,6 +1279,13 @@ export async function handleApiKeyTest(request: Request, dependencies: PlatformD
   const auth = await authenticateApiKey(request, "GET /api/developer/test", dependencies);
   if (auth.kind === "denied") return auth.response;
   if (auth.kind === "session") return jsonError("A valid developer API key is required.", "API_KEY_REQUIRED", 401);
+  try {
+    await recordApiUsageEvent(dependencies.repository(), auth.key, "GET /api/developer/test", 200, 0, auth.key.planId);
+  } catch (error) {
+    console.error("API-key test request could not be recorded for usage analytics.", {
+      errorType: error instanceof Error ? error.name : "UnknownError",
+    });
+  }
   return Response.json({
     authenticated: true,
     keyId: auth.key.keyId,

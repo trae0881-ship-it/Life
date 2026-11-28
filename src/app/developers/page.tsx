@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { LIFE_OPENAPI } from "@/server/openapi";
+import { getCurrentUser } from "@/server/auth";
+import { getPrisma } from "@/server/db";
+import DeveloperApplication from "./DeveloperApplication";
 import "../super-admin/super-admin.css";
 
 export const metadata: Metadata = {
@@ -12,6 +15,14 @@ type DevelopersPageProps = { searchParams: Promise<{ access?: string | string[] 
 export default async function DevelopersPage({ searchParams }: DevelopersPageProps) {
   const params = await searchParams;
   const accessState = typeof params.access === "string" ? params.access : undefined;
+  const user = await getCurrentUser();
+  const profile = user ? await getPrisma().apiDeveloperProfile.findUnique({
+    where: { userId: user.id },
+    select: {
+      userId: true, status: true, organizationName: true, website: true, supportEmail: true,
+      description: true, applicationReason: true, rejectionReason: true, submittedAt: true, reviewedAt: true,
+    },
+  }) : null;
   const accessMessage = accessState === "developer-required"
     ? "This signed-in account does not have Developer permissions. Sign in with an approved Developer account or contact the authorized administrator."
     : accessState === "approval-required"
@@ -30,6 +41,15 @@ export default async function DevelopersPage({ searchParams }: DevelopersPagePro
   return <main className="developers-page">
     <header className="developers-header"><a href="/">✳ LIFE</a><nav aria-label="Developer navigation"><a href="/developer/login">Developer Login</a><a href="/developer/signup">Create Developer Account</a><a href="/developers/dashboard">Developer dashboard</a><a href="/api/docs">Interactive API docs</a><a href="/api/openapi.json">OpenAPI JSON</a></nav></header>
     {accessMessage && <p className="developers-note" role="status">{accessMessage}</p>}
+    <DeveloperApplication
+      userId={user?.id ?? null}
+      role={user?.role ?? null}
+      profile={profile ? {
+        ...profile,
+        submittedAt: profile.submittedAt.toISOString(),
+        reviewedAt: profile.reviewedAt?.toISOString() ?? null,
+      } : null}
+    />
     <section className="developers-hero">
       <p className="super-admin-eyebrow">LIFE · DEVELOPERS</p>
       <h1>Build with LIFE’s documented API</h1>

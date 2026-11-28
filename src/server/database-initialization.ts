@@ -26,6 +26,7 @@ export const REQUIRED_MIGRATIONS = [
   "20261127140000_kundali_report_management",
   "20261128120000_personal_dashboard_activity",
   "20261128150000_api_product_management",
+  "20261129100000_api_ecosystem_phase_6_8",
 ] as const;
 
 const SENSITIVE_TABLES = new Set([
@@ -45,6 +46,11 @@ const SENSITIVE_TABLES = new Set([
   "ApiKey",
   "ApiKeyAuditLog",
   "ApiPlatformAuditLog",
+  "ApiDeveloperProfile",
+  "ApiSubscription",
+  "ApiPayment",
+  "ApiInvoice",
+  "ApiUsageEvent",
 ]);
 
 export type InitializationState =

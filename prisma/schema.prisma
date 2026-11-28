@@ -62,6 +62,48 @@ enum ApiUsageWindowType {
   MONTH
 }
 
+enum ApiDeveloperProfileStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum ApiPlanStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ApiSubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+  SUSPENDED
+}
+
+enum ApiPaymentProvider {
+  MOCK
+}
+
+enum ApiPaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUND_PENDING
+  REFUNDED
+  DISPUTED
+}
+
+enum ApiInvoiceStatus {
+  ISSUED
+  PAID
+  VOID
+  REFUNDED
+}
+
 model User {
   id           String       @id @default(cuid())
   email        String       @unique
@@ -90,6 +132,13 @@ model User {
   apiPlatformAuditLogs ApiPlatformAuditLog[] @relation("ApiPlatformAuditActor")
   apiProducts ApiProduct[] @relation("ApiProductDeveloper")
   apiUsageWindows ApiAccountUsageWindow[]
+  apiDeveloperProfile ApiDeveloperProfile?
+  reviewedApiDeveloperProfiles ApiDeveloperProfile[] @relation("ApiDeveloperProfileReviewer")
+  apiUsageEvents ApiUsageEvent[] @relation("ApiUsageDeveloper")
+  apiPlansCreated ApiPlan[] @relation("ApiPlanCreator")
+  apiPlansUpdated ApiPlan[] @relation("ApiPlanUpdater")
+  apiSubscriptions ApiSubscription[]
+  apiRefundActions ApiPayment[] @relation("ApiPaymentRefundActor")
   kundaliDocument KundaliDocument?
   astrologyReadings SavedAstrologyReading[]
   palmistryRecord     PalmistryRecord?
@@ -123,6 +172,8 @@ model ApiProduct {
   adminPermissions      ApiAdminPermission[]
   apiKeys               ApiKey[]
   accountUsageWindows  ApiAccountUsageWindow[]
+  usageEvents          ApiUsageEvent[]
+  planProducts         ApiPlanProduct[]
 
   @@index([enabled, name])
   @@index([developerUserId, status])
@@ -197,6 +248,7 @@ model ApiKey {
   accountGrant          ApiAccountGrant @relation(fields: [accountGrantId], references: [id], onDelete: Restrict)
   usageWindows          ApiKeyUsageWindow[]
   auditLogs             ApiKeyAuditLog[]
+  usageEvents           ApiUsageEvent[]
 
   @@index([ownerUserId, status])
   @@index([productId, status])
@@ -232,6 +284,173 @@ model ApiAccountUsageWindow {
 
   @@unique([accountUserId, productId, windowType, windowStart])
   @@index([accountUserId, productId, windowStart])
+}
+
+model ApiDeveloperProfile {
+  userId           String @id
+  status           ApiDeveloperProfileStatus @default(PENDING)
+  grandfathered    Boolean @default(false)
+  organizationName String? @db.VarChar(160)
+  website          String? @db.VarChar(2048)
+  supportEmail     String? @db.VarChar(254)
+  description      String? @db.VarChar(2000)
+  applicationReason String? @db.VarChar(1000)
+  rejectionReason  String? @db.VarChar(1000)
+  submittedAt      DateTime @default(now())
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy       User? @relation("ApiDeveloperProfileReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, submittedAt])
+  @@index([reviewedByUserId, reviewedAt])
+}
+
+model ApiPlan {
+  id                    String @id @default(cuid())
+  slug                  String @unique @db.VarChar(60)
+  name                  String @db.VarChar(100)
+  description           String @db.VarChar(1000)
+  status                ApiPlanStatus @default(DRAFT)
+  priceMinorUnits       BigInt?
+  currency              String? @db.VarChar(3)
+  taxRateBasisPoints    Int?
+  periodDays            Int?
+  createdByUserId       String
+  updatedByUserId       String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  createdBy             User @relation("ApiPlanCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy             User @relation("ApiPlanUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  products              ApiPlanProduct[]
+  subscriptions         ApiSubscription[]
+  usageEvents           ApiUsageEvent[]
+
+  @@index([status, createdAt])
+}
+
+model ApiPlanProduct {
+  id                    String @id @default(cuid())
+  planId                String
+  productId             String
+  requestsPerMinute     Int
+  dailyQuota            Int
+  monthlyQuota          Int
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  plan                  ApiPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  product               ApiProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([planId, productId])
+  @@index([productId, planId])
+}
+
+model ApiSubscription {
+  id                    String @id @default(cuid())
+  idempotencyKey        String @unique @db.VarChar(120)
+  developerUserId       String
+  planId                String
+  status                ApiSubscriptionStatus @default(PENDING)
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  cancelAtPeriodEnd     Boolean @default(false)
+  priceMinorUnits       BigInt?
+  currency              String? @db.VarChar(3)
+  taxRateBasisPoints    Int?
+  periodDays            Int?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  developer             User @relation(fields: [developerUserId], references: [id], onDelete: Cascade)
+  plan                  ApiPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  payments              ApiPayment[]
+  invoices              ApiInvoice[]
+
+  @@index([developerUserId, status, createdAt])
+  @@index([status, currentPeriodEnd])
+  @@index([planId, status])
+}
+
+model ApiPayment {
+  id                       String @id @default(cuid())
+  subscriptionId           String
+  provider                 ApiPaymentProvider @default(MOCK)
+  status                   ApiPaymentStatus @default(PENDING)
+  amountMinorUnits         BigInt
+  currency                 String @db.VarChar(3)
+  isSandbox                Boolean @default(true)
+  idempotencyKey           String @unique @db.VarChar(120)
+  providerReference        String? @unique @db.VarChar(200)
+  failureCode              String? @db.VarChar(80)
+  refundedAmountMinorUnits BigInt @default(0)
+  refundReason             String? @db.VarChar(1000)
+  refundRequestedByUserId   String?
+  refundConfirmedAt        DateTime?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  subscription             ApiSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  refundRequestedBy        User? @relation("ApiPaymentRefundActor", fields: [refundRequestedByUserId], references: [id], onDelete: SetNull)
+  invoice                  ApiInvoice?
+
+  @@index([subscriptionId, createdAt])
+  @@index([status, createdAt])
+  @@index([isSandbox, status, createdAt])
+}
+
+model ApiInvoice {
+  id                   String @id @default(cuid())
+  invoiceNumber        String @unique @db.VarChar(40)
+  subscriptionId       String
+  paymentId            String? @unique
+  status               ApiInvoiceStatus @default(ISSUED)
+  subtotalMinorUnits   BigInt
+  taxMinorUnits        BigInt
+  totalMinorUnits      BigInt
+  currency             String @db.VarChar(3)
+  issuedAt             DateTime @default(now())
+  billingSnapshot      Json
+  subscription         ApiSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  payment              ApiPayment? @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@index([subscriptionId, issuedAt])
+  @@index([status, issuedAt])
+}
+
+model ApiProviderEvent {
+  id                String @id @default(cuid())
+  provider          ApiPaymentProvider
+  providerEventId   String @db.VarChar(200)
+  eventType         String @db.VarChar(100)
+  payloadHash       String @db.VarChar(64)
+  outcome           String @db.VarChar(100)
+  processedAt       DateTime @default(now())
+
+  @@unique([provider, providerEventId])
+  @@index([processedAt, provider])
+}
+
+model ApiUsageEvent {
+  id               String @id @default(cuid())
+  requestId        String @unique @db.VarChar(36)
+  apiKeyId         String
+  developerUserId  String
+  productId        String
+  planId           String?
+  endpoint         String @db.VarChar(120)
+  statusCode       Int
+  responseTimeMs   Int
+  occurredAt       DateTime @default(now())
+  apiKey           ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  developer        User @relation("ApiUsageDeveloper", fields: [developerUserId], references: [id], onDelete: Cascade)
+  product          ApiProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  plan             ApiPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@index([developerUserId, occurredAt])
+  @@index([productId, occurredAt])
+  @@index([endpoint, occurredAt])
+  @@index([statusCode, occurredAt])
+  @@index([planId, occurredAt])
 }
 
 model ApiKeyAuditLog {

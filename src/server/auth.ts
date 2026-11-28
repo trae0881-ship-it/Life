@@ -22,9 +22,16 @@ export async function registerAccount(input: { fullName: unknown; email: unknown
   return register(input, repository ?? getPrisma());
 }
 
-export async function registerAccountWithSession(input: { fullName: unknown; email: unknown; password: unknown; confirmPassword: unknown; termsVersion: unknown; acceptedTerms: unknown }, repository: PrismaClient = getPrisma()) {
+export async function registerAccountWithSession(input: { fullName: unknown; email: unknown; password: unknown; confirmPassword: unknown; termsVersion: unknown; acceptedTerms: unknown; developerRequest?: boolean }, repository: PrismaClient = getPrisma()) {
   return repository.$transaction(async (transaction) => {
-    const user = await register(input, transaction);
+    const { developerRequest, ...accountInput } = input;
+    const user = await register(accountInput, transaction);
+    if (developerRequest) {
+      await transaction.apiDeveloperProfile.create({
+        data: { userId: user.id, status: "PENDING" },
+        select: { userId: true },
+      });
+    }
     const session = await create(user.id, transaction);
     return { user, ...session };
   });
